@@ -11,11 +11,18 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-export default function AnomalyChart() {
+interface AnomalyChartProps {
+  selectedFloor: number | 'all';
+}
+
+export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
   const [data, setData] = useState([]);
 
   useEffect(() => {
-    fetch('/api/analytics/energy?period=24h')
+    const url = `/api/analytics/energy?period=24h${
+      selectedFloor !== 'all' ? `&floor=${selectedFloor}` : ''
+    }`;
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         const formatted = data.map(
@@ -29,12 +36,15 @@ export default function AnomalyChart() {
         );
         setData(formatted);
       });
-  }, []);
+  }, [selectedFloor]);
 
   return (
-    <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[400px]'>
-      <h3 className='text-lg font-semibold mb-4'>Energy Usage (Last 24h)</h3>
-      <div className='h-[300px] w-full'>
+    <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[600px]'>
+      <h3 className='text-lg font-semibold mb-4'>
+        Energy Usage (Last 24h){' '}
+        {selectedFloor !== 'all' ? `- Floor ${selectedFloor}` : ''}
+      </h3>
+      <div className='h-[500px] w-full'>
         <ResponsiveContainer width='100%' height='100%'>
           <AreaChart
             data={data}
