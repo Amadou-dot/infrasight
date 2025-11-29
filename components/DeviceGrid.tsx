@@ -17,10 +17,22 @@ const columnHelper = createColumnHelper<IDevice>();
 
 interface DeviceGridProps {
   selectedFloor: number | 'all';
+  selectedRoom?: string | 'all';
 }
 
-export default function DeviceGrid({ selectedFloor }: DeviceGridProps) {
+interface Reading {
+  _id: string; // device_id
+  value: number;
+  timestamp: string;
+  type: string;
+}
+
+export default function DeviceGrid({
+  selectedFloor,
+  selectedRoom = 'all',
+}: DeviceGridProps) {
   const [data, setData] = useState<IDevice[]>([]);
+  const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
 
@@ -30,13 +42,21 @@ export default function DeviceGrid({ selectedFloor }: DeviceGridProps) {
     setFilterType('all');
   }, [selectedFloor]);
 
+  // Sync selectedRoom prop with internal filter
+  useEffect(() => {
+    if (selectedRoom && selectedRoom !== 'all') {
+      setFilterRoom(selectedRoom);
+    } else if (selectedRoom === 'all') {
+      setFilterRoom('all');
+    }
+  }, [selectedRoom]);
+
   // Advanced filters
   const [filterRoom, setFilterRoom] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 
   // Metadata options
-  // Metadata options derived from data and selectedFloor
   const rooms = useMemo(() => {
     const filtered =
       selectedFloor === 'all'
@@ -58,6 +78,31 @@ export default function DeviceGrid({ selectedFloor }: DeviceGridProps) {
       .then(res => res.json())
       .then(setData);
   }, []);
+
+  useEffect(() => {
+    const fetchReadings = async () => {
+      try {
+        const res = await fetch('/api/readings/latest');
+        const data = await res.json();
+        const readingMap = data.reduce(
+          (acc: Record<string, Reading>, curr: Reading) => {
+            acc[curr._id] = curr;
+            return acc;
+          },
+          {} as Record<string, Reading>
+        );
+        setReadings(readingMap);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    if (data.length > 0) {
+      fetchReadings();
+      const interval = setInterval(fetchReadings, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [data]);
 
   const filteredData = useMemo(() => {
     return data.filter(device => {
@@ -90,40 +135,94 @@ export default function DeviceGrid({ selectedFloor }: DeviceGridProps) {
             </button>
           );
         },
+        cell: info => <span className='font-medium'>{info.getValue()}</span>,
+      }),
+      columnHelper.accessor('floor', {
+        header: 'Floor',
         cell: info => info.getValue(),
       }),
       columnHelper.accessor('type', {
         header: 'Type',
         cell: info => <span className='capitalize'>{info.getValue()}</span>,
       }),
-      columnHelper.accessor('floor', {
-        header: 'Floor',
-        cell: info => info.getValue(),
-      }),
-      columnHelper.accessor('status', {
+      columnHelper.display({
+        id: 'status',
         header: 'Status',
         cell: info => {
-          const status = info.getValue();
+          const device = info.row.original;
+          const reading = readings[device._id];
+
+          let statusColor = 'bg-gray-400';
+          let statusText = 'Unknown';
+
+          if (device.status === 'offline') {
+            statusColor = 'bg-gray-400';
+            statusText = 'Offline';
+          } else if (reading) {
+            if (reading.value > device.configuration.threshold_critical) {
+              statusColor = 'bg-red-500';
+              statusText = 'Critical';
+            } else if (reading.value > device.configuration.threshold_warning) {
+              statusColor = 'bg-yellow-400';
+              statusText = 'Warning';
+            } else {
+              statusColor = 'bg-green-500';
+              statusText = 'OK';
+            }
+          } else {
+            statusColor = 'bg-green-500'; // Default active
+            statusText = 'Active';
+          }
+
           return (
-            <span
-              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                status === 'active'
-                  ? 'bg-green-100 text-green-700'
-                  : status === 'offline'
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-yellow-100 text-yellow-700'
-              }`}>
-              {status}
+            <div className='flex items-center gap-2'>
+              <span className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
+              <span className='text-sm text-gray-600 capitalize'>
+                {statusText}
+              </span>
+            </div>
+          );
+        },
+      }),
+      columnHelper.display({
+        id: 'current_value',
+        header: 'Current Value',
+        cell: info => {
+          const device = info.row.original;
+          const reading = readings[device._id];
+          if (!reading) return <span className='text-gray-400'>--</span>;
+
+          let unit = '';
+          if (device.type === 'temperature') unit = '°F';
+          if (device.type === 'humidity') unit = '%';
+          if (device.type === 'power') unit = ' kW';
+
+          return (
+            <span className='font-mono font-medium text-gray-900'>
+              {reading.value}
+              {unit}
             </span>
           );
         },
       }),
       columnHelper.accessor('configuration.threshold_critical', {
         header: 'Critical Threshold',
-        cell: info => info.getValue(),
+        cell: info => {
+          const device = info.row.original;
+          let unit = '';
+          if (device.type === 'temperature') unit = '°F';
+          if (device.type === 'humidity') unit = '%';
+          if (device.type === 'power') unit = ' kW';
+          return (
+            <span className='text-gray-500'>
+              {info.getValue()}
+              {unit}
+            </span>
+          );
+        },
       }),
     ],
-    []
+    [readings]
   );
 
   const table = useReactTable({
