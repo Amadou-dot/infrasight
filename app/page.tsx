@@ -9,6 +9,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 export default function Home() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
+  const [selectedRoom, setSelectedRoom] = useState<string | 'all'>('all');
   const [floors, setFloors] = useState<number[]>([]);
 
   useEffect(() => {
@@ -19,8 +20,13 @@ export default function Home() {
       });
   }, []);
 
+  // Reset room selection when floor changes
+  useEffect(() => {
+    setSelectedRoom('all');
+  }, [selectedFloor]);
+
   return (
-    <main className='min-h-screen bg-gray-100 p-4 md:p-8 font-sans'>
+    <main className='min-h-screen bg-gray-50 p-4 md:p-8 font-sans'>
       <ToastContainer
         position='bottom-center'
         autoClose={false}
@@ -60,12 +66,15 @@ export default function Home() {
       </header>
 
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8'>
-        <FloorPlan selectedFloor={selectedFloor} />
+        <FloorPlan
+          selectedFloor={selectedFloor}
+          onDeviceClick={room => setSelectedRoom(room)}
+        />
         <AnomalyChart selectedFloor={selectedFloor} />
       </div>
 
       <div className='w-full'>
-        <DeviceGrid selectedFloor={selectedFloor} />
+        <DeviceGrid selectedFloor={selectedFloor} selectedRoom={selectedRoom} />
       </div>
     </main>
   );
