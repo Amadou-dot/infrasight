@@ -74,7 +74,11 @@ export default function Home() {
       </div>
 
       <div className='w-full'>
-        <DeviceGrid selectedFloor={selectedFloor} selectedRoom={selectedRoom} />
+        <DeviceGrid
+          selectedFloor={selectedFloor}
+          selectedRoom={selectedRoom}
+          onClearRoomFilter={() => setSelectedRoom('all')}
+        />{' '}
       </div>
     </main>
   );

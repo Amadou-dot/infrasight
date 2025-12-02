@@ -18,6 +18,7 @@ const columnHelper = createColumnHelper<IDevice>();
 interface DeviceGridProps {
   selectedFloor: number | 'all';
   selectedRoom?: string | 'all';
+  onClearRoomFilter?: () => void;
 }
 
 interface Reading {
@@ -30,6 +31,7 @@ interface Reading {
 export default function DeviceGrid({
   selectedFloor,
   selectedRoom = 'all',
+  onClearRoomFilter,
 }: DeviceGridProps) {
   const [data, setData] = useState<IDevice[]>([]);
   const [readings, setReadings] = useState<Record<string, Reading>>({});
@@ -242,7 +244,33 @@ export default function DeviceGrid({
   return (
     <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm'>
       <div className='flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4'>
-        <h3 className='text-lg font-semibold'>Device Health Grid</h3>
+        <div className='flex items-center gap-3'>
+          <h3 className='text-lg font-semibold'>Device Health Grid</h3>
+          {selectedRoom && selectedRoom !== 'all' && (
+            <div className='flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium'>
+              Room: {selectedRoom}
+              <button
+                onClick={onClearRoomFilter}
+                className='hover:bg-blue-100 rounded-full p-0.5 transition-colors'
+                title='Clear filter'>
+                <span className='sr-only'>Clear filter</span>
+                <svg
+                  xmlns='http://www.w3.org/2000/svg'
+                  width='14'
+                  height='14'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'>
+                  <line x1='18' y1='6' x2='6' y2='18'></line>
+                  <line x1='6' y1='6' x2='18' y2='18'></line>
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className='flex flex-wrap gap-2 w-full md:w-auto'>
           {/* Search */}
