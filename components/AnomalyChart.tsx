@@ -16,7 +16,8 @@ interface AnomalyChartProps {
 }
 
 export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<{ time: string; value: number }[]>([]);
+  const [isSpiking, setIsSpiking] = useState(false);
 
   useEffect(() => {
     const url = `/api/analytics/energy?period=24h${
@@ -25,9 +26,6 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
     fetch(url)
       .then(res => res.json())
       .then(data => {
-        // Simulate 24h data if the API returns sparse data for demo purposes
-        // In a real app, we'd trust the API.
-        // For now, let's just format what we get.
         const formatted = data.map(
           (d: { timestamp: string; value: number }) => ({
             ...d,
@@ -38,15 +36,34 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
           })
         );
         setData(formatted);
+
+        // Check for spike (current > 1.2 * average)
+        if (formatted.length > 0) {
+          const values = formatted.map((d: { value: number }) => d.value);
+          const avg =
+            values.reduce((a: number, b: number) => a + b, 0) / values.length;
+          const current = values[values.length - 1];
+          setIsSpiking(current > avg * 1.2);
+        }
       });
   }, [selectedFloor]);
 
+  const primaryColor = isSpiking ? '#f97316' : '#6366f1'; // Orange-500 vs Indigo-500
+  const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400
+
   return (
     <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[600px] flex flex-col'>
-      <h3 className='text-lg font-semibold mb-1'>
-        Energy Usage
-        {selectedFloor !== 'all' ? ` - Floor ${selectedFloor}` : ''}
-      </h3>
+      <div className='flex justify-between items-start mb-1'>
+        <h3 className='text-lg font-semibold'>
+          Energy Usage
+          {selectedFloor !== 'all' ? ` - Floor ${selectedFloor}` : ''}
+        </h3>
+        {isSpiking && (
+          <span className='bg-orange-100 text-orange-700 text-xs font-medium px-2 py-1 rounded-full animate-pulse'>
+            High Usage Detected
+          </span>
+        )}
+      </div>
       <p className='text-sm text-gray-500 mb-6'>Last 24 Hours</p>
 
       <div className='flex-1 min-h-0'>
@@ -56,8 +73,8 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id='colorValue' x1='0' y1='0' x2='0' y2='1'>
-                <stop offset='5%' stopColor='#818cf8' stopOpacity={0.3} />
-                <stop offset='95%' stopColor='#818cf8' stopOpacity={0} />
+                <stop offset='5%' stopColor={gradientColor} stopOpacity={0.3} />
+                <stop offset='95%' stopColor={gradientColor} stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis
@@ -92,13 +109,13 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
                 border: '1px solid #e5e7eb',
                 boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
               }}
-              itemStyle={{ color: '#6366f1' }}
+              itemStyle={{ color: primaryColor }}
               formatter={(value: number) => [`${value} kWh`, 'Energy']}
             />
             <Area
               type='monotone'
               dataKey='value'
-              stroke='#6366f1'
+              stroke={primaryColor}
               strokeWidth={2}
               fillOpacity={1}
               fill='url(#colorValue)'
