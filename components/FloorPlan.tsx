@@ -34,6 +34,22 @@ export default function FloorPlan({
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const alertedDevices = useRef<Set<string>>(new Set());
 
+  // UI State
+  const [collapsedFloors, setCollapsedFloors] = useState<Set<number>>(
+    new Set()
+  );
+  const [showIssuesOnly, setShowIssuesOnly] = useState(false);
+
+  const toggleFloor = (floor: number) => {
+    const newCollapsed = new Set(collapsedFloors);
+    if (newCollapsed.has(floor)) {
+      newCollapsed.delete(floor);
+    } else {
+      newCollapsed.add(floor);
+    }
+    setCollapsedFloors(newCollapsed);
+  };
+
   useEffect(() => {
     fetch('/api/devices')
       .then(res => res.json())
@@ -175,57 +191,102 @@ export default function FloorPlan({
   return (
     <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[600px] flex flex-col'>
       <div className='flex justify-between items-center mb-4'>
-        <h3 className='text-lg font-semibold'>Live Device Status</h3>
+        <div className='flex items-center gap-4'>
+          <h3 className='text-lg font-semibold'>Live Device Status</h3>
+          <label className='flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none'>
+            <div className='relative inline-flex items-center cursor-pointer'>
+              <input
+                type='checkbox'
+                className='sr-only peer'
+                checked={showIssuesOnly}
+                onChange={e => setShowIssuesOnly(e.target.checked)}
+              />
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+            </div>
+            Show Issues Only
+          </label>
+        </div>
         <span className='text-xs text-gray-400'>
           {Object.keys(readings).length > 0 ? 'Live' : 'Connecting...'}
         </span>
       </div>
 
-      <div className='flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar'>
-        {sortedFloors.map(floor => (
-          <div key={floor}>
-            {selectedFloor === 'all' && (
-              <h4 className='text-sm font-medium text-gray-500 mb-3 sticky top-0 bg-white py-2 z-10'>
-                Floor {floor}
-              </h4>
-            )}
-            <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3'>
-              {groupedDevices[floor].map(device => {
-                const reading = readings[device._id];
-                const status = getStatusInfo(device, reading?.value);
+      <div className='flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar'>
+        {sortedFloors.map(floor => {
+          const floorDevices = groupedDevices[floor].filter(d => {
+            if (!showIssuesOnly) return true;
+            const reading = readings[d._id];
+            const status = getStatusInfo(d, reading?.value);
+            return status.text !== 'Normal' && status.text !== 'Offline';
+          });
 
-                return (
-                  <div
-                    key={device._id}
-                    onClick={() => onDeviceClick?.(device.room_name)}
-                    className={`p-3 rounded-lg border transition-all duration-200 ${status.color} flex flex-col gap-2 cursor-pointer hover:shadow-md`}>
-                    <div className='flex justify-between items-start'>
-                      <div className='flex items-center gap-2 text-gray-600'>
-                        {getDeviceIcon(device.type)}
-                        <span className='text-xs font-medium truncate max-w-[80px]'>
-                          {device.room_name}
-                        </span>
-                      </div>
-                      {status.icon}
-                    </div>
+          if (showIssuesOnly && floorDevices.length === 0) return null;
 
-                    <div className='mt-1'>
-                      <div className='text-2xl font-bold text-gray-900'>
-                        {reading
-                          ? getFormattedValue(device, reading.value)
-                          : '--'}
-                      </div>
-                      <div
-                        className={`text-xs ${status.textColor} font-medium`}>
-                        {device.type}
-                      </div>
-                    </div>
+          const isCollapsed = collapsedFloors.has(floor);
+
+          return (
+            <div
+              key={floor}
+              className='border border-gray-100 rounded-lg overflow-hidden'>
+              <div
+                className='bg-gray-50 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors'
+                onClick={() => toggleFloor(floor)}>
+                <h4 className='text-sm font-medium text-gray-700'>
+                  Floor {floor}{' '}
+                  <span className='text-gray-400 font-normal ml-2'>
+                    ({floorDevices.length} devices)
+                  </span>
+                </h4>
+                <span
+                  className={`text-gray-400 transform transition-transform ${
+                    isCollapsed ? '-rotate-90' : 'rotate-0'
+                  }`}>
+                  ▼
+                </span>
+              </div>
+
+              {!isCollapsed && (
+                <div className='p-3 bg-white'>
+                  <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3'>
+                    {floorDevices.map(device => {
+                      const reading = readings[device._id];
+                      const status = getStatusInfo(device, reading?.value);
+
+                      return (
+                        <div
+                          key={device._id}
+                          onClick={() => onDeviceClick?.(device.room_name)}
+                          className={`p-3 rounded-lg border transition-all duration-200 ${status.color} flex flex-col gap-2 cursor-pointer hover:shadow-md`}>
+                          <div className='flex justify-between items-start'>
+                            <div className='flex items-center gap-2 text-gray-600'>
+                              {getDeviceIcon(device.type)}
+                              <span className='text-xs font-medium truncate max-w-[80px]'>
+                                {device.room_name}
+                              </span>
+                            </div>
+                            {status.icon}
+                          </div>
+
+                          <div className='mt-1'>
+                            <div className='text-2xl font-bold text-gray-900'>
+                              {reading
+                                ? getFormattedValue(device, reading.value)
+                                : '--'}
+                            </div>
+                            <div
+                              className={`text-xs ${status.textColor} font-medium`}>
+                              {device.type}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {sortedFloors.length === 0 && (
           <div className='flex items-center justify-center h-full text-gray-400'>
