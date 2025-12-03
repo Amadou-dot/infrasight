@@ -137,8 +137,8 @@ export default function DeviceGrid({
           {} as Record<string, Reading>
         );
         setReadings(readingMap);
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error('Error fetching latest readings:', error);
       }
     };
 

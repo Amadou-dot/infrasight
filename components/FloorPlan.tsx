@@ -80,8 +80,8 @@ export default function FloorPlan({
           {} as Record<string, Reading>
         );
         setReadings(readingMap);
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error('Error fetching latest readings:', error);
       }
     };
 
