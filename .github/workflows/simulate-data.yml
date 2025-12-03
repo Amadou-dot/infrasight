@@ -1,0 +1,18 @@
+name: Simulate IoT Data
+
+on:
+  schedule:
+    # Runs every minute
+    - cron: '* * * * *'
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Call simulation endpoint
+        run: |
+          curl -X GET https://infrasight.aseck.dev/api/cron/simulate \
+            -H "Content-Type: application/json" \
+            -f || echo "Request failed"
