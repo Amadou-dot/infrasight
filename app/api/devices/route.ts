@@ -10,6 +10,23 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status');
   const sort = searchParams.get('sort'); // e.g. 'room_name:asc'
 
+  // Validate floor parameter
+  if (floor && (isNaN(parseInt(floor)) || parseInt(floor) < 1)) {
+    return NextResponse.json(
+      { error: 'Invalid floor parameter' },
+      { status: 400 }
+    );
+  }
+
+  // Validate status parameter
+  const validStatuses = ['active', 'maintenance', 'offline'];
+  if (status && !validStatuses.includes(status)) {
+    return NextResponse.json(
+      { error: 'Invalid status parameter. Must be: active, maintenance, or offline' },
+      { status: 400 }
+    );
+  }
+
   const query: Record<string, string | number> = {};
   if (floor) query.floor = parseInt(floor);
   if (status) query.status = status;
@@ -26,6 +43,7 @@ export async function GET(request: NextRequest) {
     const devices = await Device.find(query).sort(sortOption);
     return NextResponse.json(devices);
   } catch (error) {
+    console.error('Error fetching devices:', error);
     return NextResponse.json(
       { error: 'Failed to fetch devices' },
       { status: 500 }

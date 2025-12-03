@@ -2,6 +2,7 @@
 import Pusher from 'pusher-js';
 
 import { useEffect, useState } from 'react';
+import { getPusherClient } from '@/lib/pusher-client';
 import {
   AreaChart,
   Area,
@@ -61,10 +62,7 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
 
   // Real-time updates
   useEffect(() => {
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-    });
-
+    const pusher = getPusherClient();
     const channel = pusher.subscribe('InfraSight');
 
     channel.bind('new-readings', (newReadings: PusherReading[]) => {

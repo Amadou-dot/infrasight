@@ -37,18 +37,26 @@ async function dbConnect() {
   if (!cached!.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     };
 
     cached!.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
+      console.log('MongoDB connected successfully');
       return mongoose;
+    }).catch((error) => {
+      console.error('MongoDB connection error:', error);
+      cached!.promise = null;
+      throw new Error('Failed to connect to MongoDB');
     });
   }
 
   try {
     cached!.conn = await cached!.promise;
-  } catch (e) {
+  } catch (error) {
     cached!.promise = null;
-    throw e;
+    console.error('Database connection failed:', error);
+    throw error;
   }
 
   return cached!.conn;
