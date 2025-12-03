@@ -1,4 +1,5 @@
 'use client';
+import Pusher from 'pusher-js';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { IDevice } from '@/models/Device';
@@ -66,6 +67,7 @@ export default function FloorPlan({
   }, []);
 
   useEffect(() => {
+    // Initial fetch
     const fetchReadings = async () => {
       try {
         const res = await fetch('/api/readings/latest');
@@ -78,35 +80,6 @@ export default function FloorPlan({
           {} as Record<string, Reading>
         );
         setReadings(readingMap);
-
-        // Check for alerts
-        devices.forEach(device => {
-          const reading = readingMap[device._id];
-          if (reading && device.type === 'temperature') {
-            if (reading.value > device.configuration.threshold_critical) {
-              if (!alertedDevices.current.has(device._id + '_critical')) {
-                toast.error(
-                  `CRITICAL: ${device.room_name} is ${reading.value}°F!`
-                );
-                alertedDevices.current.add(device._id + '_critical');
-                alertedDevices.current.delete(device._id + '_warning');
-              }
-            } else if (reading.value > device.configuration.threshold_warning) {
-              if (
-                !alertedDevices.current.has(device._id + '_warning') &&
-                !alertedDevices.current.has(device._id + '_critical')
-              ) {
-                toast.warn(
-                  `WARNING: ${device.room_name} is ${reading.value}°F`
-                );
-                alertedDevices.current.add(device._id + '_warning');
-              }
-            } else {
-              alertedDevices.current.delete(device._id + '_critical');
-              alertedDevices.current.delete(device._id + '_warning');
-            }
-          }
-        });
       } catch (e) {
         console.error(e);
       }
