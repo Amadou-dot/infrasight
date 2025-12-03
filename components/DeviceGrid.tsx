@@ -14,8 +14,6 @@ import {
 import { IDevice } from '@/models/Device';
 import {
   ArrowUpDown,
-  Search,
-  Filter,
   ChevronDown,
   ChevronUp,
   Thermometer,

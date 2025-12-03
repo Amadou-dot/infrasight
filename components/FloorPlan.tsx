@@ -9,7 +9,6 @@ import {
   Zap,
   Users,
   Activity,
-  Server,
   AlertTriangle,
   CheckCircle,
 } from 'lucide-react';
