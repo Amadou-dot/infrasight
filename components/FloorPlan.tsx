@@ -1,4 +1,5 @@
 'use client';
+import Pusher from 'pusher-js';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { IDevice } from '@/models/Device';
@@ -9,7 +10,6 @@ import {
   Zap,
   Users,
   Activity,
-  Server,
   AlertTriangle,
   CheckCircle,
 } from 'lucide-react';
@@ -19,6 +19,15 @@ interface Reading {
   value: number;
   timestamp: string;
   type: string;
+}
+
+interface PusherReading {
+  metadata: {
+    device_id: string;
+    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
+  };
+  timestamp: string;
+  value: number;
 }
 
 interface FloorPlanProps {
@@ -39,6 +48,7 @@ export default function FloorPlan({
     new Set()
   );
   const [showIssuesOnly, setShowIssuesOnly] = useState(false);
+  const [initializedCollapse, setInitializedCollapse] = useState(false);
 
   const toggleFloor = (floor: number) => {
     const newCollapsed = new Set(collapsedFloors);
@@ -57,6 +67,7 @@ export default function FloorPlan({
   }, []);
 
   useEffect(() => {
+    // Initial fetch
     const fetchReadings = async () => {
       try {
         const res = await fetch('/api/readings/latest');
@@ -69,35 +80,6 @@ export default function FloorPlan({
           {} as Record<string, Reading>
         );
         setReadings(readingMap);
-
-        // Check for alerts
-        devices.forEach(device => {
-          const reading = readingMap[device._id];
-          if (reading && device.type === 'temperature') {
-            if (reading.value > device.configuration.threshold_critical) {
-              if (!alertedDevices.current.has(device._id + '_critical')) {
-                toast.error(
-                  `CRITICAL: ${device.room_name} is ${reading.value}°F!`
-                );
-                alertedDevices.current.add(device._id + '_critical');
-                alertedDevices.current.delete(device._id + '_warning');
-              }
-            } else if (reading.value > device.configuration.threshold_warning) {
-              if (
-                !alertedDevices.current.has(device._id + '_warning') &&
-                !alertedDevices.current.has(device._id + '_critical')
-              ) {
-                toast.warn(
-                  `WARNING: ${device.room_name} is ${reading.value}°F`
-                );
-                alertedDevices.current.add(device._id + '_warning');
-              }
-            } else {
-              alertedDevices.current.delete(device._id + '_critical');
-              alertedDevices.current.delete(device._id + '_warning');
-            }
-          }
-        });
       } catch (e) {
         console.error(e);
       }
@@ -105,10 +87,68 @@ export default function FloorPlan({
 
     if (devices.length > 0) {
       fetchReadings();
-      const interval = setInterval(fetchReadings, 2000);
-      return () => clearInterval(interval);
     }
   }, [devices]);
+
+  // Real-time updates with Pusher
+  useEffect(() => {
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    });
+
+    const channel = pusher.subscribe('InfraSight');
+
+    channel.bind('new-readings', (newReadings: PusherReading[]) => {
+      setReadings(prev => {
+        const next = { ...prev };
+        newReadings.forEach(reading => {
+          const deviceId = reading.metadata.device_id;
+          next[deviceId] = {
+            _id: deviceId,
+            value: reading.value,
+            timestamp: reading.timestamp,
+            type: reading.metadata.type,
+          };
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      pusher.unsubscribe('InfraSight');
+    };
+  }, []);
+
+  // Check for alerts when readings change
+  useEffect(() => {
+    devices.forEach(device => {
+      const reading = readings[device._id];
+      if (reading && device.type === 'temperature') {
+        if (reading.value > device.configuration.threshold_critical) {
+          if (!alertedDevices.current.has(device._id + '_critical')) {
+            toast.error(
+              `CRITICAL: ${device.room_name} is ${reading.value}°F!`
+            );
+            alertedDevices.current.add(device._id + '_critical');
+            alertedDevices.current.delete(device._id + '_warning');
+          }
+        } else if (reading.value > device.configuration.threshold_warning) {
+          if (
+            !alertedDevices.current.has(device._id + '_warning') &&
+            !alertedDevices.current.has(device._id + '_critical')
+          ) {
+            toast.warn(
+              `WARNING: ${device.room_name} is ${reading.value}°F`
+            );
+            alertedDevices.current.add(device._id + '_warning');
+          }
+        } else {
+          alertedDevices.current.delete(device._id + '_critical');
+          alertedDevices.current.delete(device._id + '_warning');
+        }
+      }
+    });
+  }, [devices, readings]);
 
   const getDeviceIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -187,6 +227,15 @@ export default function FloorPlan({
   const sortedFloors = Object.keys(groupedDevices)
     .map(Number)
     .sort((a, b) => a - b);
+
+  // Initialize collapsed floors (all except first)
+  useEffect(() => {
+    if (!initializedCollapse && sortedFloors.length > 0) {
+      const floorsToCollapse = sortedFloors.slice(1); // All floors except first
+      setCollapsedFloors(new Set(floorsToCollapse));
+      setInitializedCollapse(true);
+    }
+  }, [sortedFloors, initializedCollapse]);
 
   return (
     <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[600px] flex flex-col'>

@@ -1,4 +1,5 @@
 'use client';
+import Pusher from 'pusher-js';
 
 import { useEffect, useState } from 'react';
 import {
@@ -9,10 +10,20 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts';
 
 interface AnomalyChartProps {
   selectedFloor: number | 'all';
+}
+
+interface PusherReading {
+  metadata: {
+    device_id: string;
+    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
+  };
+  timestamp: string;
+  value: number;
 }
 
 export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
@@ -48,6 +59,54 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
       });
   }, [selectedFloor]);
 
+  // Real-time updates
+  useEffect(() => {
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    });
+
+    const channel = pusher.subscribe('InfraSight');
+
+    channel.bind('new-readings', (newReadings: PusherReading[]) => {
+      // Only proceed if there's a power reading in the batch
+      const hasPowerReadings = newReadings.some(
+        r => r.metadata.type === 'power'
+      );
+      if (hasPowerReadings) {
+        // Re-fetch data to keep it consistent with the aggregation logic
+        const url = `/api/analytics/energy?period=24h${
+          selectedFloor !== 'all' ? `&floor=${selectedFloor}` : ''
+        }`;
+        fetch(url)
+          .then(res => res.json())
+          .then(data => {
+            const formatted = data.map(
+              (d: { timestamp: string; value: number }) => ({
+                ...d,
+                time: new Date(d.timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+              })
+            );
+            setData(formatted);
+            if (formatted.length > 0) {
+              const values = formatted.map((d: { value: number }) => d.value);
+              const avg =
+                values.reduce((a: number, b: number) => a + b, 0) /
+                values.length;
+              const current = values[values.length - 1];
+              setIsSpiking(current > avg * 1.2);
+            }
+          });
+      }
+    });
+
+    return () => {
+      pusher.unsubscribe('InfraSight');
+    };
+  }, [selectedFloor]);
+
   const primaryColor = isSpiking ? '#f97316' : '#6366f1'; // Orange-500 vs Indigo-500
   const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400
 
@@ -73,7 +132,7 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id='colorValue' x1='0' y1='0' x2='0' y2='1'>
-                <stop offset='5%' stopColor={gradientColor} stopOpacity={0.3} />
+                <stop offset='5%' stopColor={gradientColor} stopOpacity={0.8} />
                 <stop offset='95%' stopColor={gradientColor} stopOpacity={0} />
               </linearGradient>
             </defs>
@@ -90,6 +149,7 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
               tickLine={false}
               axisLine={false}
               tick={{ fill: '#9ca3af' }}
+              domain={['dataMin - 5', 'dataMax + 5']}
               label={{
                 value: 'kWh',
                 angle: -90,
@@ -100,17 +160,30 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
             <CartesianGrid
               strokeDasharray='3 3'
               vertical={false}
-              stroke='#f3f4f6'
+              stroke='#E5E7EB'
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: '#fff',
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className='bg-white p-3 border border-gray-200 shadow-lg rounded-lg'>
+                      <p className='text-sm font-medium text-gray-900'>
+                        {label}
+                      </p>
+                      <p className='text-sm text-indigo-600 font-semibold'>
+                        {payload[0].value} kWh
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
               }}
-              itemStyle={{ color: primaryColor }}
-              formatter={(value: number) => [`${value} kWh`, 'Energy']}
+            />
+            <ReferenceLine
+              y={100}
+              label='CRITICAL'
+              stroke='red'
+              strokeDasharray='3 3'
             />
             <Area
               type='monotone'
