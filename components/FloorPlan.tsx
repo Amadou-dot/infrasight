@@ -1,7 +1,7 @@
 'use client';
-import Pusher from 'pusher-js';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
+import { getPusherClient } from '@/lib/pusher-client';
 import { IDevice } from '@/models/Device';
 import { toast } from 'react-toastify';
 import {
@@ -92,10 +92,7 @@ export default function FloorPlan({
 
   // Real-time updates with Pusher
   useEffect(() => {
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-    });
-
+    const pusher = getPusherClient();
     const channel = pusher.subscribe('InfraSight');
 
     channel.bind('new-readings', (newReadings: PusherReading[]) => {

@@ -1,7 +1,7 @@
 'use client';
-import Pusher from 'pusher-js';
 
 import { useEffect, useState, useMemo } from 'react';
+import { getPusherClient } from '@/lib/pusher-client';
 import {
   useReactTable,
   getCoreRowModel,
@@ -149,10 +149,7 @@ export default function DeviceGrid({
 
   // Real-time updates with Pusher
   useEffect(() => {
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-    });
-
+    const pusher = getPusherClient();
     const channel = pusher.subscribe('InfraSight');
 
     channel.bind('new-readings', (newReadings: PusherReading[]) => {
