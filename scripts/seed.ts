@@ -41,7 +41,12 @@ async function seed() {
       floor: floor,
       room_name: `${room} ${Math.floor(Math.random() * 100)}`,
       type: type,
-      status: Math.random() > 0.9 ? 'offline' : 'active',
+      status:
+        Math.random() > 0.95
+          ? 'offline'
+          : Math.random() > 0.9
+          ? 'maintenance'
+          : 'active',
       install_date: new Date(),
       configuration: {
         threshold_warning: type === 'temperature' ? 80 : 70,

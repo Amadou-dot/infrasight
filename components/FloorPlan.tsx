@@ -39,6 +39,7 @@ export default function FloorPlan({
     new Set()
   );
   const [showIssuesOnly, setShowIssuesOnly] = useState(false);
+  const [initializedCollapse, setInitializedCollapse] = useState(false);
 
   const toggleFloor = (floor: number) => {
     const newCollapsed = new Set(collapsedFloors);
@@ -187,6 +188,15 @@ export default function FloorPlan({
   const sortedFloors = Object.keys(groupedDevices)
     .map(Number)
     .sort((a, b) => a - b);
+
+  // Initialize collapsed floors (all except first)
+  useEffect(() => {
+    if (!initializedCollapse && sortedFloors.length > 0) {
+      const floorsToCollapse = sortedFloors.slice(1); // All floors except first
+      setCollapsedFloors(new Set(floorsToCollapse));
+      setInitializedCollapse(true);
+    }
+  }, [sortedFloors, initializedCollapse]);
 
   return (
     <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[600px] flex flex-col'>
