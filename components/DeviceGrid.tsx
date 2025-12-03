@@ -59,6 +59,15 @@ interface Reading {
   type: string;
 }
 
+interface PusherReading {
+  metadata: {
+    device_id: string;
+    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
+  };
+  timestamp: string;
+  value: number;
+}
+
 export default function DeviceGrid({
   selectedFloor,
   selectedRoom = 'all',
@@ -148,15 +157,10 @@ export default function DeviceGrid({
 
     const channel = pusher.subscribe('InfraSight');
 
-    channel.bind('new-readings', (newReadings: any[]) => {
+    channel.bind('new-readings', (newReadings: PusherReading[]) => {
       setReadings(prev => {
         const next = { ...prev };
         newReadings.forEach(reading => {
-          // The reading object structure from Pusher might match the DB schema
-          // We need to map it to our local Reading interface if necessary
-          // Our local interface: { _id: string (device_id), value: number, timestamp: string, type: string }
-          // The incoming reading: { metadata: { device_id, type }, value, timestamp }
-
           const deviceId = reading.metadata.device_id;
           next[deviceId] = {
             _id: deviceId,

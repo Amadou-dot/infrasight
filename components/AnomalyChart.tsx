@@ -17,6 +17,15 @@ interface AnomalyChartProps {
   selectedFloor: number | 'all';
 }
 
+interface PusherReading {
+  metadata: {
+    device_id: string;
+    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
+  };
+  timestamp: string;
+  value: number;
+}
+
 export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
   const [data, setData] = useState<{ time: string; value: number }[]>([]);
   const [isSpiking, setIsSpiking] = useState(false);
@@ -58,25 +67,8 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
 
     const channel = pusher.subscribe('InfraSight');
 
-    channel.bind('new-readings', (newReadings: any[]) => {
-      // Filter for power readings if that's what this chart shows (Energy Usage)
-      // Assuming 'power' type is what we want.
-      // Also need to filter by floor if selected.
-      // This is tricky because we don't have the device info here easily to check the floor
-      // unless we fetch it or it's in the metadata.
-      // The reading metadata has device_id and type.
-      // We might need to fetch device info or assume the backend sends enough info.
-      // For now, let's just update if it's a power reading, and we might miss the floor filter
-      // without extra logic.
-      // Ideally, the backend event should include floor info or we fetch device details.
-      // BUT, for a quick "wow" factor, let's just append the new data point if it matches the type.
-
-      // Actually, the chart shows aggregated energy usage over time?
-      // The current API `/api/analytics/energy` likely returns aggregated data.
-      // Appending raw readings might break the scale or format.
-      // A safer bet for "real-time" here is to just re-fetch the analytics endpoint
-      // when a new reading comes in.
-
+    channel.bind('new-readings', (newReadings: PusherReading[]) => {
+      // Only proceed if there's a power reading in the batch
       const hasPowerReadings = newReadings.some(
         r => r.metadata.type === 'power'
       );

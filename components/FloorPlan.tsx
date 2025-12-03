@@ -21,6 +21,15 @@ interface Reading {
   type: string;
 }
 
+interface PusherReading {
+  metadata: {
+    device_id: string;
+    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
+  };
+  timestamp: string;
+  value: number;
+}
+
 interface FloorPlanProps {
   selectedFloor: number | 'all';
   onDeviceClick?: (roomName: string) => void;
@@ -106,10 +115,68 @@ export default function FloorPlan({
 
     if (devices.length > 0) {
       fetchReadings();
-      const interval = setInterval(fetchReadings, 2000);
-      return () => clearInterval(interval);
     }
   }, [devices]);
+
+  // Real-time updates with Pusher
+  useEffect(() => {
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    });
+
+    const channel = pusher.subscribe('InfraSight');
+
+    channel.bind('new-readings', (newReadings: PusherReading[]) => {
+      setReadings(prev => {
+        const next = { ...prev };
+        newReadings.forEach(reading => {
+          const deviceId = reading.metadata.device_id;
+          next[deviceId] = {
+            _id: deviceId,
+            value: reading.value,
+            timestamp: reading.timestamp,
+            type: reading.metadata.type,
+          };
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      pusher.unsubscribe('InfraSight');
+    };
+  }, []);
+
+  // Check for alerts when readings change
+  useEffect(() => {
+    devices.forEach(device => {
+      const reading = readings[device._id];
+      if (reading && device.type === 'temperature') {
+        if (reading.value > device.configuration.threshold_critical) {
+          if (!alertedDevices.current.has(device._id + '_critical')) {
+            toast.error(
+              `CRITICAL: ${device.room_name} is ${reading.value}°F!`
+            );
+            alertedDevices.current.add(device._id + '_critical');
+            alertedDevices.current.delete(device._id + '_warning');
+          }
+        } else if (reading.value > device.configuration.threshold_warning) {
+          if (
+            !alertedDevices.current.has(device._id + '_warning') &&
+            !alertedDevices.current.has(device._id + '_critical')
+          ) {
+            toast.warn(
+              `WARNING: ${device.room_name} is ${reading.value}°F`
+            );
+            alertedDevices.current.add(device._id + '_warning');
+          }
+        } else {
+          alertedDevices.current.delete(device._id + '_critical');
+          alertedDevices.current.delete(device._id + '_warning');
+        }
+      }
+    });
+  }, [devices, readings]);
 
   const getDeviceIcon = (type: string) => {
     switch (type.toLowerCase()) {
