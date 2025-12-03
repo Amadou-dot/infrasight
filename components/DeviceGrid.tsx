@@ -1,4 +1,5 @@
 'use client';
+import Pusher from 'pusher-js';
 
 import { useEffect, useState, useMemo } from 'react';
 import { getPusherClient } from '@/lib/pusher-client';
