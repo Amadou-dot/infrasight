@@ -39,31 +39,39 @@ export default function Home() {
 
       <header className='mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4'>
         <div>
-          <h1 className='text-3xl font-bold text-gray-900 tracking-tight'>
-            IoT Building Monitor
-          </h1>
-          <p className='text-gray-500 mt-1'>
+          <div className='flex items-center gap-3'>
+            <Logo className='h-10 w-10 text-blue-600 dark:text-blue-400' />
+            <h1 className='text-3xl font-bold text-gray-900 dark:text-white tracking-tight'>
+              Infrasight
+            </h1>
+          </div>
+          <p className='text-gray-500 dark:text-gray-400 mt-1'>
             Real-time sensor data and analytics for Denver HQ
           </p>
         </div>
 
-        <div className='flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-200 shadow-sm'>
-          <span className='text-sm font-medium text-gray-600 px-2'>Floor:</span>
-          <select
-            value={selectedFloor}
-            onChange={e =>
-              setSelectedFloor(
-                e.target.value === 'all' ? 'all' : parseInt(e.target.value)
-              )
-            }
-            className='bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-2'>
-            <option value='all'>All Floors</option>
-            {floors.map(f => (
-              <option key={f} value={f}>
-                Floor {f}
-              </option>
-            ))}
-          </select>
+        <div className='flex items-center gap-2'>
+          <ModeToggle />
+          <div className='flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm'>
+            <span className='text-sm font-medium text-gray-600 dark:text-gray-300 px-2'>
+              Floor:
+            </span>
+            <select
+              value={selectedFloor}
+              onChange={e =>
+                setSelectedFloor(
+                  e.target.value === 'all' ? 'all' : parseInt(e.target.value)
+                )
+              }
+              className='bg-transparent border-none text-gray-900 dark:text-white text-sm focus:ring-0 cursor-pointer outline-none'>
+              <option value='all'>All Floors</option>
+              {floors.map(f => (
+                <option key={f} value={f}>
+                  Floor {f}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </header>
 
