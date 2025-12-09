@@ -6,6 +6,8 @@ import AnomalyChart from '@/components/AnomalyChart';
 import DeviceGrid from '@/components/DeviceGrid';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { ModeToggle } from '@/components/mode-toggle';
+import { Logo } from '@/components/logo';
 
 export default function Home() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
