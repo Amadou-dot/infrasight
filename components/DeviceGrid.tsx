@@ -221,15 +221,16 @@ export default function DeviceGrid({
     device?: IDevice
   ) => {
     if (status === 'offline')
-      return 'bg-gray-100 text-gray-600 border-gray-200';
+      if (status === 'offline')
+        return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
 
     if (reading && device) {
       if (reading.value > device.configuration.threshold_critical)
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900';
       if (reading.value > device.configuration.threshold_warning)
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900';
     }
-    return 'bg-green-100 text-green-700 border-green-200';
+    return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
   };
 
   const getStatusLabel = (
@@ -253,7 +254,7 @@ export default function DeviceGrid({
         header: ({ column }) => {
           return (
             <button
-              className='flex items-center gap-1 hover:text-gray-900'
+              className='flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-200'
               onClick={() =>
                 column.toggleSorting(column.getIsSorted() === 'asc')
               }>
@@ -302,7 +303,7 @@ export default function DeviceGrid({
           if (device.type === 'power') unit = ' kW';
 
           return (
-            <span className='font-mono font-medium text-gray-900'>
+            <span className='font-mono font-medium text-gray-900 dark:text-gray-100'>
               {reading.value}
               {unit}
             </span>
@@ -346,7 +347,7 @@ export default function DeviceGrid({
   return (
     <div className='w-full space-y-4'>
       {/* Mobile/Desktop Filters */}
-      <div className='bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col md:flex-row gap-4 justify-between'>
+      <div className='bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm flex flex-col md:flex-row gap-4 justify-between'>
         <div className='flex flex-col gap-2 w-full md:w-auto'>
           <h3 className='text-lg font-semibold flex items-center gap-2'>
             Device Health
@@ -582,9 +583,9 @@ export default function DeviceGrid({
       </div>
 
       {/* Desktop Table Layout */}
-      <div className='hidden lg:block bg-white rounded-xl border border-gray-200 p-6 shadow-sm overflow-x-auto'>
+      <div className='hidden lg:block bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm overflow-x-auto'>
         <table className='w-full text-sm text-left'>
-          <thead className='bg-gray-50 text-gray-700 uppercase'>
+          <thead className='bg-gray-50 dark:bg-zinc-950 text-gray-700 dark:text-gray-300 uppercase'>
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map(header => (
@@ -607,7 +608,7 @@ export default function DeviceGrid({
               table.getRowModel().rows.map(row => (
                 <tr
                   key={row.id}
-                  className='border-b border-gray-100 hover:bg-gray-50'>
+                  className='border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50'>
                   {row.getVisibleCells().map(cell => (
                     <td key={cell.id} className='px-6 py-4 whitespace-nowrap'>
                       {flexRender(

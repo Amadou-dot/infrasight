@@ -109,7 +109,7 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
   const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400
 
   return (
-    <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[600px] flex flex-col'>
+    <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm h-[600px] flex flex-col'>
       <div className='flex justify-between items-start mb-1'>
         <h3 className='text-lg font-semibold'>
           Energy Usage
@@ -164,11 +164,11 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
                   return (
-                    <div className='bg-white p-3 border border-gray-200 shadow-lg rounded-lg'>
-                      <p className='text-sm font-medium text-gray-900'>
+                    <div className='bg-white dark:bg-zinc-800 p-3 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg'>
+                      <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                         {label}
                       </p>
-                      <p className='text-sm text-indigo-600 font-semibold'>
+                      <p className='text-sm text-indigo-600 dark:text-indigo-400 font-semibold'>
                         {payload[0].value} kWh
                       </p>
                     </div>

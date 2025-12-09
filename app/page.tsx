@@ -28,7 +28,7 @@ export default function Home() {
   }, [selectedFloor]);
 
   return (
-    <main className='min-h-screen bg-gray-50 p-4 md:p-8 font-sans'>
+    <main className='min-h-screen bg-gray-50 dark:bg-black p-4 md:p-8 font-sans'>
       <ToastContainer
         position='bottom-center'
         autoClose={false}

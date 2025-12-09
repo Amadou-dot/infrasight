@@ -174,7 +174,8 @@ export default function FloorPlan({
   const getStatusInfo = (device: IDevice, value: number | undefined) => {
     if (value === undefined)
       return {
-        color: 'bg-gray-100 border-gray-200',
+        color:
+          'bg-gray-100 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700',
         icon: null,
         text: 'Offline',
       };
@@ -186,25 +187,34 @@ export default function FloorPlan({
 
     if (isCritical) {
       return {
-        color: 'bg-red-50 border-red-200 ring-1 ring-red-200',
-        icon: <AlertTriangle className='w-4 h-4 text-red-500' />,
+        color:
+          'bg-red-50 border-red-200 ring-1 ring-red-200 dark:bg-red-950 dark:border-red-900 dark:ring-red-900',
+        icon: (
+          <AlertTriangle className='w-4 h-4 text-red-500 dark:text-red-400' />
+        ),
         text: 'Critical',
-        textColor: 'text-red-700',
+        textColor: 'text-red-700 dark:text-red-200',
       };
     }
     if (isWarning) {
       return {
-        color: 'bg-yellow-50 border-yellow-200 ring-1 ring-yellow-200',
-        icon: <AlertTriangle className='w-4 h-4 text-yellow-500' />,
+        color:
+          'bg-yellow-50 border-yellow-200 ring-1 ring-yellow-200 dark:bg-yellow-950 dark:border-yellow-900 dark:ring-yellow-900',
+        icon: (
+          <AlertTriangle className='w-4 h-4 text-yellow-500 dark:text-yellow-400' />
+        ),
         text: 'Warning',
-        textColor: 'text-yellow-700',
+        textColor: 'text-yellow-700 dark:text-yellow-200',
       };
     }
     return {
-      color: 'bg-white border-gray-200 hover:border-blue-300',
-      icon: <CheckCircle className='w-4 h-4 text-green-500' />,
+      color:
+        'bg-white border-gray-200 hover:border-blue-300 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:border-blue-500',
+      icon: (
+        <CheckCircle className='w-4 h-4 text-green-500 dark:text-green-400' />
+      ),
       text: 'Normal',
-      textColor: 'text-gray-600',
+      textColor: 'text-gray-600 dark:text-gray-300',
     };
   };
 
@@ -236,7 +246,7 @@ export default function FloorPlan({
   }, [sortedFloors, initializedCollapse]);
 
   return (
-    <div className='w-full bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-[600px] flex flex-col'>
+    <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm h-[600px] flex flex-col'>
       <div className='flex justify-between items-center mb-4'>
         <div className='flex items-center gap-4'>
           <h3 className='text-lg font-semibold'>Live Device Status</h3>
@@ -274,11 +284,11 @@ export default function FloorPlan({
           return (
             <div
               key={floor}
-              className='border border-gray-100 rounded-lg overflow-hidden'>
+              className='border border-gray-100 dark:border-none rounded-lg overflow-hidden'>
               <div
-                className='bg-gray-50 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors'
+                className='bg-gray-50 dark:bg-zinc-950 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors'
                 onClick={() => toggleFloor(floor)}>
-                <h4 className='text-sm font-medium text-gray-700'>
+                <h4 className='text-sm font-medium text-gray-700 dark:text-gray-200'>
                   Floor {floor}{' '}
                   <span className='text-gray-400 font-normal ml-2'>
                     ({floorDevices.length} devices)
@@ -293,7 +303,7 @@ export default function FloorPlan({
               </div>
 
               {!isCollapsed && (
-                <div className='p-3 bg-white'>
+                <div className='p-3 bg-white dark:bg-zinc-900'>
                   <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3'>
                     {floorDevices.map(device => {
                       const reading = readings[device._id];
@@ -305,7 +315,7 @@ export default function FloorPlan({
                           onClick={() => onDeviceClick?.(device.room_name)}
                           className={`p-3 rounded-lg border transition-all duration-200 ${status.color} flex flex-col gap-2 cursor-pointer hover:shadow-md`}>
                           <div className='flex justify-between items-start'>
-                            <div className='flex items-center gap-2 text-gray-600'>
+                            <div className='flex items-center gap-2 text-gray-600 dark:text-gray-400'>
                               {getDeviceIcon(device.type)}
                               <span className='text-xs font-medium truncate max-w-20'>
                                 {device.room_name}
@@ -315,7 +325,7 @@ export default function FloorPlan({
                           </div>
 
                           <div className='mt-1'>
-                            <div className='text-2xl font-bold text-gray-900'>
+                            <div className='text-2xl font-bold text-gray-900 dark:text-white'>
                               {reading
                                 ? getFormattedValue(device, reading.value)
                                 : '--'}
