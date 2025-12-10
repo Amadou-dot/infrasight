@@ -2,7 +2,7 @@
 # Script to update GitHub issues #20-26 with properly formatted markdown
 # Usage: ./update-issues.sh <GITHUB_TOKEN> [REPO_OWNER] [REPO_NAME]
 
-set -e
+set -euo pipefail
 
 GITHUB_TOKEN="$1"
 REPO_OWNER="${2:-Amadou-dot}"
