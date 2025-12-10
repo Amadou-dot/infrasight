@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "npx tsx --env-file=.env.local scripts/seed.ts",
-    "simulate": "npx tsx --env-file=.env.local scripts/simulate.ts"
+    "simulate": "npx tsx --env-file=.env.local scripts/simulate.ts",
+    "create-indexes-v2": "npx tsx --env-file=.env.local scripts/v2/create-indexes-v2.ts",
+    "backfill-v2": "npx tsx --env-file=.env.local scripts/v2/backfill-v2.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
