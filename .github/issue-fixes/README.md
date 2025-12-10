@@ -49,8 +49,15 @@ You can use the provided script to update all issues at once:
 # https://github.com/settings/tokens
 
 # Run the update script
-./update-issues.sh YOUR_GITHUB_TOKEN
+./update-issues.sh YOUR_GITHUB_TOKEN [REPO_OWNER] [REPO_NAME]
+
+# Example:
+./update-issues.sh ghp_xxxxxxxxxxxxx
+# or for a different repo:
+./update-issues.sh ghp_xxxxxxxxxxxxx my-org my-repo
 ```
+
+The script checks for `jq` installation and provides helpful error messages.
 
 ### Option 3: Manual Update
 

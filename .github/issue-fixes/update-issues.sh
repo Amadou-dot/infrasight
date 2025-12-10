@@ -1,26 +1,36 @@
 #!/bin/bash
 # Script to update GitHub issues #20-26 with properly formatted markdown
-# Usage: ./update-issues.sh <GITHUB_TOKEN>
+# Usage: ./update-issues.sh <GITHUB_TOKEN> [REPO_OWNER] [REPO_NAME]
 
 set -e
 
 GITHUB_TOKEN="$1"
-REPO_OWNER="Amadou-dot"
-REPO_NAME="infrasight"
+REPO_OWNER="${2:-Amadou-dot}"
+REPO_NAME="${3:-infrasight}"
 ISSUE_FIXES_DIR=".github/issue-fixes"
 
 if [ -z "$GITHUB_TOKEN" ]; then
     echo "Error: GitHub token required"
-    echo "Usage: $0 <GITHUB_TOKEN>"
+    echo "Usage: $0 <GITHUB_TOKEN> [REPO_OWNER] [REPO_NAME]"
     echo ""
     echo "To create a token:"
     echo "1. Go to https://github.com/settings/tokens"
     echo "2. Generate a new token with 'repo' scope"
-    echo "3. Run: $0 <your-token>"
+    echo "3. Run: $0 <your-token> [owner] [repo]"
     exit 1
 fi
 
-echo "Updating GitHub issues #20-26 with properly formatted markdown..."
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "Error: 'jq' is required but not installed."
+    echo "Please install jq:"
+    echo "  - Ubuntu/Debian: sudo apt-get install jq"
+    echo "  - macOS: brew install jq"
+    echo "  - Other: https://stedolan.github.io/jq/download/"
+    exit 1
+fi
+
+echo "Updating GitHub issues #20-26 for ${REPO_OWNER}/${REPO_NAME}..."
 echo ""
 
 for issue_num in 20 21 22 23 24 25 26; do
@@ -36,8 +46,7 @@ for issue_num in 20 21 22 23 24 25 26; do
     # Read the markdown file content
     body=$(cat "$issue_file")
     
-    # Escape the body for JSON
-    # Use jq to properly escape the string
+    # Escape the body for JSON using jq
     json_body=$(jq -n --arg body "$body" '{body: $body}')
     
     # Update the issue using GitHub API
