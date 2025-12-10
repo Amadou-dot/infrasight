@@ -1,0 +1,118 @@
+name: Fix GitHub Issues Formatting
+
+on:
+  workflow_dispatch: # Manual trigger only
+
+jobs:
+  update-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Update Issue #20
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.github/issue-fixes/issue-20.md', 'utf8');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 20,
+              body: body
+            });
+            console.log('✓ Updated issue #20');
+      
+      - name: Update Issue #21
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.github/issue-fixes/issue-21.md', 'utf8');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 21,
+              body: body
+            });
+            console.log('✓ Updated issue #21');
+      
+      - name: Update Issue #22
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.github/issue-fixes/issue-22.md', 'utf8');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 22,
+              body: body
+            });
+            console.log('✓ Updated issue #22');
+      
+      - name: Update Issue #23
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.github/issue-fixes/issue-23.md', 'utf8');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 23,
+              body: body
+            });
+            console.log('✓ Updated issue #23');
+      
+      - name: Update Issue #24
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.github/issue-fixes/issue-24.md', 'utf8');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 24,
+              body: body
+            });
+            console.log('✓ Updated issue #24');
+      
+      - name: Update Issue #25
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.github/issue-fixes/issue-25.md', 'utf8');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 25,
+              body: body
+            });
+            console.log('✓ Updated issue #25');
+      
+      - name: Update Issue #26
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.github/issue-fixes/issue-26.md', 'utf8');
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 26,
+              body: body
+            });
+            console.log('✓ Updated issue #26');
+      
+      - name: Summary
+        run: |
+          echo "✓ All issues #20-26 have been updated with properly formatted markdown!"
+          echo "Please verify at: https://github.com/${{ github.repository }}/issues"
