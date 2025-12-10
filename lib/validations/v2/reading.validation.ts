@@ -83,14 +83,28 @@ export const readingQuerySchema = z
  * Latest readings query schema (GET /api/v2/readings/latest)
  * Used to get the latest reading for each device
  */
-export const latestReadingsQuerySchema = z.object({
-  device_id: nonEmptyStringSchema.optional(),
-  device_ids: z
-    .string()
-    .optional()
-    .transform((val) => (val ? val.split(',').map((id) => id.trim()) : undefined))
-    .describe('Comma-separated list of device IDs'),
-});
+export const latestReadingsQuerySchema = z
+  .object({
+    device_id: nonEmptyStringSchema.optional(),
+    device_ids: z
+      .string()
+      .optional()
+      .transform((val) => (val ? val.split(',').map((id) => id.trim()) : undefined))
+      .describe('Comma-separated list of device IDs'),
+  })
+  .refine(
+    (data) => {
+      // Ensure device_id and device_ids are not both provided
+      if (data.device_id && data.device_ids) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Cannot specify both device_id and device_ids',
+      path: ['device_id'],
+    }
+  );
 
 /**
  * Aggregated readings query schema (GET /api/v2/readings/aggregate)
