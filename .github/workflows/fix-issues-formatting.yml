@@ -45,6 +45,8 @@ jobs:
   summary:
     runs-on: ubuntu-latest
     needs: update-issues
+    permissions:
+      contents: read
     steps:
       - name: Summary
         run: |
