@@ -26,7 +26,7 @@ if ! command -v jq &> /dev/null; then
     echo "Please install jq:"
     echo "  - Ubuntu/Debian: sudo apt-get install jq"
     echo "  - macOS: brew install jq"
-    echo "  - Other: https://jqlang.github.io/jq/download/"
+    echo "  - Other: https://github.com/jqlang/jq"
     exit 1
 fi
 
