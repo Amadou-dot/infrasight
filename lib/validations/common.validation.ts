@@ -58,7 +58,10 @@ export const dateRangeSchema = z
   );
 
 // Sort order schema
-export const sortOrderSchema = z.enum(['asc', 'desc', 'ASC', 'DESC']).default('asc');
+export const sortOrderSchema = z
+  .enum(['asc', 'desc', 'ASC', 'DESC'])
+  .transform((val) => val.toLowerCase() as 'asc' | 'desc')
+  .default('asc');
 
 export const sortSchema = z.object({
   sort_by: z.string().optional().describe('Field to sort by'),

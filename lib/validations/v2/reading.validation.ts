@@ -14,18 +14,16 @@ import {
 export const readingValueSchema = z.number().finite('Value must be a finite number');
 
 /**
- * Helper function to validate mutual exclusivity of device_id and device_ids
+ * Helper function to add mutual exclusivity validation for device_id and device_ids
  */
-const deviceIdMutualExclusivityRefine = {
-  refine: (data: { device_id?: string; device_ids?: string[] }) => {
-    // Ensure device_id and device_ids are not both provided
-    return !(data.device_id && data.device_ids);
-  },
-  params: {
-    message: 'Cannot specify both device_id and device_ids',
-    path: ['device_id'],
-  },
-};
+const addDeviceIdMutualExclusivity = <T extends z.ZodTypeAny>(schema: T) =>
+  schema.refine(
+    (data: any) => !(data.device_id && data.device_ids),
+    {
+      message: 'Cannot specify both device_id and device_ids',
+      path: ['device_id'],
+    }
+  );
 
 /**
  * Base schema for device ID parameters
@@ -66,38 +64,34 @@ export const bulkInsertReadingsSchema = z.object({
  * Reading query parameters schema (GET /api/v2/readings)
  * Used for filtering and pagination
  */
-export const readingQuerySchema = deviceIdParamsSchema
-  .extend({
-    min_value: z.coerce.number().optional(),
-    max_value: z.coerce.number().optional(),
-  })
-  .merge(dateRangeSchema)
-  .merge(cursorPaginationSchema)
-  .merge(sortSchema)
-  .refine(
-    deviceIdMutualExclusivityRefine.refine,
-    deviceIdMutualExclusivityRefine.params
-  )
-  .refine(
-    (data) => {
-      if (data.min_value !== undefined && data.max_value !== undefined) {
-        return data.min_value <= data.max_value;
-      }
-      return true;
-    },
-    {
-      message: 'min_value must be less than or equal to max_value',
-      path: ['min_value'],
+export const readingQuerySchema = addDeviceIdMutualExclusivity(
+  deviceIdParamsSchema
+    .extend({
+      min_value: z.coerce.number().optional(),
+      max_value: z.coerce.number().optional(),
+    })
+    .merge(dateRangeSchema)
+    .merge(cursorPaginationSchema)
+    .merge(sortSchema)
+).refine(
+  (data) => {
+    if (data.min_value !== undefined && data.max_value !== undefined) {
+      return data.min_value <= data.max_value;
     }
-  );
+    return true;
+  },
+  {
+    message: 'min_value must be less than or equal to max_value',
+    path: ['min_value'],
+  }
+);
 
 /**
  * Latest readings query schema (GET /api/v2/readings/latest)
  * Used to get the latest reading for each device
  */
-export const latestReadingsQuerySchema = deviceIdParamsSchema.refine(
-  deviceIdMutualExclusivityRefine.refine,
-  deviceIdMutualExclusivityRefine.params
+export const latestReadingsQuerySchema = addDeviceIdMutualExclusivity(
+  deviceIdParamsSchema
 );
 
 /**
