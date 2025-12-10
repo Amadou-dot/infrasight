@@ -18,7 +18,10 @@ export const readingValueSchema = z.number().finite('Value must be a finite numb
  */
 const addDeviceIdMutualExclusivity = <T extends z.ZodTypeAny>(schema: T) =>
   schema.refine(
-    (data: any) => !(data.device_id && data.device_ids),
+    (data) => {
+      const typedData = data as { device_id?: string; device_ids?: string[] };
+      return !(typedData.device_id && typedData.device_ids);
+    },
     {
       message: 'Cannot specify both device_id and device_ids',
       path: ['device_id'],
@@ -97,6 +100,9 @@ export const latestReadingsQuerySchema = addDeviceIdMutualExclusivity(
 /**
  * Aggregated readings query schema (GET /api/v2/readings/aggregate)
  * Used for getting aggregated data (avg, min, max, sum, count)
+ * Note: Only supports single device_id (not device_ids) because aggregation
+ * across multiple devices could mix different sensor types and units.
+ * For multiple devices, make separate requests.
  */
 export const aggregateReadingsQuerySchema = z
   .object({
