@@ -2,8 +2,8 @@ name: Simulate IoT Data
 
 on:
   schedule:
-    # Runs every minute
-    - cron: '* * * * *'
+    # Runs every 5 minutes
+    - cron: '*/5 * * * *'
   workflow_dispatch: # Allows manual trigger
 
 jobs:
