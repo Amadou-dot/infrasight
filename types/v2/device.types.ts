@@ -36,7 +36,10 @@ export type DeviceType =
   | 'air_quality'
   | 'water_flow'
   | 'gas'
-  | 'vibration';
+  | 'vibration'
+  | 'voltage'
+  | 'current'
+  | 'energy';
 
 /**
  * Data classification for compliance

@@ -109,7 +109,10 @@ export type DeviceType =
   | 'air_quality'
   | 'water_flow'
   | 'gas'
-  | 'vibration';
+  | 'vibration'
+  | 'voltage'
+  | 'current'
+  | 'energy';
 
 /**
  * Main DeviceV2 interface
@@ -279,6 +282,9 @@ const DeviceV2Schema = new Schema<IDeviceV2>(
         'water_flow',
         'gas',
         'vibration',
+        'voltage',
+        'current',
+        'energy',
       ],
       required: true,
     },
