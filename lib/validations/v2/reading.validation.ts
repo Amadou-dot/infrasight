@@ -14,6 +14,33 @@ import {
 export const readingValueSchema = z.number().finite('Value must be a finite number');
 
 /**
+ * Helper function to validate mutual exclusivity of device_id and device_ids
+ */
+const deviceIdMutualExclusivityRefine = {
+  refine: (data: { device_id?: string; device_ids?: string[] }) => {
+    // Ensure device_id and device_ids are not both provided
+    return !(data.device_id && data.device_ids);
+  },
+  params: {
+    message: 'Cannot specify both device_id and device_ids',
+    path: ['device_id'],
+  },
+};
+
+/**
+ * Base schema for device ID parameters
+ * Used in queries that accept either device_id or device_ids
+ */
+const deviceIdParamsSchema = z.object({
+  device_id: nonEmptyStringSchema.optional(),
+  device_ids: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(',').map((id) => id.trim()) : undefined))
+    .describe('Comma-separated list of device IDs'),
+});
+
+/**
  * Reading creation schema (POST /api/v2/readings)
  * Used for ingesting a single reading
  */
@@ -39,14 +66,8 @@ export const bulkInsertReadingsSchema = z.object({
  * Reading query parameters schema (GET /api/v2/readings)
  * Used for filtering and pagination
  */
-export const readingQuerySchema = z
-  .object({
-    device_id: nonEmptyStringSchema.optional(),
-    device_ids: z
-      .string()
-      .optional()
-      .transform((val) => (val ? val.split(',').map((id) => id.trim()) : undefined))
-      .describe('Comma-separated list of device IDs'),
+export const readingQuerySchema = deviceIdParamsSchema
+  .extend({
     min_value: z.coerce.number().optional(),
     max_value: z.coerce.number().optional(),
   })
@@ -54,17 +75,8 @@ export const readingQuerySchema = z
   .merge(cursorPaginationSchema)
   .merge(sortSchema)
   .refine(
-    (data) => {
-      // Ensure device_id and device_ids are not both provided
-      if (data.device_id && data.device_ids) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: 'Cannot specify both device_id and device_ids',
-      path: ['device_id'],
-    }
+    deviceIdMutualExclusivityRefine.refine,
+    deviceIdMutualExclusivityRefine.params
   )
   .refine(
     (data) => {
@@ -83,28 +95,10 @@ export const readingQuerySchema = z
  * Latest readings query schema (GET /api/v2/readings/latest)
  * Used to get the latest reading for each device
  */
-export const latestReadingsQuerySchema = z
-  .object({
-    device_id: nonEmptyStringSchema.optional(),
-    device_ids: z
-      .string()
-      .optional()
-      .transform((val) => (val ? val.split(',').map((id) => id.trim()) : undefined))
-      .describe('Comma-separated list of device IDs'),
-  })
-  .refine(
-    (data) => {
-      // Ensure device_id and device_ids are not both provided
-      if (data.device_id && data.device_ids) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: 'Cannot specify both device_id and device_ids',
-      path: ['device_id'],
-    }
-  );
+export const latestReadingsQuerySchema = deviceIdParamsSchema.refine(
+  deviceIdMutualExclusivityRefine.refine,
+  deviceIdMutualExclusivityRefine.params
+);
 
 /**
  * Aggregated readings query schema (GET /api/v2/readings/aggregate)
