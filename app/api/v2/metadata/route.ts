@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const includeStats = searchParams.get('include_stats') === 'true';
-    const includeInactive = searchParams.get('include_inactive') === 'true';
+    const _includeInactive = searchParams.get('include_inactive') === 'true';
     const includeDeleted = searchParams.get('include_deleted') === 'true';
 
     // Base match for devices (exclude soft-deleted by default, unless include_deleted is true)
@@ -166,10 +166,10 @@ export async function GET(request: NextRequest) {
     // Get unique tags
     const tags = await DeviceV2.aggregate([
       { $match: deviceMatch },
-      { $unwind: '$tags' },
+      { $unwind: '$metadata.tags' },
       {
         $group: {
-          _id: '$tags',
+          _id: '$metadata.tags',
           count: { $sum: 1 },
         },
       },
