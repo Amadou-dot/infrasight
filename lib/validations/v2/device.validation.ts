@@ -289,7 +289,7 @@ export const listDevicesQuerySchema = z
     // Location filters
     building_id: buildingIdSchema.optional(),
     floor: z.union([floorSchema, z.string().transform((v) => parseInt(v, 10))]).optional(),
-    zone: zoneSchema,
+    zone: zoneSchema.optional(),
     
     // Metadata filters
     department: departmentSchema.optional(),

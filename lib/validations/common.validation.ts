@@ -41,16 +41,18 @@ export const offsetPaginationSchema = z.object({
 
 /**
  * Combined pagination schema supporting both cursor and offset
+ * Handles string to number conversion for query parameters
  */
 export const paginationSchema = z
   .object({
     cursor: z.string().optional(),
-    page: z.number().int().min(1).optional(),
+    page: z
+      .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+      .pipe(z.number().int().min(1))
+      .optional(),
     limit: z
-      .number()
-      .int()
-      .min(1, 'Limit must be at least 1')
-      .max(100, 'Limit cannot exceed 100')
+      .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+      .pipe(z.number().int().min(1).max(100))
       .default(20),
   })
   .refine(
