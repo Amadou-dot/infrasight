@@ -407,11 +407,11 @@ export function validateDeviceV1ForMigration(device: Partial<DeviceV1>): {
 } {
   const errors: string[] = [];
 
-  if (!device._id) errors.push('Missing _id');
-  if (!device.building_id) errors.push('Missing building_id');
-  if (device.floor === undefined) errors.push('Missing floor');
-  if (!device.room_name) errors.push('Missing room_name');
-  if (!device.type) errors.push('Missing type');
+  if (!device._id) {errors.push('Missing _id');}
+  if (!device.building_id) {errors.push('Missing building_id');}
+  if (device.floor === undefined) {errors.push('Missing floor');}
+  if (!device.room_name) {errors.push('Missing room_name');}
+  if (!device.type) {errors.push('Missing type');}
   if (!device.configuration) {
     errors.push('Missing configuration');
   } else {
@@ -438,11 +438,11 @@ export function validateReadingV1ForMigration(reading: Partial<ReadingV1>): {
   if (!reading.metadata) {
     errors.push('Missing metadata');
   } else {
-    if (!reading.metadata.device_id) errors.push('Missing metadata.device_id');
-    if (!reading.metadata.type) errors.push('Missing metadata.type');
+    if (!reading.metadata.device_id) {errors.push('Missing metadata.device_id');}
+    if (!reading.metadata.type) {errors.push('Missing metadata.type');}
   }
-  if (!reading.timestamp) errors.push('Missing timestamp');
-  if (reading.value === undefined) errors.push('Missing value');
+  if (!reading.timestamp) {errors.push('Missing timestamp');}
+  if (reading.value === undefined) {errors.push('Missing value');}
 
   return { valid: errors.length === 0, errors };
 }

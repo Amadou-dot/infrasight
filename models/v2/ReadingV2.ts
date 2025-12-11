@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
 // ============================================================================
 // TYPESCRIPT INTERFACES

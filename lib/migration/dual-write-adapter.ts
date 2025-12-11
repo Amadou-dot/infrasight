@@ -19,15 +19,15 @@
  */
 
 import mongoose from 'mongoose';
-import Device, { IDevice } from '../../models/Device';
-import Reading, { IReading } from '../../models/Reading';
-import DeviceV2, { IDeviceV2 } from '../../models/v2/DeviceV2';
-import ReadingV2, { IReadingV2 } from '../../models/v2/ReadingV2';
+import Device, { type IDevice } from '../../models/Device';
+import Reading, { type IReading } from '../../models/Reading';
+import DeviceV2, { type IDeviceV2 } from '../../models/v2/DeviceV2';
+import ReadingV2, { type IReadingV2 } from '../../models/v2/ReadingV2';
 import {
   mapDeviceV1toV2,
   mapReadingV1toV2,
-  DeviceV1,
-  ReadingV1,
+  type DeviceV1,
+  type ReadingV1,
 } from './v1-to-v2-mapper';
 
 // ============================================================================
@@ -142,7 +142,7 @@ function logOperation(
   result: DualWriteResult,
   options: DualWriteOptions
 ): void {
-  if (!options.logging) return;
+  if (!options.logging) {return;}
 
   const status = result.success ? '✅' : '❌';
   const v1Status = result.v1.success ? '✓' : '✗';
@@ -259,11 +259,11 @@ export async function dualWriteUpdateDevice(
 
   // Map v1 fields to v2 nested structure
   if (updates.building_id)
-    v2Updates['location.building_id'] = updates.building_id;
-  if (updates.floor !== undefined) v2Updates['location.floor'] = updates.floor;
-  if (updates.room_name) v2Updates['location.room_name'] = updates.room_name;
-  if (updates.type) v2Updates.type = updates.type;
-  if (updates.status) v2Updates.status = updates.status;
+    {v2Updates['location.building_id'] = updates.building_id;}
+  if (updates.floor !== undefined) {v2Updates['location.floor'] = updates.floor;}
+  if (updates.room_name) {v2Updates['location.room_name'] = updates.room_name;}
+  if (updates.type) {v2Updates.type = updates.type;}
+  if (updates.status) {v2Updates.status = updates.status;}
   if (updates.configuration?.threshold_warning !== undefined) {
     v2Updates['configuration.threshold_warning'] =
       updates.configuration.threshold_warning;
@@ -282,7 +282,7 @@ export async function dualWriteUpdateDevice(
       const updated = await DeviceV2.findByIdAndUpdate(deviceId, v2Updates, {
         new: true,
       }).lean();
-      if (!updated) throw new Error('Device not found in v2');
+      if (!updated) {throw new Error('Device not found in v2');}
       return updated;
     },
     opts.maxRetries,
@@ -339,7 +339,7 @@ export async function dualWriteDeleteDevice(
         },
         { new: true }
       ).lean();
-      if (!updated) throw new Error('Device not found in v2');
+      if (!updated) {throw new Error('Device not found in v2');}
       return updated;
     },
     opts.maxRetries,

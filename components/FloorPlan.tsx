@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { getPusherClient } from '@/lib/pusher-client';
-import { IDevice } from '@/models/Device';
+import type { IDevice } from '@/models/Device';
 import { toast } from 'react-toastify';
 import {
   Thermometer,
@@ -163,21 +163,21 @@ export default function FloorPlan({
   };
 
   const getFormattedValue = (device: IDevice, value: number) => {
-    if (device.type === 'temperature') return `${value}°F`;
-    if (device.type === 'humidity') return `${value}%`;
-    if (device.type === 'power') return `${value} kW`;
-    if (device.type === 'occupancy') return `${value}`;
+    if (device.type === 'temperature') {return `${value}°F`;}
+    if (device.type === 'humidity') {return `${value}%`;}
+    if (device.type === 'power') {return `${value} kW`;}
+    if (device.type === 'occupancy') {return `${value}`;}
     return `${value}`;
   };
 
   const getStatusInfo = (device: IDevice, value: number | undefined) => {
     if (value === undefined)
-      return {
+      {return {
         color:
           'bg-gray-100 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700',
         icon: null,
         text: 'Offline',
-      };
+      };}
 
     // Default thresholds if not temp (simplified logic)
     const isCritical =
@@ -225,7 +225,7 @@ export default function FloorPlan({
 
     const grouped: Record<number, IDevice[]> = {};
     filtered.forEach(d => {
-      if (!grouped[d.floor]) grouped[d.floor] = [];
+      if (!grouped[d.floor]) {grouped[d.floor] = [];}
       grouped[d.floor].push(d);
     });
     return grouped;
@@ -257,7 +257,7 @@ export default function FloorPlan({
                 checked={showIssuesOnly}
                 onChange={e => setShowIssuesOnly(e.target.checked)}
               />
-              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500" />
             </div>
             Show Issues Only
           </label>
@@ -270,13 +270,13 @@ export default function FloorPlan({
       <div className='flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar'>
         {sortedFloors.map(floor => {
           const floorDevices = groupedDevices[floor].filter(d => {
-            if (!showIssuesOnly) return true;
+            if (!showIssuesOnly) {return true;}
             const reading = readings[d._id];
             const status = getStatusInfo(d, reading?.value);
             return status.text !== 'Normal' && status.text !== 'Offline';
           });
 
-          if (showIssuesOnly && floorDevices.length === 0) return null;
+          if (showIssuesOnly && floorDevices.length === 0) {return null;}
 
           const isCollapsed = collapsedFloors.has(floor);
 

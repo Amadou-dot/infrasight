@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Device from '@/models/Device';
 
@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
   }
 
   const query: Record<string, string | number> = {};
-  if (floor) query.floor = parseInt(floor);
-  if (status) query.status = status;
+  if (floor) {query.floor = parseInt(floor);}
+  if (status) {query.status = status;}
 
   let sortOption: Record<string, 1 | -1> = {};
   if (sort) {

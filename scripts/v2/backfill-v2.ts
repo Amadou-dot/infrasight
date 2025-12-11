@@ -14,8 +14,8 @@
 
 import mongoose from 'mongoose';
 import dbConnect from '../../lib/db';
-import Device, { IDevice } from '../../models/Device';
-import Reading, { IReading } from '../../models/Reading';
+import Device, { type IDevice } from '../../models/Device';
+import Reading, { type IReading } from '../../models/Reading';
 import DeviceV2 from '../../models/v2/DeviceV2';
 import ReadingV2 from '../../models/v2/ReadingV2';
 import {

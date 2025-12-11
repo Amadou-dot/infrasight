@@ -18,7 +18,7 @@ export default function Home() {
     fetch('/api/metadata')
       .then(res => res.json())
       .then(data => {
-        if (data.floors) setFloors(data.floors);
+        if (data.floors) {setFloors(data.floors);}
       });
   }, []);
 

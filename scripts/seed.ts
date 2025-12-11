@@ -1,5 +1,5 @@
 import dbConnect from '../lib/db';
-import Device, { IDevice } from '../models/Device';
+import Device, { type IDevice } from '../models/Device';
 import mongoose from 'mongoose';
 
 const ROOM_TYPES = ['Server Room', 'Conference Room', 'Office', 'Cafeteria', 'Lobby'];
