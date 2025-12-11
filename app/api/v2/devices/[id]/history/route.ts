@@ -108,7 +108,7 @@ export async function GET(
         user: device.audit.updated_by || 'unknown',
         changes: {
           current_status: device.status,
-          note: 'Last known update (detailed change history not available)',
+
         },
       });
     
