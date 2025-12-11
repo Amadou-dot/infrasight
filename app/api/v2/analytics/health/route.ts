@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     const lowBatteryDevices = await DeviceV2.find(
       {
         ...baseFilter,
-        'health.battery_level': { $lt: query.battery_warning_threshold, $exists: true },
+        'health.battery_level': { $lt: query.battery_warning_threshold, $ne: null },
       },
       {
         _id: 1,
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
     const maintenanceDue = await DeviceV2.find(
       {
         ...baseFilter,
-        'metadata.next_maintenance': { $lte: maintenanceDueDate, $exists: true },
+        'metadata.next_maintenance': { $lte: maintenanceDueDate, $ne: null },
       },
       {
         _id: 1,
