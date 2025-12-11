@@ -4,20 +4,20 @@
  * GET /api/v2/analytics/anomalies - Anomaly detection and trends
  */
 
-import { type NextRequest } from 'next/server';
+import {
+  calculateOffsetPagination,
+  getOffsetPaginationParams,
+} from '@/lib/api/pagination';
+import { jsonSuccess } from '@/lib/api/response';
 import dbConnect from '@/lib/db';
-import ReadingV2 from '@/models/v2/ReadingV2';
+import { ApiError, ErrorCodes, withErrorHandler } from '@/lib/errors';
 import {
   anomalyAnalyticsQuerySchema,
   type AnomalyAnalyticsQuery,
 } from '@/lib/validations/v2/reading.validation';
 import { validateQuery } from '@/lib/validations/validator';
-import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
-import { jsonPaginated, jsonSuccess } from '@/lib/api/response';
-import {
-  getOffsetPaginationParams,
-  calculateOffsetPagination,
-} from '@/lib/api/pagination';
+import ReadingV2 from '@/models/v2/ReadingV2';
+import type { NextRequest } from 'next/server';
 
 // ============================================================================
 // Helper: Get date format for bucketing
