@@ -5,6 +5,7 @@
  */
 
 import type { NextRequest } from 'next/server';
+import type { PipelineStage } from 'mongoose';
 import dbConnect from '@/lib/db';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import {
@@ -142,9 +143,10 @@ export async function GET(request: NextRequest) {
     
 
     // Build aggregation pipeline
-    const pipeline = [
-      { $match: matchStage },
-      { $sort: { timestamp: 1 as const } },
+    // Using PipelineStage.Match etc. for type safety while allowing dynamic values
+    const pipeline: PipelineStage[] = [
+      { $match: matchStage } as PipelineStage.Match,
+      { $sort: { timestamp: 1 } } as PipelineStage.Sort,
       {
         $group: {
           _id: groupId,
@@ -155,7 +157,7 @@ export async function GET(request: NextRequest) {
           first_timestamp: { $first: '$timestamp' },
           last_timestamp: { $last: '$timestamp' },
         },
-      },
+      } as PipelineStage.Group,
       {
         $project: {
           _id: 0,
@@ -169,13 +171,12 @@ export async function GET(request: NextRequest) {
           first_timestamp: 1,
           last_timestamp: 1,
         },
-      },
-      { $sort: { time_bucket: 1 as const } },
+      } as PipelineStage.Project,
+      { $sort: { time_bucket: 1 } } as PipelineStage.Sort,
     ];
 
     // Execute aggregation
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const results = await ReadingV2.aggregate(pipeline as any);
+    const results = await ReadingV2.aggregate(pipeline);
 
     // Calculate metadata
     const excludedInvalid = !query.include_invalid;
