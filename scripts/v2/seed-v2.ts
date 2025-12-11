@@ -52,7 +52,7 @@ const departments = ['Engineering', 'Operations', 'Facilities', 'Research', 'Sal
 const buildings = ['HQ', 'Building-A', 'Building-B', 'Warehouse', 'Lab'];
 const rooms = ['Conference Room', 'Open Office', 'Server Room', 'Break Room', 'Reception', 'Lab Area'];
 const dataClassifications = ['public', 'internal', 'confidential', 'restricted'] as const;
-const statuses = ['active', 'maintenance', 'offline'] as const;
+const statuses = ['active', 'maintenance', 'offline', 'error'] as const;
 
 const unitsByType: Record<string, string> = {
   temperature: 'celsius',
