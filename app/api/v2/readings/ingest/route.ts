@@ -175,16 +175,28 @@ export async function POST(request: NextRequest) {
           const insertResult = await ReadingV2.insertMany(batch, { 
             ordered: false // Continue on error
           });
-          results.inserted += insertResult.length;
+          const successfulInsertsInBatch = insertResult.length;
+          results.inserted += successfulInsertsInBatch;
+          const batchFailures = batch.length - successfulInsertsInBatch;
+          if (batchFailures > 0) {
+            results.rejected += batchFailures;
+            results.errors.push({
+              index: i,
+              device_id: 'batch',
+              error: 'Some documents in batch failed to insert',
+            });
+          }
         } catch (error: unknown) {
           // Handle bulk write errors (some may have succeeded)
+          let successfulInsertsInBatch = 0;
           if (error && typeof error === 'object' && 'insertedDocs' in error) {
             const bulkError = error as { insertedDocs: unknown[] };
-            results.inserted += bulkError.insertedDocs?.length || 0;
+            successfulInsertsInBatch = bulkError.insertedDocs?.length || 0;
+            results.inserted += successfulInsertsInBatch;
           }
           
           // Count failures
-          const batchFailures = batch.length - (results.inserted - (results.inserted - batch.length));
+          const batchFailures = batch.length - successfulInsertsInBatch;
           if (batchFailures > 0) {
             results.rejected += batchFailures;
             results.errors.push({
