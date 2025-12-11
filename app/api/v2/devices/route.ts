@@ -238,7 +238,6 @@ export async function POST(request: NextRequest) {
     // Create device with audit metadata
     const deviceDoc: Partial<IDeviceV2> = {
       ...deviceData,
-      device_model: deviceData.model, // Map 'model' to 'device_model' for Mongoose
       configuration: deviceData.configuration ? {
         ...deviceData.configuration,
         calibration_date: deviceData.configuration.calibration_date || null,

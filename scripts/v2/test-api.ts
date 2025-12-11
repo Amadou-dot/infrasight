@@ -106,7 +106,7 @@ const testDevice = {
   _id: testDeviceId,
   serial_number: `SN-TEST-${Date.now()}`,
   manufacturer: 'Test Corp',
-  model: 'TestSensor-3000',
+  device_model: 'TestSensor-3000',
   firmware_version: '1.0.0',
   type: 'temperature',
   configuration: {

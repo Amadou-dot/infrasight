@@ -163,7 +163,7 @@ export const createDeviceSchema = z.object({
   _id: deviceIdSchema.describe('Custom device ID (e.g., "device_001")'),
   serial_number: serialNumberSchema,
   manufacturer: manufacturerSchema,
-  model: modelNameSchema,
+  device_model: modelNameSchema,
   firmware_version: firmwareVersionSchema,
   type: deviceTypeSchema,
   
@@ -210,7 +210,7 @@ export const updateDeviceSchema = z
     // Identification fields (some may be updatable)
     serial_number: serialNumberSchema.optional(),
     manufacturer: manufacturerSchema.optional(),
-    model: modelNameSchema.optional(),
+    device_model: modelNameSchema.optional(),
     firmware_version: firmwareVersionSchema.optional(),
     
     // Configuration updates
