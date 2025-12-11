@@ -377,33 +377,6 @@ export type AggregationGranularity = 'minute' | 'hour' | 'day' | 'week' | 'month
  */
 export type AggregationType = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'percentile';
 
-/**
- * MongoDB aggregation pipeline stage types for reading analytics
- */
-export interface ReadingMatchStage {
-  $match: Record<string, unknown>;
-}
-
-export interface ReadingSortStage {
-  $sort: Record<string, 1 | -1>;
-}
-
-export interface ReadingGroupStage {
-  $group: {
-    _id: Record<string, unknown>;
-    [key: string]: unknown;
-  };
-}
-
-export interface ReadingProjectStage {
-  $project: Record<string, unknown>;
-}
-
-export type ReadingAggregationStage =
-  | ReadingMatchStage
-  | ReadingSortStage
-  | ReadingGroupStage
-  | ReadingProjectStage;
 
 /**
  * Aggregated reading data point
