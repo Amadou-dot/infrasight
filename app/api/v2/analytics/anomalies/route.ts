@@ -216,6 +216,7 @@ export async function GET(request: NextRequest) {
         },
       },
       { $sort: { count: -1 } },
+      { $limit: 10 },
     ]);
 
     return jsonSuccess({
