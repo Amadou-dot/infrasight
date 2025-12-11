@@ -172,9 +172,9 @@ export const bulkReadingItemSchema = z.object({
     .or(z.string().datetime())
     .or(z.number()) // Unix timestamp support
     .transform((val) => {
-      if (typeof val === 'number') {
+      if (typeof val === 'number') 
         return new Date(val > 1e12 ? val : val * 1000); // Handle ms vs seconds
-      }
+      
       return typeof val === 'string' ? new Date(val) : val;
     })
     .refine((date) => date <= new Date(), 'Timestamp cannot be in the future'),

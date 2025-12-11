@@ -103,7 +103,19 @@ export interface MappedDeviceV2 {
   manufacturer: string;
   device_model: string;
   firmware_version: string;
-  type: 'temperature' | 'humidity' | 'occupancy' | 'power' | 'co2' | 'pressure' | 'light' | 'motion' | 'air_quality' | 'water_flow' | 'gas' | 'vibration';
+  type:
+    | 'temperature'
+    | 'humidity'
+    | 'occupancy'
+    | 'power'
+    | 'co2'
+    | 'pressure'
+    | 'light'
+    | 'motion'
+    | 'air_quality'
+    | 'water_flow'
+    | 'gas'
+    | 'vibration';
   configuration: DeviceV2Configuration;
   location: DeviceV2Location;
   metadata: DeviceV2Metadata;
@@ -119,7 +131,22 @@ export interface MappedDeviceV2 {
  */
 interface ReadingV2Metadata {
   device_id: string;
-  type: 'temperature' | 'humidity' | 'occupancy' | 'power' | 'co2' | 'pressure' | 'light' | 'motion' | 'air_quality' | 'water_flow' | 'gas' | 'vibration' | 'voltage' | 'current' | 'energy';
+  type:
+    | 'temperature'
+    | 'humidity'
+    | 'occupancy'
+    | 'power'
+    | 'co2'
+    | 'pressure'
+    | 'light'
+    | 'motion'
+    | 'air_quality'
+    | 'water_flow'
+    | 'gas'
+    | 'vibration'
+    | 'voltage'
+    | 'current'
+    | 'energy';
   unit: string;
   source: 'sensor' | 'simulation' | 'manual' | 'calibration';
 }
@@ -375,7 +402,7 @@ export function mapDevicesV1toV2(
     created_by?: string;
   } = {}
 ): MappedDeviceV2[] {
-  return v1Devices.map((device) => mapDeviceV1toV2(device, options));
+  return v1Devices.map(device => mapDeviceV1toV2(device, options));
 }
 
 /**
@@ -391,7 +418,7 @@ export function mapReadingsV1toV2(
     source?: 'sensor' | 'simulation' | 'manual' | 'calibration';
   } = {}
 ): Omit<MappedReadingV2, '_id'>[] {
-  return v1Readings.map((reading) => mapReadingV1toV2(reading, options));
+  return v1Readings.map(reading => mapReadingV1toV2(reading, options));
 }
 
 // ============================================================================
@@ -412,15 +439,15 @@ export function validateDeviceV1ForMigration(device: Partial<DeviceV1>): {
   if (device.floor === undefined) errors.push('Missing floor');
   if (!device.room_name) errors.push('Missing room_name');
   if (!device.type) errors.push('Missing type');
-  if (!device.configuration) {
+  if (!device.configuration) 
     errors.push('Missing configuration');
-  } else {
-    if (device.configuration.threshold_warning === undefined) {
+   else {
+    if (device.configuration.threshold_warning === undefined) 
       errors.push('Missing configuration.threshold_warning');
-    }
-    if (device.configuration.threshold_critical === undefined) {
+    
+    if (device.configuration.threshold_critical === undefined) 
       errors.push('Missing configuration.threshold_critical');
-    }
+    
   }
 
   return { valid: errors.length === 0, errors };
@@ -435,14 +462,22 @@ export function validateReadingV1ForMigration(reading: Partial<ReadingV1>): {
 } {
   const errors: string[] = [];
 
-  if (!reading.metadata) {
+  if (!reading.metadata) 
     errors.push('Missing metadata');
-  } else {
-    if (!reading.metadata.device_id) errors.push('Missing metadata.device_id');
-    if (!reading.metadata.type) errors.push('Missing metadata.type');
+   else {
+    if (!reading.metadata.device_id) 
+      errors.push('Missing metadata.device_id');
+    
+    if (!reading.metadata.type) 
+      errors.push('Missing metadata.type');
+    
   }
-  if (!reading.timestamp) errors.push('Missing timestamp');
-  if (reading.value === undefined) errors.push('Missing value');
+  if (!reading.timestamp) 
+    errors.push('Missing timestamp');
+  
+  if (reading.value === undefined) 
+    errors.push('Missing value');
+  
 
   return { valid: errors.length === 0, errors };
 }

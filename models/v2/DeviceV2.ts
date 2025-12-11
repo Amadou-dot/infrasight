@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
 // ============================================================================
 // TYPESCRIPT INTERFACES
@@ -360,9 +360,9 @@ DeviceV2Schema.index({ status: 1, type: 1 });
  * Mongoose 9+ uses async middleware without next callback
  */
 DeviceV2Schema.pre('save', function () {
-  if (!this.isNew) {
+  if (!this.isNew) 
     this.audit.updated_at = new Date();
-  }
+  
 });
 
 /**

@@ -9,9 +9,9 @@ import {
   getFilteredRowModel,
   flexRender,
   createColumnHelper,
-  SortingState,
+  type SortingState,
 } from '@tanstack/react-table';
-import { IDevice } from '@/models/Device';
+import type { IDevice } from '@/models/Device';
 import {
   ArrowUpDown,
   ChevronDown,
@@ -88,11 +88,11 @@ export default function DeviceGrid({
 
   // Sync selectedRoom prop with internal filter
   useEffect(() => {
-    if (selectedRoom && selectedRoom !== 'all') {
+    if (selectedRoom && selectedRoom !== 'all') 
       setFilterRoom(selectedRoom);
-    } else if (selectedRoom === 'all') {
+     else if (selectedRoom === 'all') 
       setFilterRoom('all');
-    }
+    
   }, [selectedRoom]);
 
   // Advanced filters
@@ -142,9 +142,9 @@ export default function DeviceGrid({
       }
     };
 
-    if (data.length > 0) {
+    if (data.length > 0) 
       fetchReadings();
-    }
+    
   }, [data]);
 
   // Real-time updates with Pusher
@@ -176,14 +176,12 @@ export default function DeviceGrid({
   const filteredData = useMemo(() => {
     return data.filter(device => {
       // Floor filter
-      if (selectedFloor !== 'all' && device.floor !== selectedFloor)
-        return false;
+      if (selectedFloor !== 'all' && device.floor !== selectedFloor)  return false; 
 
       // Advanced filters
-      if (filterRoom !== 'all' && device.room_name !== filterRoom) return false;
-      if (filterType !== 'all' && device.type !== filterType) return false;
-      if (filterStatus !== 'all' && device.status !== filterStatus)
-        return false;
+      if (filterRoom !== 'all' && device.room_name !== filterRoom)  return false; 
+      if (filterType !== 'all' && device.type !== filterType)  return false; 
+      if (filterStatus !== 'all' && device.status !== filterStatus)  return false; 
 
       return true;
     });
@@ -191,11 +189,11 @@ export default function DeviceGrid({
 
   const toggleCard = (id: string) => {
     const newExpanded = new Set(expandedCards);
-    if (newExpanded.has(id)) {
+    if (newExpanded.has(id)) 
       newExpanded.delete(id);
-    } else {
+     else 
       newExpanded.add(id);
-    }
+    
     setExpandedCards(newExpanded);
   };
 
@@ -219,15 +217,12 @@ export default function DeviceGrid({
     reading?: Reading,
     device?: IDevice
   ) => {
-    if (status === 'offline')
-      if (status === 'offline')
-        return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
+    if (status === 'offline') 
+      return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'; 
 
     if (reading && device) {
-      if (reading.value > device.configuration.threshold_critical)
-        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900';
-      if (reading.value > device.configuration.threshold_warning)
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900';
+      if (reading.value > device.configuration.threshold_critical)  return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900'; 
+      if (reading.value > device.configuration.threshold_warning)  return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900'; 
     }
     return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
   };
@@ -237,12 +232,10 @@ export default function DeviceGrid({
     reading?: Reading,
     device?: IDevice
   ) => {
-    if (status === 'offline') return 'Offline';
+    if (status === 'offline')  return 'Offline'; 
     if (reading && device) {
-      if (reading.value > device.configuration.threshold_critical)
-        return 'Critical';
-      if (reading.value > device.configuration.threshold_warning)
-        return 'Warning';
+      if (reading.value > device.configuration.threshold_critical)  return 'Critical'; 
+      if (reading.value > device.configuration.threshold_warning)  return 'Warning'; 
     }
     return 'OK';
   };
@@ -294,12 +287,12 @@ export default function DeviceGrid({
         cell: info => {
           const device = info.row.original;
           const reading = readings[device._id];
-          if (!reading) return <span className='text-gray-400'>--</span>;
+          if (!reading)  return <span className='text-gray-400'>--</span>; 
 
           let unit = '';
-          if (device.type === 'temperature') unit = '°F';
-          if (device.type === 'humidity') unit = '%';
-          if (device.type === 'power') unit = ' kW';
+          if (device.type === 'temperature')  unit = '°F'; 
+          if (device.type === 'humidity')  unit = '%'; 
+          if (device.type === 'power')  unit = ' kW'; 
 
           return (
             <span className='font-mono font-medium text-gray-900 dark:text-gray-100'>
@@ -314,9 +307,9 @@ export default function DeviceGrid({
         cell: info => {
           const device = info.row.original;
           let unit = '';
-          if (device.type === 'temperature') unit = '°F';
-          if (device.type === 'humidity') unit = '%';
-          if (device.type === 'power') unit = ' kW';
+          if (device.type === 'temperature')  unit = '°F'; 
+          if (device.type === 'humidity')  unit = '%'; 
+          if (device.type === 'power')  unit = ' kW'; 
           return (
             <span className='text-gray-500'>
               {info.getValue()}
@@ -520,10 +513,10 @@ export default function DeviceGrid({
                             {device.type === 'temperature'
                               ? '°F'
                               : device.type === 'humidity'
-                              ? '%'
-                              : device.type === 'power'
-                              ? 'kW'
-                              : ''}
+                                ? '%'
+                                : device.type === 'power'
+                                  ? 'kW'
+                                  : ''}
                           </span>
                         </>
                       ) : (
@@ -594,9 +587,9 @@ export default function DeviceGrid({
                     {header.isPlaceholder
                       ? null
                       : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
                   </th>
                 ))}
               </tr>

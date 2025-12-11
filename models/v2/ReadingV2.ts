@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
 // ============================================================================
 // TYPESCRIPT INTERFACES
@@ -327,9 +327,9 @@ ReadingV2Schema.statics.getLatestForDevice = function (
   type?: ReadingType
 ) {
   const query: Record<string, unknown> = { 'metadata.device_id': deviceId };
-  if (type) {
+  if (type) 
     query['metadata.type'] = type;
-  }
+  
   return this.findOne(query).sort({ timestamp: -1 });
 };
 
@@ -347,19 +347,19 @@ ReadingV2Schema.statics.getForDeviceInRange = function (
     timestamp: { $gte: startTime, $lte: endTime },
   };
 
-  if (options.type) {
+  if (options.type) 
     query['metadata.type'] = options.type;
-  }
+  
 
-  if (!options.includeInvalid) {
+  if (!options.includeInvalid) 
     query['quality.is_valid'] = true;
-  }
+  
 
   let cursor = this.find(query).sort({ timestamp: -1 });
 
-  if (options.limit) {
+  if (options.limit) 
     cursor = cursor.limit(options.limit);
-  }
+  
 
   return cursor;
 };
@@ -375,29 +375,29 @@ ReadingV2Schema.statics.getAnomalies = function (
     'quality.is_anomaly': true,
   };
 
-  if (deviceId) {
+  if (deviceId) 
     query['metadata.device_id'] = deviceId;
-  }
+  
 
   if (options.startTime || options.endTime) {
     query.timestamp = {};
-    if (options.startTime) {
+    if (options.startTime) 
       (query.timestamp as Record<string, Date>).$gte = options.startTime;
-    }
-    if (options.endTime) {
+    
+    if (options.endTime) 
       (query.timestamp as Record<string, Date>).$lte = options.endTime;
-    }
+    
   }
 
-  if (options.minScore !== undefined) {
+  if (options.minScore !== undefined) 
     query['quality.anomaly_score'] = { $gte: options.minScore };
-  }
+  
 
   let cursor = this.find(query).sort({ timestamp: -1 });
 
-  if (options.limit) {
+  if (options.limit) 
     cursor = cursor.limit(options.limit);
-  }
+  
 
   return cursor;
 };

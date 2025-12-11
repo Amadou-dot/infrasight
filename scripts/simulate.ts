@@ -1,7 +1,7 @@
 import dbConnect from '../lib/db';
 import Device from '../models/Device';
 import Reading from '../models/Reading';
-import mongoose from 'mongoose';
+import _mongoose from 'mongoose';
 
 // Simulation state for the overheating server room
 let serverRoomTemp = 70;

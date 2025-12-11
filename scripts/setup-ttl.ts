@@ -1,5 +1,5 @@
 import dbConnect from '../lib/db';
-import Reading from '../models/Reading';
+import _Reading from '../models/Reading';
 import mongoose from 'mongoose';
 
 async function setupTTL() {

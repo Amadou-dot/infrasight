@@ -19,15 +19,15 @@
  */
 
 import mongoose from 'mongoose';
-import Device, { IDevice } from '../../models/Device';
-import Reading, { IReading } from '../../models/Reading';
-import DeviceV2, { IDeviceV2 } from '../../models/v2/DeviceV2';
-import ReadingV2, { IReadingV2 } from '../../models/v2/ReadingV2';
+import Device, { type IDevice } from '../../models/Device';
+import Reading, { type IReading } from '../../models/Reading';
+import DeviceV2, { type IDeviceV2 } from '../../models/v2/DeviceV2';
+import ReadingV2, { type IReadingV2 } from '../../models/v2/ReadingV2';
 import {
   mapDeviceV1toV2,
   mapReadingV1toV2,
-  DeviceV1,
-  ReadingV1,
+  type DeviceV1,
+  type ReadingV1,
 } from './v1-to-v2-mapper';
 
 // ============================================================================
@@ -116,7 +116,7 @@ async function withRetry<T>(
 ): Promise<{ success: boolean; data?: T; error?: string }> {
   let lastError: Error | undefined;
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) 
     try {
       const data = await operation();
       return { success: true, data };
@@ -128,7 +128,7 @@ async function withRetry<T>(
         await sleep(delay);
       }
     }
-  }
+  
 
   return { success: false, error: lastError?.message || 'Unknown error' };
 }
@@ -142,7 +142,9 @@ function logOperation(
   result: DualWriteResult,
   options: DualWriteOptions
 ): void {
-  if (!options.logging) return;
+  if (!options.logging) 
+    return;
+  
 
   const status = result.success ? '✅' : '❌';
   const v1Status = result.v1.success ? '✓' : '✗';
@@ -152,12 +154,12 @@ function logOperation(
     `[DualWrite] ${status} ${operation} ${collection} | v1: ${v1Status} | v2: ${v2Status}`
   );
 
-  if (!result.v1.success) {
+  if (!result.v1.success) 
     console.error(`[DualWrite] V1 error: ${result.v1.error}`);
-  }
-  if (!result.v2.success) {
+  
+  if (!result.v2.success) 
     console.error(`[DualWrite] V2 error: ${result.v2.error}`);
-  }
+  
 }
 
 // ============================================================================
@@ -236,11 +238,11 @@ export async function dualWriteUpdateDevice(
     const updated = await Device.findByIdAndUpdate(deviceId, updates, {
       new: true,
     }).lean();
-    if (!updated) {
+    if (!updated) 
       result.v1 = { success: false, error: 'Device not found in v1' };
-    } else {
+     else 
       result.v1 = { success: true, data: updated };
-    }
+    
   } catch (error) {
     result.v1 = {
       success: false,
@@ -264,14 +266,14 @@ export async function dualWriteUpdateDevice(
   if (updates.room_name) v2Updates['location.room_name'] = updates.room_name;
   if (updates.type) v2Updates.type = updates.type;
   if (updates.status) v2Updates.status = updates.status;
-  if (updates.configuration?.threshold_warning !== undefined) {
+  if (updates.configuration?.threshold_warning !== undefined) 
     v2Updates['configuration.threshold_warning'] =
       updates.configuration.threshold_warning;
-  }
-  if (updates.configuration?.threshold_critical !== undefined) {
+  
+  if (updates.configuration?.threshold_critical !== undefined) 
     v2Updates['configuration.threshold_critical'] =
       updates.configuration.threshold_critical;
-  }
+  
 
   // Add audit info
   v2Updates['audit.updated_at'] = new Date();
@@ -282,7 +284,9 @@ export async function dualWriteUpdateDevice(
       const updated = await DeviceV2.findByIdAndUpdate(deviceId, v2Updates, {
         new: true,
       }).lean();
-      if (!updated) throw new Error('Device not found in v2');
+      if (!updated) 
+        throw new Error('Device not found in v2');
+      
       return updated;
     },
     opts.maxRetries,
@@ -315,11 +319,11 @@ export async function dualWriteDeleteDevice(
   // Delete from v1 (hard delete)
   try {
     const deleted = await Device.findByIdAndDelete(deviceId).lean();
-    if (!deleted) {
+    if (!deleted) 
       result.v1 = { success: false, error: 'Device not found in v1' };
-    } else {
+     else 
       result.v1 = { success: true, data: deleted };
-    }
+    
   } catch (error) {
     result.v1 = {
       success: false,
@@ -339,7 +343,9 @@ export async function dualWriteDeleteDevice(
         },
         { new: true }
       ).lean();
-      if (!updated) throw new Error('Device not found in v2');
+      if (!updated) 
+        throw new Error('Device not found in v2');
+      
       return updated;
     },
     opts.maxRetries,
@@ -430,9 +436,9 @@ export async function dualWriteBulkCreateReadings(
     if (error instanceof mongoose.mongo.MongoBulkWriteError) {
       v1Result.inserted = error.insertedCount;
       v1Result.failed = readings.length - error.insertedCount;
-    } else {
+    } else 
       v1Result.failed = readings.length;
-    }
+    
   }
 
   // Map and bulk insert to v2
@@ -454,17 +460,17 @@ export async function dualWriteBulkCreateReadings(
     opts.maxDelay
   );
 
-  if (v2Attempt.success && v2Attempt.data) {
+  if (v2Attempt.success && v2Attempt.data) 
     v2Result = v2Attempt.data;
-  } else {
+   else 
     v2Result.failed = readings.length;
-  }
+  
 
-  if (opts.logging) {
+  if (opts.logging) 
     console.log(
       `[DualWrite] BULK CREATE readings | v1: ${v1Result.inserted}/${readings.length} | v2: ${v2Result.inserted}/${readings.length}`
     );
-  }
+  
 
   return {
     v1: v1Result,
