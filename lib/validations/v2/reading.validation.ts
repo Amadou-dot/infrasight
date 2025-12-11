@@ -382,6 +382,7 @@ export const readingAnalyticsQuerySchema = z.object({
     .optional(),
   
   // Comparison period
+  // Comparison period for trend analysis
   compare_with: z.enum(['previous_period', 'same_period_last_week', 'same_period_last_month']).optional(),
   
   // Pagination for grouped results
