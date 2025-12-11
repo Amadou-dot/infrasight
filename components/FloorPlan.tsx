@@ -163,10 +163,18 @@ export default function FloorPlan({
   };
 
   const getFormattedValue = (device: IDevice, value: number) => {
-    if (device.type === 'temperature') {return `${value}°F`;}
-    if (device.type === 'humidity') {return `${value}%`;}
-    if (device.type === 'power') {return `${value} kW`;}
-    if (device.type === 'occupancy') {return `${value}`;}
+    if (device.type === 'temperature') {
+      return `${value}°F`;
+    }
+    if (device.type === 'humidity') {
+      return `${value}%`;
+    }
+    if (device.type === 'power') {
+      return `${value} kW`;
+    }
+    if (device.type === 'occupancy') {
+      return `${value}`;
+    }
     return `${value}`;
   };
 
