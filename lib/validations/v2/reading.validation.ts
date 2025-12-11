@@ -382,6 +382,7 @@ export const readingAnalyticsQuerySchema = z.object({
     .optional(),
   
   // Comparison period
+  // Comparison period for trend analysis
   compare_with: z.enum(['previous_period', 'same_period_last_week', 'same_period_last_month']).optional(),
   
   // Pagination for grouped results
@@ -419,7 +420,7 @@ export const anomalyAnalyticsQuerySchema = z.object({
   // Minimum anomaly score threshold
   min_score: z
     .union([z.number(), z.string().transform((v) => parseFloat(v))])
-    .default(0.5),
+    .optional(),
   
   // Time bucket for trends
   bucket_granularity: timeGranularitySchema.optional(),

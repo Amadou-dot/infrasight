@@ -439,15 +439,13 @@ export function validateDeviceV1ForMigration(device: Partial<DeviceV1>): {
   if (device.floor === undefined) errors.push('Missing floor');
   if (!device.room_name) errors.push('Missing room_name');
   if (!device.type) errors.push('Missing type');
-  if (!device.configuration) 
-    errors.push('Missing configuration');
-   else {
-    if (device.configuration.threshold_warning === undefined) 
+  if (!device.configuration) errors.push('Missing configuration');
+  else {
+    if (device.configuration.threshold_warning === undefined)
       errors.push('Missing configuration.threshold_warning');
-    
-    if (device.configuration.threshold_critical === undefined) 
+
+    if (device.configuration.threshold_critical === undefined)
       errors.push('Missing configuration.threshold_critical');
-    
   }
 
   return { valid: errors.length === 0, errors };
@@ -462,22 +460,15 @@ export function validateReadingV1ForMigration(reading: Partial<ReadingV1>): {
 } {
   const errors: string[] = [];
 
-  if (!reading.metadata) 
-    errors.push('Missing metadata');
-   else {
-    if (!reading.metadata.device_id) 
-      errors.push('Missing metadata.device_id');
-    
-    if (!reading.metadata.type) 
-      errors.push('Missing metadata.type');
-    
+  if (!reading.metadata) errors.push('Missing metadata');
+  else {
+    if (!reading.metadata.device_id) errors.push('Missing metadata.device_id');
+
+    if (!reading.metadata.type) errors.push('Missing metadata.type');
   }
-  if (!reading.timestamp) 
-    errors.push('Missing timestamp');
-  
-  if (reading.value === undefined) 
-    errors.push('Missing value');
-  
+  if (!reading.timestamp) errors.push('Missing timestamp');
+
+  if (reading.value === undefined) errors.push('Missing value');
 
   return { valid: errors.length === 0, errors };
 }
@@ -486,7 +477,7 @@ export function validateReadingV1ForMigration(reading: Partial<ReadingV1>): {
 // EXPORT
 // ============================================================================
 
-export default {
+const V1toV2Mapper = {
   mapDeviceV1toV2,
   mapReadingV1toV2,
   mapDevicesV1toV2,
@@ -495,3 +486,5 @@ export default {
   validateReadingV1ForMigration,
   getUnitForType,
 };
+
+export default V1toV2Mapper;

@@ -377,6 +377,7 @@ export type AggregationGranularity = 'minute' | 'hour' | 'day' | 'week' | 'month
  */
 export type AggregationType = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'percentile';
 
+
 /**
  * Aggregated reading data point
  */
