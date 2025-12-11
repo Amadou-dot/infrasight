@@ -207,7 +207,7 @@ export function handleError(
   const { logError = true, logger, context } = options;
 
   let apiError: ApiError;
-  let shouldLog = true;
+  let shouldLog;
 
   // Already an ApiError - just pass through
   if (ApiError.isApiError(error)) {
