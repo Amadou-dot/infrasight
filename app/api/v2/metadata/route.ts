@@ -30,12 +30,12 @@ export async function GET(request: NextRequest) {
 
     // Get unique manufacturers with device counts
     const manufacturers = await DeviceV2.aggregate([
-      { $match: { ...deviceMatch, 'extended_metadata.manufacturer': { $exists: true, $ne: null } } },
+      { $match: { ...deviceMatch, manufacturer: { $exists: true, $ne: null } } },
       {
         $group: {
-          _id: '$extended_metadata.manufacturer',
+          _id: '$manufacturer',
           count: { $sum: 1 },
-          models: { $addToSet: '$extended_metadata.model' },
+          models: { $addToSet: '$device_model' },
         },
       },
       {
@@ -56,12 +56,12 @@ export async function GET(request: NextRequest) {
 
     // Get unique departments with device counts
     const departments = await DeviceV2.aggregate([
-      { $match: { ...deviceMatch, 'extended_metadata.department': { $exists: true, $ne: null } } },
+      { $match: { ...deviceMatch, 'metadata.department': { $exists: true, $ne: null } } },
       {
         $group: {
-          _id: '$extended_metadata.department',
+          _id: '$metadata.department',
           count: { $sum: 1 },
-          cost_centers: { $addToSet: '$extended_metadata.cost_center' },
+          cost_centers: { $addToSet: '$metadata.cost_center' },
         },
       },
       {
@@ -109,13 +109,13 @@ export async function GET(request: NextRequest) {
 
     // Get building/floor/room hierarchy
     const locationHierarchy = await DeviceV2.aggregate([
-      { $match: { ...deviceMatch, 'location.building': { $exists: true } } },
+      { $match: { ...deviceMatch, 'location.building_id': { $exists: true } } },
       {
         $group: {
           _id: {
-            building: '$location.building',
+            building: '$location.building_id',
             floor: '$location.floor',
-            room: '$location.room',
+            room: '$location.room_name',
           },
           device_count: { $sum: 1 },
         },
