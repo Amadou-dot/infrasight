@@ -112,42 +112,42 @@ export function sanitizeString(
   } = options;
 
   // Handle non-string input
-  if (typeof str !== 'string') {
+  if (typeof str !== 'string') 
     str = String(str ?? '');
-  }
+  
 
   // Trim whitespace
   let sanitized = str.trim();
 
   // Check for empty string
-  if (!allowEmpty && sanitized.length === 0) {
+  if (!allowEmpty && sanitized.length === 0) 
     throw new ApiError(
       ErrorCodes.INVALID_INPUT,
       400,
       'Input cannot be empty'
     );
-  }
+  
 
   // Remove null bytes and other control characters
   sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
   // Truncate if maxLength specified
-  if (maxLength && sanitized.length > maxLength) {
+  if (maxLength && sanitized.length > maxLength) 
     sanitized = sanitized.substring(0, maxLength);
-  }
+  
 
   // Escape HTML if requested
-  if (escapeHtml) {
+  if (escapeHtml) 
     sanitized = sanitized.replace(
       /[&<>"'`=/]/g,
       (char) => HTML_ESCAPE_MAP[char] || char
     );
-  }
+  
 
   // Convert to lowercase if requested
-  if (lowercase) {
+  if (lowercase) 
     sanitized = sanitized.toLowerCase();
-  }
+  
 
   return sanitized;
 }
@@ -161,9 +161,9 @@ export function sanitizeString(
  * ```
  */
 export function sanitizeForRegex(str: string): string {
-  if (typeof str !== 'string') {
+  if (typeof str !== 'string') 
     str = String(str ?? '');
-  }
+  
 
   return str.trim().replace(REGEX_SPECIAL_CHARS, '\\$&');
 }
@@ -172,9 +172,9 @@ export function sanitizeForRegex(str: string): string {
  * Sanitizes a search query for safe use in MongoDB
  */
 export function sanitizeSearchQuery(query: string): string {
-  if (typeof query !== 'string') {
+  if (typeof query !== 'string') 
     return '';
-  }
+  
 
   // Trim and remove excessive whitespace
   let sanitized = query.trim().replace(/\s+/g, ' ');
@@ -243,42 +243,42 @@ export function sanitizeInput<T extends Record<string, unknown>>(
 
   function sanitizeRecursive(value: unknown, depth: number): unknown {
     // Prevent infinite recursion
-    if (depth > maxDepth) {
+    if (depth > maxDepth) 
       return value;
-    }
+    
 
     // Handle null/undefined
-    if (value === null || value === undefined) {
+    if (value === null || value === undefined) 
       return value;
-    }
+    
 
     // Handle strings
-    if (typeof value === 'string') {
+    if (typeof value === 'string') 
       return sanitizeStrings ? sanitizeString(value) : value;
-    }
+    
 
     // Handle numbers (check for Infinity and NaN)
     if (typeof value === 'number') {
-      if (!Number.isFinite(value)) {
+      if (!Number.isFinite(value)) 
         return 0;
-      }
+      
       return value;
     }
 
     // Handle booleans
-    if (typeof value === 'boolean') {
+    if (typeof value === 'boolean') 
       return value;
-    }
+    
 
     // Handle dates
-    if (value instanceof Date) {
+    if (value instanceof Date) 
       return value;
-    }
+    
 
     // Handle arrays
-    if (Array.isArray(value)) {
+    if (Array.isArray(value)) 
       return value.map((item) => sanitizeRecursive(item, depth + 1));
-    }
+    
 
     // Handle objects
     if (typeof value === 'object') {
@@ -286,14 +286,14 @@ export function sanitizeInput<T extends Record<string, unknown>>(
 
       for (const [key, val] of Object.entries(value)) {
         // Skip dangerous keys
-        if (isDangerousKey(key)) {
+        if (isDangerousKey(key)) 
           continue;
-        }
+        
 
         // Skip MongoDB operators if configured
-        if (removeMongoOperators && isMongoOperator(key)) {
+        if (removeMongoOperators && isMongoOperator(key)) 
           continue;
-        }
+        
 
         // Skip specified fields
         if (skipFields.includes(key)) {
@@ -333,9 +333,9 @@ const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
  * ```
  */
 export function validateObjectId(id: string): boolean {
-  if (typeof id !== 'string') {
+  if (typeof id !== 'string') 
     return false;
-  }
+  
   return OBJECT_ID_REGEX.test(id);
 }
 
@@ -346,14 +346,14 @@ export function assertObjectId(
   id: string,
   fieldName = 'id'
 ): asserts id is string {
-  if (!validateObjectId(id)) {
+  if (!validateObjectId(id)) 
     throw new ApiError(
       ErrorCodes.INVALID_FORMAT,
       400,
       `Invalid ObjectId format for '${fieldName}'`,
       { field: fieldName, value: id }
     );
-  }
+  
 }
 
 // ============================================================================
@@ -375,9 +375,9 @@ const DEVICE_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
  * ```
  */
 export function validateDeviceId(id: string): boolean {
-  if (typeof id !== 'string') {
+  if (typeof id !== 'string') 
     return false;
-  }
+  
   return DEVICE_ID_REGEX.test(id) && id.length >= 1 && id.length <= 100;
 }
 
@@ -388,14 +388,14 @@ export function assertDeviceId(
   id: string,
   fieldName = 'device_id'
 ): asserts id is string {
-  if (!validateDeviceId(id)) {
+  if (!validateDeviceId(id)) 
     throw new ApiError(
       ErrorCodes.INVALID_FORMAT,
       400,
       `Invalid device ID format for '${fieldName}'. Must be 1-100 alphanumeric characters, underscores, or hyphens`,
       { field: fieldName, value: id }
     );
-  }
+  
 }
 
 // ============================================================================
@@ -430,26 +430,26 @@ export function sanitizeNumber(
 
   let num: number;
 
-  if (typeof value === 'number') {
+  if (typeof value === 'number') 
     num = value;
-  } else if (typeof value === 'string') {
+   else if (typeof value === 'string') 
     num = integer ? parseInt(value, 10) : parseFloat(value);
-  } else {
+   else 
     return defaultValue;
-  }
+  
 
   // Check for NaN and Infinity
-  if (!Number.isFinite(num)) {
+  if (!Number.isFinite(num)) 
     return defaultValue;
-  }
+  
 
   // Apply min/max constraints
-  if (min !== undefined && num < min) {
+  if (min !== undefined && num < min) 
     return defaultValue;
-  }
-  if (max !== undefined && num > max) {
+  
+  if (max !== undefined && num > max) 
     return defaultValue;
-  }
+  
 
   return num;
 }
@@ -468,14 +468,14 @@ export function assertNumber(
 ): number {
   const result = sanitizeNumber(value, options);
 
-  if (result === undefined) {
+  if (result === undefined) 
     throw new ApiError(
       ErrorCodes.INVALID_INPUT,
       400,
       `Invalid number for '${fieldName}'`,
       { field: fieldName, value: String(value) }
     );
-  }
+  
 
   return result;
 }
@@ -508,26 +508,26 @@ export function sanitizeDate(
 
   let date: Date;
 
-  if (value instanceof Date) {
+  if (value instanceof Date) 
     date = value;
-  } else if (typeof value === 'string' || typeof value === 'number') {
+   else if (typeof value === 'string' || typeof value === 'number') 
     date = new Date(value);
-  } else {
+   else 
     return defaultValue;
-  }
+  
 
   // Check for invalid date
-  if (isNaN(date.getTime())) {
+  if (isNaN(date.getTime())) 
     return defaultValue;
-  }
+  
 
   // Apply min/max constraints
-  if (minDate && date < minDate) {
+  if (minDate && date < minDate) 
     return defaultValue;
-  }
-  if (maxDate && date > maxDate) {
+  
+  if (maxDate && date > maxDate) 
     return defaultValue;
-  }
+  
 
   return date;
 }
@@ -553,14 +553,14 @@ export function assertDate(
 
   const result = sanitizeDate(value, effectiveOptions);
 
-  if (result === undefined) {
+  if (result === undefined) 
     throw new ApiError(
       ErrorCodes.INVALID_INPUT,
       400,
       `Invalid date for '${fieldName}'`,
       { field: fieldName, value: String(value) }
     );
-  }
+  
 
   return result;
 }

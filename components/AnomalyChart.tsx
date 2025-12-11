@@ -161,7 +161,7 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
             />
             <Tooltip
               content={({ active, payload, label }) => {
-                if (active && payload && payload.length) {
+                if (active && payload && payload.length) 
                   return (
                     <div className='bg-white dark:bg-zinc-800 p-3 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg'>
                       <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
@@ -172,7 +172,7 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
                       </p>
                     </div>
                   );
-                }
+                
                 return null;
               }}
             />

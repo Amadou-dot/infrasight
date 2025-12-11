@@ -178,9 +178,9 @@ export function getCursorPaginationParams(
   const { cursor, limit } = result.data;
 
   let decodedCursor: DecodedCursor | undefined;
-  if (cursor) {
+  if (cursor) 
     decodedCursor = decodeCursor(cursor);
-  }
+  
 
   return {
     type: 'cursor',
@@ -197,9 +197,9 @@ export function getCursorPaginationParams(
 export function getPaginationParams(
   query: RawPaginationInput
 ): PaginationParams {
-  if (query.cursor) {
+  if (query.cursor) 
     return getCursorPaginationParams(query);
-  }
+  
   return getOffsetPaginationParams(query);
 }
 
@@ -324,9 +324,9 @@ export function decodeCursor(cursor: string): DecodedCursor {
     const decoded = Buffer.from(cursor, 'base64url').toString('utf-8');
     const parsed = JSON.parse(decoded);
 
-    if (!parsed.field || parsed.value === undefined || !parsed.lastId) {
+    if (!parsed.field || parsed.value === undefined || !parsed.lastId) 
       throw new Error('Missing cursor fields');
-    }
+    
 
     return {
       field: String(parsed.field),
@@ -360,7 +360,7 @@ export function createCursorFromItem<T extends { _id?: string | unknown }>(
   item: T | undefined,
   sortField: keyof T
 ): string | undefined {
-  if (!item) {return undefined;}
+  if (!item) return undefined;
 
   const value = item[sortField];
   const id = typeof item._id === 'string' ? item._id : String(item._id);
@@ -386,7 +386,7 @@ export function createCursorFromItem<T extends { _id?: string | unknown }>(
  * ```
  */
 export function applyOffsetPagination<
-  Q extends { skip: (n: number) => Q; limit: (n: number) => Q },
+  Q extends { skip: (n: number) => Q; limit: (n: number) => Q }
 >(query: Q, params: OffsetPaginationParams): Q {
   return query.skip(params.skip).limit(params.limit);
 }
@@ -405,9 +405,9 @@ export function buildCursorQuery(
   params: CursorPaginationParams,
   sortDirection: 'asc' | 'desc' = 'desc'
 ): Record<string, unknown> {
-  if (!params.decodedCursor) {
+  if (!params.decodedCursor) 
     return {};
-  }
+  
 
   const { field, value, lastId } = params.decodedCursor;
   const operator = sortDirection === 'desc' ? '$lt' : '$gt';

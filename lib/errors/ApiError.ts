@@ -72,9 +72,9 @@ export class ApiError extends Error {
     this.isOperational = true; // Operational errors are expected; programming errors are not
 
     // Maintains proper stack trace for where error was thrown (V8 engines)
-    if (Error.captureStackTrace) {
+    if (Error.captureStackTrace) 
       Error.captureStackTrace(this, ApiError);
-    }
+    
 
     // Set prototype explicitly for proper instanceof checks
     Object.setPrototypeOf(this, ApiError.prototype);
@@ -308,9 +308,9 @@ export class ApiError extends Error {
    * Creates an ApiError from an unknown error
    */
   static from(error: unknown): ApiError {
-    if (ApiError.isApiError(error)) {
+    if (ApiError.isApiError(error)) 
       return error;
-    }
+    
 
     if (error instanceof Error) {
       const apiError = new ApiError(

@@ -80,13 +80,13 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
 
-  if (hours > 0) {
+  if (hours > 0) 
     return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-  } else if (minutes > 0) {
+   else if (minutes > 0) 
     return `${minutes}m ${seconds % 60}s`;
-  } else {
+   else 
     return `${seconds}s`;
-  }
+  
 }
 
 /**
@@ -230,7 +230,7 @@ async function processDeviceBatch(
   }
 
   // Bulk insert
-  if (toInsert.length > 0) {
+  if (toInsert.length > 0) 
     try {
       await DeviceV2.insertMany(toInsert, { ordered: false });
       stats.devices.migrated += toInsert.length;
@@ -246,12 +246,12 @@ async function processDeviceBatch(
           : error.writeErrors
             ? [error.writeErrors]
             : [];
-        for (const writeError of writeErrors) {
-          if (writeError.code !== 11000) {
+        for (const writeError of writeErrors) 
+          if (writeError.code !== 11000) 
             // Not a duplicate key error
             stats.devices.errors.push(`Bulk insert error: ${writeError.errmsg}`);
-          }
-        }
+          
+        
       } else {
         stats.devices.failed += toInsert.length;
         stats.devices.errors.push(
@@ -259,7 +259,7 @@ async function processDeviceBatch(
         );
       }
     }
-  }
+  
 }
 
 // ============================================================================
@@ -294,11 +294,11 @@ async function migrateReadings(stats: MigrationStats): Promise<void> {
   // For very large datasets, we skip the existing key check
   // and rely on the timestamp+device_id compound index for deduplication
   let existingKeys: Set<string> | null = null;
-  if (stats.readings.total < 500000 && CONFIG.skipExisting) {
+  if (stats.readings.total < 500000 && CONFIG.skipExisting) 
     existingKeys = await getExistingV2ReadingKeys();
-  } else {
+   else 
     console.log('   Skipping deduplication check (large dataset)');
-  }
+  
 
   // Process in batches using cursor
   let processed = 0;
@@ -313,9 +313,9 @@ async function migrateReadings(stats: MigrationStats): Promise<void> {
       await processReadingBatch(batch, existingKeys, stats);
       processed += batch.length;
 
-      if (processed % (CONFIG.readingBatchSize * CONFIG.logInterval) === 0) {
+      if (processed % (CONFIG.readingBatchSize * CONFIG.logInterval) === 0) 
         logProgress(processed, stats.readings.total, 'readings');
-      }
+      
 
       batch.length = 0; // Clear batch
     }
@@ -355,12 +355,12 @@ async function processReadingBatch(
     const validation = validateReadingV1ForMigration(reading);
     if (!validation.valid) {
       stats.readings.failed++;
-      if (stats.readings.errors.length < 100) {
+      if (stats.readings.errors.length < 100) 
         // Cap error messages
         stats.readings.errors.push(
           `Reading for ${reading.metadata?.device_id}: ${validation.errors.join(', ')}`
         );
-      }
+      
       continue;
     }
 
@@ -372,16 +372,16 @@ async function processReadingBatch(
       toInsert.push(v2Reading);
     } catch (error) {
       stats.readings.failed++;
-      if (stats.readings.errors.length < 100) {
+      if (stats.readings.errors.length < 100) 
         stats.readings.errors.push(
           `Reading mapping error: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
-      }
+      
     }
   }
 
   // Bulk insert
-  if (toInsert.length > 0) {
+  if (toInsert.length > 0) 
     try {
       await ReadingV2.insertMany(toInsert, { ordered: false });
       stats.readings.migrated += toInsert.length;
@@ -391,14 +391,14 @@ async function processReadingBatch(
         stats.readings.failed += toInsert.length - error.insertedCount;
       } else {
         stats.readings.failed += toInsert.length;
-        if (stats.readings.errors.length < 100) {
+        if (stats.readings.errors.length < 100) 
           stats.readings.errors.push(
             `Bulk insert failed: ${error instanceof Error ? error.message : 'Unknown error'}`
           );
-        }
+        
       }
     }
-  }
+  
 }
 
 // ============================================================================
@@ -475,18 +475,18 @@ async function runMigration(): Promise<void> {
         stats.devices.errors.slice(0, 10).forEach((err) => {
           console.log(`   - ${err}`);
         });
-        if (stats.devices.errors.length > 10) {
+        if (stats.devices.errors.length > 10) 
           console.log(`   ... and ${stats.devices.errors.length - 10} more`);
-        }
+        
       }
       if (stats.readings.errors.length > 0) {
         console.log('\n   Reading errors:');
         stats.readings.errors.slice(0, 10).forEach((err) => {
           console.log(`   - ${err}`);
         });
-        if (stats.readings.errors.length > 10) {
+        if (stats.readings.errors.length > 10) 
           console.log(`   ... and ${stats.readings.errors.length - 10} more`);
-        }
+        
       }
     }
 
@@ -498,9 +498,9 @@ async function runMigration(): Promise<void> {
     if (hasFailures) {
       console.log('⚠️  Migration completed with some failures.');
       process.exitCode = 1;
-    } else {
+    } else 
       console.log('✅ Migration completed successfully!');
-    }
+    
   } catch (error) {
     console.error('\n❌ Fatal error during migration:');
     console.error(error);

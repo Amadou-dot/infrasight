@@ -100,9 +100,9 @@ export const dateRangeSchema = z
   })
   .refine(
     (data) => {
-      if (data.startDate && data.endDate) {
+      if (data.startDate && data.endDate) 
         return data.startDate <= data.endDate;
-      }
+      
       return true;
     },
     { message: 'Start date must be before or equal to end date' }

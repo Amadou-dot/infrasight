@@ -166,7 +166,7 @@ async function createCollectionIndexes(
   console.log(`   Existing indexes: ${existingIndexNames.size}`);
   console.log('─'.repeat(60));
 
-  for (const index of indexes) {
+  for (const index of indexes) 
     try {
       // Check if index already exists
       if (existingIndexNames.has(index.name)) {
@@ -194,7 +194,7 @@ async function createCollectionIndexes(
       console.error(`   ❌ [FAIL] ${index.name}: ${errorMessage}`);
       stats.failed++;
     }
-  }
+  
 
   return stats;
 }
@@ -240,17 +240,17 @@ async function createIndexes(): Promise<void> {
     const hasDevicesV2 = collectionNames.has('devices_v2');
     const hasReadingsV2 = collectionNames.has('readings_v2');
 
-    if (!hasDevicesV2) {
+    if (!hasDevicesV2) 
       console.log(
         '\n⚠️  Collection devices_v2 does not exist yet. Creating indexes will create the collection.'
       );
-    }
+    
 
-    if (!hasReadingsV2) {
+    if (!hasReadingsV2) 
       console.log(
         '\n⚠️  Collection readings_v2 does not exist yet. Creating indexes will create the collection.'
       );
-    }
+    
 
     // Create indexes for devices_v2
     const deviceStats = await createCollectionIndexes(

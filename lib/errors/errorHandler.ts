@@ -156,23 +156,23 @@ function handleMongoDuplicateKeyError(error: MongoError): ApiError {
   const value = keyValue[field];
 
   // Special handling for known fields
-  if (field === 'serial_number' || field === 'serialNumber') {
+  if (field === 'serial_number' || field === 'serialNumber') 
     return new ApiError(
       ErrorCodes.SERIAL_NUMBER_EXISTS,
       409,
       `A device with serial number '${value}' already exists`,
       { field, value: String(value) }
     );
-  }
+  
 
-  if (field === '_id' || field === 'id') {
+  if (field === '_id' || field === 'id') 
     return new ApiError(
       ErrorCodes.DEVICE_ID_EXISTS,
       409,
       `A resource with ID '${value}' already exists`,
       { field, value: String(value) }
     );
-  }
+  
 
   return new ApiError(
     ErrorCodes.DUPLICATE_RESOURCE,
@@ -238,7 +238,7 @@ export function handleError(
     shouldLog = false;
   }
   // MongoDB errors (duplicate key, etc.)
-  else if (isMongoError(error)) {
+  else if (isMongoError(error)) 
     // Duplicate key error
     if (error.code === 11000) {
       apiError = handleMongoDuplicateKeyError(error);
@@ -267,32 +267,32 @@ export function handleError(
       );
       shouldLog = true;
     }
-  }
+  
   // Standard Error instances
   else if (error instanceof Error) {
     // Check for common error patterns
-    if (error.message?.toLowerCase().includes('timeout')) {
+    if (error.message?.toLowerCase().includes('timeout')) 
       apiError = new ApiError(
         ErrorCodes.GATEWAY_TIMEOUT,
         504,
         'Request timed out',
         { originalMessage: error.message }
       );
-    } else if (error.message?.toLowerCase().includes('network')) {
+     else if (error.message?.toLowerCase().includes('network')) 
       apiError = new ApiError(
         ErrorCodes.CONNECTION_ERROR,
         500,
         'Network error occurred',
         { originalMessage: error.message }
       );
-    } else {
+     else 
       apiError = new ApiError(
         ErrorCodes.INTERNAL_ERROR,
         500,
         'An unexpected error occurred',
         { originalMessage: error.message }
       );
-    }
+    
     // Preserve original stack trace
     apiError.stack = error.stack;
     shouldLog = true;

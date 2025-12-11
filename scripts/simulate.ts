@@ -23,8 +23,8 @@ async function generateReadings() {
         serverRoomTemp += change;
         
         // Cap it so it doesn't go to infinity during long runs, but high enough to trigger alerts
-        if (serverRoomTemp > 110) {serverRoomTemp = 105;} 
-        if (serverRoomTemp < 60) {serverRoomTemp = 65;}
+        if (serverRoomTemp > 110) serverRoomTemp = 105; 
+        if (serverRoomTemp < 60) serverRoomTemp = 65;
 
         value = parseFloat(serverRoomTemp.toFixed(1));
       } else {

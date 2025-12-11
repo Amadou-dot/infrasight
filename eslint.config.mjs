@@ -27,7 +27,7 @@ const eslintConfig = [
       "prefer-const": "error",
       "no-var": "error",
       "eqeqeq": ["error", "always", { null: "ignore" }],
-      "curly": ["error", "all"],
+      "curly": ["error", "multi"],
       "no-console": ["warn", { allow: ["warn", "error"] }],
 
       // Prevent common mistakes
