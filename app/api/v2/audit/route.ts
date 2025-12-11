@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     const deviceMatch: Record<string, unknown> = {};
     
     if (!query.include_deleted) 
-      deviceMatch['audit.deleted_at'] = null;
+      deviceMatch['audit.deleted_at'] = { $exists: false };
     
 
     if (query.device_id) {
