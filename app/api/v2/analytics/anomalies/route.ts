@@ -51,15 +51,17 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Validate query parameters
-    const validationResult = validateQuery(searchParams, anomalyAnalyticsQuerySchema);
-    if (!validationResult.success) {
+    const validationResult = validateQuery(
+      searchParams,
+      anomalyAnalyticsQuerySchema
+    );
+    if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
 
     const query = validationResult.data as AnomalyAnalyticsQuery;
 
@@ -76,31 +78,37 @@ export async function GET(request: NextRequest) {
 
     // Device filter
     if (query.device_id) {
-      const deviceIds = Array.isArray(query.device_id) ? query.device_id : [query.device_id];
-      matchStage['metadata.device_id'] = deviceIds.length === 1 ? deviceIds[0] : { $in: deviceIds };
+      const deviceIds = Array.isArray(query.device_id)
+        ? query.device_id
+        : [query.device_id];
+      matchStage['metadata.device_id'] =
+        deviceIds.length === 1 ? deviceIds[0] : { $in: deviceIds };
     }
 
     // Type filter
     if (query.type) {
       const types = Array.isArray(query.type) ? query.type : [query.type];
-      matchStage['metadata.type'] = types.length === 1 ? types[0] : { $in: types };
+      matchStage['metadata.type'] =
+        types.length === 1 ? types[0] : { $in: types };
     }
 
     // Time range filter
     if (query.startDate || query.endDate) {
       matchStage.timestamp = {};
-      if (query.startDate) {
-        (matchStage.timestamp as Record<string, Date>).$gte = new Date(query.startDate);
-      }
-      if (query.endDate) {
-        (matchStage.timestamp as Record<string, Date>).$lte = new Date(query.endDate);
-      }
+      if (query.startDate)
+        (matchStage.timestamp as Record<string, Date>).$gte = new Date(
+          query.startDate
+        );
+
+      if (query.endDate)
+        (matchStage.timestamp as Record<string, Date>).$lte = new Date(
+          query.endDate
+        );
     }
 
     // Minimum anomaly score filter
-    if (query.min_score !== undefined) {
+    if (query.min_score !== undefined)
       matchStage['quality.anomaly_score'] = { $gte: query.min_score };
-    }
 
     // Build sort
     const sortOrder = query.sortDirection === 'asc' ? 1 : -1;
@@ -135,13 +143,15 @@ export async function GET(request: NextRequest) {
     let trends = null;
     if (query.bucket_granularity) {
       const dateFormat = getDateFormat(query.bucket_granularity);
-      
+
       const trendPipeline = [
         { $match: matchStage },
         {
           $group: {
             _id: {
-              time_bucket: { $dateToString: { format: dateFormat, date: '$timestamp' } },
+              time_bucket: {
+                $dateToString: { format: dateFormat, date: '$timestamp' },
+              },
             },
             count: { $sum: 1 },
             avg_score: { $avg: '$quality.anomaly_score' },
