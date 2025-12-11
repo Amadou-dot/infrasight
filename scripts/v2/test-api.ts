@@ -56,9 +56,9 @@ async function testEndpoint(
 
     let passed = response.status === expectedStatus;
     
-    if (passed && options?.validateResponse) {
+    if (passed && options?.validateResponse) 
       passed = options.validateResponse(data);
-    }
+    
 
     const result: TestResult = {
       name,
@@ -92,9 +92,9 @@ function logResult(result: TestResult): void {
   const time = `${result.responseTime}ms`;
   console.log(`${icon} ${result.name}`);
   console.log(`   ${result.endpoint} [${result.status}] ${time}`);
-  if (result.error) {
+  if (result.error) 
     console.log(`   Error: ${result.error}`);
-  }
+  
 }
 
 // ============================================================================

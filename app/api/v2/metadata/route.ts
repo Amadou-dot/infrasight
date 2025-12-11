@@ -4,7 +4,7 @@
  * GET /api/v2/metadata - Aggregated system metadata (manufacturers, departments, buildings, etc.)
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';

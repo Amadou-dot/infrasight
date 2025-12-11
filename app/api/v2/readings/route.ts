@@ -4,7 +4,7 @@
  * GET /api/v2/readings - Query readings with filters, pagination, and sorting
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import { listReadingsQuerySchema, type ListReadingsQuery } from '@/lib/validations/v2/reading.validation';
@@ -28,14 +28,14 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, listReadingsQuerySchema);
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as ListReadingsQuery;
 
@@ -69,43 +69,43 @@ export async function GET(request: NextRequest) {
     // Time range filter (required for efficient time series queries)
     if (query.startDate || query.endDate) {
       filter.timestamp = {};
-      if (query.startDate) {
+      if (query.startDate) 
         (filter.timestamp as Record<string, Date>).$gte = new Date(query.startDate);
-      }
-      if (query.endDate) {
+      
+      if (query.endDate) 
         (filter.timestamp as Record<string, Date>).$lte = new Date(query.endDate);
-      }
+      
     }
 
     // Quality filters
-    if (query.is_valid !== undefined) {
+    if (query.is_valid !== undefined) 
       filter['quality.is_valid'] = query.is_valid;
-    }
+    
 
-    if (query.is_anomaly !== undefined) {
+    if (query.is_anomaly !== undefined) 
       filter['quality.is_anomaly'] = query.is_anomaly;
-    }
+    
 
-    if (query.min_confidence !== undefined) {
+    if (query.min_confidence !== undefined) 
       filter['quality.confidence_score'] = { $gte: query.min_confidence };
-    }
+    
 
-    if (query.min_anomaly_score !== undefined) {
+    if (query.min_anomaly_score !== undefined) 
       filter['quality.anomaly_score'] = { 
         ...(filter['quality.anomaly_score'] as Record<string, number> || {}),
         $gte: query.min_anomaly_score 
       };
-    }
+    
 
     // Value range filter
     if (query.min_value !== undefined || query.max_value !== undefined) {
       filter.value = {};
-      if (query.min_value !== undefined) {
+      if (query.min_value !== undefined) 
         (filter.value as Record<string, number>).$gte = query.min_value;
-      }
-      if (query.max_value !== undefined) {
+      
+      if (query.max_value !== undefined) 
         (filter.value as Record<string, number>).$lte = query.max_value;
-      }
+      
     }
 
     // Build sort
@@ -127,9 +127,9 @@ export async function GET(request: NextRequest) {
     let projection: Record<string, 1> | undefined;
     if (query.fields) {
       projection = {};
-      for (const field of query.fields) {
+      for (const field of query.fields) 
         projection[field] = 1;
-      }
+      
     }
 
     // Execute query

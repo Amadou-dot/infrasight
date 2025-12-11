@@ -4,7 +4,7 @@
  * GET /api/v2/readings/latest - Get latest readings for devices
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import {
@@ -27,14 +27,14 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, latestReadingsQuerySchema);
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as LatestReadingsQuery;
 
@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Quality filter
-    if (!query.include_invalid) {
+    if (!query.include_invalid) 
       matchStage['quality.is_valid'] = true;
-    }
+    
 
     // Aggregation pipeline to get latest reading per device
     const pipeline = [
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     const latestReadings = await ReadingV2.aggregate(pipeline);
 
     // Include quality metrics if requested
-    let response: Record<string, unknown> = {
+    const response: Record<string, unknown> = {
       readings: latestReadings,
       count: latestReadings.length,
     };

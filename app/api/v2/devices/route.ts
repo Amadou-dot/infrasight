@@ -5,7 +5,7 @@
  * POST /api/v2/devices - Create a new device with full validation
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2, { type IDeviceV2 } from '@/models/v2/DeviceV2';
 import {
@@ -36,14 +36,14 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, listDevicesQuerySchema);
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as ListDevicesQuery;
 
@@ -69,48 +69,48 @@ export async function GET(request: NextRequest) {
     }
 
     // Location filters
-    if (query.building_id) {
+    if (query.building_id) 
       filter['location.building_id'] = query.building_id;
-    }
-    if (query.floor !== undefined) {
+    
+    if (query.floor !== undefined) 
       filter['location.floor'] = query.floor;
-    }
-    if (query.zone) {
+    
+    if (query.zone) 
       filter['location.zone'] = query.zone;
-    }
+    
 
     // Metadata filters
-    if (query.department) {
+    if (query.department) 
       filter['metadata.department'] = query.department;
-    }
-    if (query.manufacturer) {
+    
+    if (query.manufacturer) 
       filter.manufacturer = query.manufacturer;
-    }
+    
     if (query.tags) {
       const tags = Array.isArray(query.tags) ? query.tags : [query.tags];
       filter['metadata.tags'] = { $in: tags };
     }
 
     // Health filters
-    if (query.min_battery !== undefined) {
+    if (query.min_battery !== undefined) 
       filter['health.battery_level'] = { 
         ...((filter['health.battery_level'] as Record<string, number>) || {}), 
         $gte: query.min_battery 
       };
-    }
-    if (query.max_battery !== undefined) {
+    
+    if (query.max_battery !== undefined) 
       filter['health.battery_level'] = { 
         ...((filter['health.battery_level'] as Record<string, number>) || {}), 
         $lte: query.max_battery 
       };
-    }
+    
 
     // Soft delete filter
-    if (query.only_deleted) {
+    if (query.only_deleted) 
       filter['audit.deleted_at'] = { $exists: true };
-    } else if (!query.include_deleted) {
+     else if (!query.include_deleted) 
       filter['audit.deleted_at'] = { $exists: false };
-    }
+    
 
     // Date range filter
     if (query.startDate || query.endDate) {
@@ -119,22 +119,22 @@ export async function GET(request: NextRequest) {
         : 'audit.created_at';
       
       filter[dateField] = {};
-      if (query.startDate) {
+      if (query.startDate) 
         (filter[dateField] as Record<string, Date>).$gte = new Date(query.startDate);
-      }
-      if (query.endDate) {
+      
+      if (query.endDate) 
         (filter[dateField] as Record<string, Date>).$lte = new Date(query.endDate);
-      }
+      
     }
 
     // Search filter
-    if (query.search) {
+    if (query.search) 
       filter.$or = [
         { serial_number: { $regex: query.search, $options: 'i' } },
         { 'location.room_name': { $regex: query.search, $options: 'i' } },
         { 'metadata.tags': { $regex: query.search, $options: 'i' } },
       ];
-    }
+    
 
     // Build sort
     const sortOrder = query.sortDirection === 'desc' ? -1 : 1;
@@ -161,9 +161,9 @@ export async function GET(request: NextRequest) {
     let projection: Record<string, 1> | undefined;
     if (query.fields) {
       projection = {};
-      for (const field of query.fields) {
+      for (const field of query.fields) 
         projection[field] = 1;
-      }
+      
     }
 
     // Execute query
@@ -199,14 +199,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validationResult = validateInput(body, createDeviceSchema);
     
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const deviceData = validationResult.data;
 
@@ -215,25 +215,25 @@ export async function POST(request: NextRequest) {
       serial_number: deviceData.serial_number 
     }).lean();
     
-    if (existingDevice) {
+    if (existingDevice) 
       throw new ApiError(
         ErrorCodes.SERIAL_NUMBER_EXISTS,
         409,
         `Device with serial number '${deviceData.serial_number}' already exists`,
         { field: 'serial_number', value: deviceData.serial_number }
       );
-    }
+    
 
     // Check for duplicate ID
     const existingId = await DeviceV2.findById(deviceData._id).lean();
-    if (existingId) {
+    if (existingId) 
       throw new ApiError(
         ErrorCodes.DEVICE_ID_EXISTS,
         409,
         `Device with ID '${deviceData._id}' already exists`,
         { field: '_id', value: deviceData._id }
       );
-    }
+    
 
     // Create device with audit metadata
     const deviceDoc: Partial<IDeviceV2> = {

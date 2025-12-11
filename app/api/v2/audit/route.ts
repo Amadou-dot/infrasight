@@ -4,7 +4,7 @@
  * GET /api/v2/audit - Cross-device audit trail with filtering
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
@@ -76,14 +76,14 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, auditQuerySchema);
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as AuditQuery;
 
@@ -96,9 +96,9 @@ export async function GET(request: NextRequest) {
     // Build device match
     const deviceMatch: Record<string, unknown> = {};
     
-    if (!query.include_deleted) {
+    if (!query.include_deleted) 
       deviceMatch['audit.deleted_at'] = null;
-    }
+    
 
     if (query.device_id) {
       const deviceIds = Array.isArray(query.device_id) ? query.device_id : [query.device_id];
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
       });
 
       // Update entries
-      if (audit.updated_at && audit.updated_at.getTime() !== audit.created_at.getTime()) {
+      if (audit.updated_at && audit.updated_at.getTime() !== audit.created_at.getTime()) 
         auditEntries.push({
           device_id: device._id,
           action: 'update',
@@ -139,10 +139,10 @@ export async function GET(request: NextRequest) {
             action_type: 'device_updated',
           },
         });
-      }
+      
 
       // Delete entry
-      if (audit.deleted_at) {
+      if (audit.deleted_at) 
         auditEntries.push({
           device_id: device._id,
           action: 'delete',
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
             action_type: 'device_deleted',
           },
         });
-      }
+      
     }
 
     // Apply filters

@@ -4,7 +4,7 @@
  * GET /api/v2/devices/[id]/history - Get device audit history
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import {
@@ -46,36 +46,36 @@ export async function GET(
 
     // Validate path param
     const paramValidation = validateInput({ id }, deviceIdParamSchema);
-    if (!paramValidation.success) {
+    if (!paramValidation.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         paramValidation.errors.map(e => e.message).join(', '),
         { errors: paramValidation.errors }
       );
-    }
+    
 
     // Validate query params
     const searchParams = request.nextUrl.searchParams;
     const queryValidation = validateQuery(searchParams, deviceHistoryQuerySchema);
     
-    if (!queryValidation.success) {
+    if (!queryValidation.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         queryValidation.errors.map(e => e.message).join(', '),
         { errors: queryValidation.errors }
       );
-    }
+    
 
     const query = queryValidation.data as DeviceHistoryQuery;
 
     // Find device (include deleted for history)
     const device = await DeviceV2.findById(id).lean();
 
-    if (!device) {
+    if (!device) 
       throw ApiError.notFound('Device', id);
-    }
+    
 
     // Build history from audit trail
     // Note: In a production system, you might have a separate audit log collection
@@ -83,7 +83,7 @@ export async function GET(
     const history: HistoryEntry[] = [];
 
     // Created entry
-    if (device.audit?.created_at) {
+    if (device.audit?.created_at) 
       history.push({
         action: 'created',
         timestamp: device.audit.created_at,
@@ -94,14 +94,14 @@ export async function GET(
           initial_location: device.location,
         },
       });
-    }
+    
 
     // Updated entry (if different from created)
     if (
       device.audit?.updated_at &&
       device.audit.created_at &&
       device.audit.updated_at.getTime() !== device.audit.created_at.getTime()
-    ) {
+    ) 
       history.push({
         action: 'updated',
         timestamp: device.audit.updated_at,
@@ -111,29 +111,29 @@ export async function GET(
           note: 'Last known update (detailed change history not available)',
         },
       });
-    }
+    
 
     // Deleted entry
-    if (device.audit?.deleted_at) {
+    if (device.audit?.deleted_at) 
       history.push({
         action: 'deleted',
         timestamp: device.audit.deleted_at,
         user: device.audit.deleted_by || 'unknown',
       });
-    }
+    
 
     // Apply filters
     let filteredHistory = history;
 
     // Filter by action
-    if (query.action) {
+    if (query.action) 
       filteredHistory = filteredHistory.filter((h) => h.action === query.action);
-    }
+    
 
     // Filter by user
-    if (query.user) {
+    if (query.user) 
       filteredHistory = filteredHistory.filter((h) => h.user === query.user);
-    }
+    
 
     // Filter by date range
     if (query.startDate) {

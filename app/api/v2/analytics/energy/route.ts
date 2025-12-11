@@ -4,7 +4,7 @@
  * GET /api/v2/analytics/energy - Energy/reading analytics with aggregation
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import {
@@ -75,14 +75,14 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, readingAnalyticsQuerySchema);
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as ReadingAnalyticsQuery;
 
@@ -104,29 +104,29 @@ export async function GET(request: NextRequest) {
     // Time range filter
     if (query.startDate || query.endDate) {
       matchStage.timestamp = {};
-      if (query.startDate) {
+      if (query.startDate) 
         (matchStage.timestamp as Record<string, Date>).$gte = new Date(query.startDate);
-      }
-      if (query.endDate) {
+      
+      if (query.endDate) 
         (matchStage.timestamp as Record<string, Date>).$lte = new Date(query.endDate);
-      }
+      
     }
 
     // Quality filter
-    if (!query.include_invalid) {
+    if (!query.include_invalid) 
       matchStage['quality.is_valid'] = true;
-    }
+    
 
     // Build group stage based on granularity and group_by
     const dateFormat = getDateFormat(query.granularity || 'hour');
     const aggOperator = getAggregationOperator(query.aggregation || 'avg');
 
     // Build group _id based on group_by option
-    let groupId: Record<string, unknown> = {
+    const groupId: Record<string, unknown> = {
       time_bucket: { $dateToString: { format: dateFormat, date: '$timestamp' } },
     };
 
-    if (query.group_by) {
+    if (query.group_by) 
       switch (query.group_by) {
         case 'device':
           groupId.device_id = '$metadata.device_id';
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
         default:
           groupId.device_id = '$metadata.device_id';
       }
-    }
+    
 
     // Build aggregation pipeline
     const pipeline = [

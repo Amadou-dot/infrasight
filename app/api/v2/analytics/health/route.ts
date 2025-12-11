@@ -4,7 +4,7 @@
  * GET /api/v2/analytics/health - Device health dashboard analytics
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
@@ -38,14 +38,14 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, healthAnalyticsQuerySchema);
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as HealthAnalyticsQuery;
 
@@ -54,15 +54,15 @@ export async function GET(request: NextRequest) {
       'audit.deleted_at': { $exists: false },
     };
 
-    if (query.building_id) {
+    if (query.building_id) 
       baseFilter['location.building_id'] = query.building_id;
-    }
-    if (query.floor !== undefined) {
+    
+    if (query.floor !== undefined) 
       baseFilter['location.floor'] = query.floor;
-    }
-    if (query.department) {
+    
+    if (query.department) 
       baseFilter['metadata.department'] = query.department;
-    }
+    
 
     // Calculate offline threshold
     const offlineThreshold = new Date(Date.now() - query.offline_threshold_minutes * 60 * 1000);

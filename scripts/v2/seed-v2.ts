@@ -86,9 +86,9 @@ function generateDeviceId(index: number): string {
 function generateSerialNumber(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let serial = 'SN-';
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 10; i++) 
     serial += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
+  
   return serial;
 }
 
@@ -251,9 +251,9 @@ async function seed(): Promise<void> {
     // Generate and insert devices
     console.log(`📱 Generating ${NUM_DEVICES} devices...`);
     const devices = [];
-    for (let i = 0; i < NUM_DEVICES; i++) {
+    for (let i = 0; i < NUM_DEVICES; i++) 
       devices.push(generateDevice(i));
-    }
+    
     await DeviceV2.insertMany(devices);
     console.log(`✅ Inserted ${NUM_DEVICES} devices\n`);
 

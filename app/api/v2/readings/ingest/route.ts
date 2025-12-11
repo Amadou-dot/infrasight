@@ -4,7 +4,7 @@
  * POST /api/v2/readings/ingest - Bulk insert readings with validation
  */
 
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import ReadingV2, { type IReadingV2 } from '@/models/v2/ReadingV2';
 import DeviceV2 from '@/models/v2/DeviceV2';
@@ -93,26 +93,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validationResult = validateInput(body, bulkIngestReadingsSchema);
     
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const data = validationResult.data as BulkIngestReadingsInput;
 
     // Enforce max readings limit
-    if (data.readings.length > MAX_READINGS_PER_REQUEST) {
+    if (data.readings.length > MAX_READINGS_PER_REQUEST) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         `Cannot ingest more than ${MAX_READINGS_PER_REQUEST} readings in a single request`,
         { received: String(data.readings.length), max: String(MAX_READINGS_PER_REQUEST) }
       );
-    }
+    
 
     // Check idempotency (simple in-memory check - in production use Redis)
     // For now, we'll skip idempotency check implementation
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Batch insert valid readings
-    if (validReadings.length > 0) {
+    if (validReadings.length > 0) 
       // Process in batches to avoid overwhelming the database
       for (let i = 0; i < validReadings.length; i += BATCH_SIZE) {
         const batch = validReadings.slice(i, i + BATCH_SIZE);
@@ -195,10 +195,10 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-    }
+    
 
     // Update device health.last_seen for all ingested devices
-    if (results.inserted > 0) {
+    if (results.inserted > 0) 
       await DeviceV2.updateMany(
         { _id: { $in: [...existingDeviceIds] } },
         { 
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
           } 
         }
       );
-    }
+    
 
     return jsonSuccess(
       {
