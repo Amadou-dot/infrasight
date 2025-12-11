@@ -22,11 +22,13 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const includeStats = searchParams.get('include_stats') === 'true';
     const includeInactive = searchParams.get('include_inactive') === 'true';
+    const includeDeleted = searchParams.get('include_deleted') === 'true';
 
-    // Base match for devices (exclude soft-deleted by default)
-    const deviceMatch: Record<string, unknown> = includeInactive
-      ? {}
-      : { 'audit.deleted_at': null };
+    // Base match for devices (exclude soft-deleted by default, unless include_deleted is true)
+    const deviceMatch: Record<string, unknown> =
+      includeDeleted
+        ? {}
+        : { 'audit.deleted_at': null };
 
     // Get unique manufacturers with device counts
     const manufacturers = await DeviceV2.aggregate([
