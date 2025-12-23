@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import AuditLogViewer from './AuditLogViewer';
+import TemperatureCorrelationPanel from './TemperatureCorrelationPanel';
 import {
   X,
   MapPin,
@@ -30,6 +31,8 @@ import {
   Info,
   Settings,
   TrendingUp,
+  Lock,
+  Shield,
 } from 'lucide-react';
 import {
   LineChart,
@@ -397,14 +400,118 @@ export default function DeviceDetailModal({
                       </div>
                     </div>
                   )}
+
+                  {/* Security & Compliance */}
+                  {device.compliance && (
+                    <div className="space-y-4 md:col-span-2">
+                      <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Security & Compliance
+                      </h3>
+                      
+                      {/* Data Classification Badge */}
+                      <div className={`
+                        rounded-lg p-4 border-2
+                        ${device.compliance.data_classification === 'restricted' 
+                          ? 'bg-gradient-to-r from-purple-50 to-amber-50 dark:from-purple-900/20 dark:to-amber-900/20 border-purple-500'
+                          : device.compliance.data_classification === 'confidential'
+                          ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500'
+                          : device.compliance.data_classification === 'internal'
+                          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500'
+                          : 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                        }
+                      `}>
+                        <div className="flex items-start gap-3">
+                          {device.compliance.requires_encryption ? (
+                            <Lock className={`h-5 w-5 mt-0.5 ${
+                              device.compliance.data_classification === 'restricted'
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : device.compliance.data_classification === 'confidential'
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : device.compliance.data_classification === 'internal'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-green-600 dark:text-green-400'
+                            }`} />
+                          ) : (
+                            <Shield className={`h-5 w-5 mt-0.5 ${
+                              device.compliance.data_classification === 'restricted'
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : device.compliance.data_classification === 'confidential'
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : device.compliance.data_classification === 'internal'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-green-600 dark:text-green-400'
+                            }`} />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className={`
+                                ${device.compliance.data_classification === 'restricted'
+                                  ? 'bg-purple-600 hover:bg-purple-700'
+                                  : device.compliance.data_classification === 'confidential'
+                                  ? 'bg-orange-600 hover:bg-orange-700'
+                                  : device.compliance.data_classification === 'internal'
+                                  ? 'bg-blue-600 hover:bg-blue-700'
+                                  : 'bg-green-600 hover:bg-green-700'
+                                }
+                              `}>
+                                {device.compliance.data_classification.toUpperCase()}
+                              </Badge>
+                              {device.compliance.requires_encryption && (
+                                <Badge variant="outline" className="flex items-center gap-1">
+                                  <Lock className="h-3 w-3" />
+                                  Encrypted
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p className={`font-medium ${
+                                device.compliance.data_classification === 'restricted'
+                                  ? 'text-purple-900 dark:text-purple-200'
+                                  : device.compliance.data_classification === 'confidential'
+                                  ? 'text-orange-900 dark:text-orange-200'
+                                  : device.compliance.data_classification === 'internal'
+                                  ? 'text-blue-900 dark:text-blue-200'
+                                  : 'text-green-900 dark:text-green-200'
+                              }`}>
+                                {device.compliance.data_classification === 'restricted' 
+                                  ? 'Highly Sensitive Data - Maximum Security Required'
+                                  : device.compliance.data_classification === 'confidential'
+                                  ? 'Confidential Data - Restricted Access'
+                                  : device.compliance.data_classification === 'internal'
+                                  ? 'Internal Use Only - Standard Security'
+                                  : 'Public Data - No Restrictions'
+                                }
+                              </p>
+                              {device.compliance.requires_encryption && (
+                                <p className="text-muted-foreground">
+                                  All data from this device is encrypted at rest and in transit
+                                </p>
+                              )}
+                              <p className="text-muted-foreground">
+                                Data retention: {device.compliance.retention_days} days
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {activeTab === 'readings' && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
-                    Recent Readings (Last 24 Hours)
-                  </h3>
+                <div className="space-y-6">
+                  {/* Temperature Correlation Panel for temperature devices */}
+                  {device.type === 'temperature' && (
+                    <TemperatureCorrelationPanel deviceId={device._id} />
+                  )}
+                  
+                  {/* Standard Readings Chart */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      Recent Readings (Last 24 Hours)
+                    </h3>
                   {recentReadings.length === 0 ? (
                     <p className="text-gray-500 dark:text-gray-400 text-center py-8">
                       No recent readings available
@@ -430,6 +537,7 @@ export default function DeviceDetailModal({
                       </LineChart>
                     </ResponsiveContainer>
                   )}
+                  </div>
                 </div>
               )}
 
