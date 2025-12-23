@@ -172,7 +172,7 @@ types/v2/                          # TypeScript types for v2 API contracts
 
 ## Key Files to Reference
 
-- Migration strategy: [plan.md](../plan.md), [QUICK_START_V2.md](../QUICK_START_V2.md)
+- Migration strategy: [plan.md](../plans/plan.md), [QUICK_START_V2.md](../plans/QUICK_START_V2.md)
 - Dual-write logic: [lib/migration/dual-write-adapter.ts](../lib/migration/dual-write-adapter.ts)
 - V2 models: [models/v2/DeviceV2.ts](../models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](../models/v2/ReadingV2.ts)
 - Error handling: [lib/errors/errorHandler.ts](../lib/errors/errorHandler.ts), [lib/errors/errorCodes.ts](../lib/errors/errorCodes.ts)
