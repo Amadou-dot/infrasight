@@ -369,8 +369,8 @@ export interface DeviceV2Response {
   _id: string;
   serial_number: string;
   manufacturer: string;
-  /** API returns 'model' instead of 'device_model' */
-  model: string;
+  /** Mapped from API field 'model' to avoid Mongoose Document.model conflicts */
+  device_model: string;
   firmware_version: string;
   type: DeviceType;
   configuration: DeviceConfiguration;

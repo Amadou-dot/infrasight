@@ -2,132 +2,179 @@
 
 ## Project Overview
 
-**Infrasight** is a real-time IoT sensor monitoring dashboard for building management, built with **Next.js 15** (Turbopack), **TypeScript**, **MongoDB** (Mongoose timeseries), and **Pusher** for real-time updates. It tracks environmental sensors (temperature, humidity, occupancy, power) across building floors and rooms.
+**Infrasight** is a real-time IoT sensor monitoring dashboard for building management, built with **Next.js 15** (Turbopack), **TypeScript**, **MongoDB** (Mongoose timeseries), and **Pusher** for real-time updates. It tracks environmental sensors across building floors and rooms.
 
-## Architecture
+## Critical Architecture Decisions
 
-### Core Data Flow
-1. **Sensors** → MongoDB collections (`devices`, `readings`)
-2. **API Routes** (Next.js) → Query data, validate with custom logic
-3. **Pusher** → Real-time broadcasts to dashboard
-4. **React Components** → Display device grid, floor plans, anomaly charts
+### Expand-Contract Migration Strategy (V1 → V2)
+The project is migrating from v1 to v2 collections **without downtime**:
+- **V1 Collections**: `devices`, `readings` (basic schema, 7-day TTL)
+- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance)
+- **Dual-write adapter** (`lib/migration/dual-write-adapter.ts`) syncs v1→v2 during transition
+- **API versioning**: `/api/devices` (v1) vs `/api/v2/devices` (v2)
+- **Mappers**: `lib/migration/v1-to-v2-mapper.ts` transforms old schema to new
 
-### Key Services
-- **Database**: MongoDB with Mongoose ODM; `readings` collection uses timeseries schema with 7-day auto-expiry
-- **Real-time**: Pusher singleton pattern for client subscriptions
-- **Frontend**: React 19 with TanStack Table for device grid, Recharts for analytics
-- **UI**: shadcn/ui components with Tailwind CSS 4
+**When editing models or APIs**: Check if both v1 and v2 need changes. V2 is production-ready; v1 is legacy.
 
-### Collections & Models
-- **Device** (`devices`): metadata about sensors (location, type, config, status)
-  - Custom string ID format: `device_001`, `device_002`, etc.
-  - Enums: `type` (temperature, humidity, occupancy, power), `status` (active, maintenance, offline)
-- **Reading** (`readings`): timeseries data points with auto-expiry
-  - Grouped by `metadata.device_id` and `metadata.type`
-  - Indexed TTL (expireAfterSeconds: 604800 = 7 days)
+### MongoDB Timeseries Collections
+Both v1 and v2 use timeseries for `readings` with **critical constraints**:
+- `timeField: 'timestamp'`, `metaField: 'metadata'`, `granularity: 'seconds'`
+- `metadata` field is the bucketing key—keep **LOW CARDINALITY** (device_id, type, unit, source only)
+- Cannot modify schema fields after creation without recreating collection
+- TTL: v1=7 days, v2=90 days (`expireAfterSeconds`)
 
-## Production Migration Plan
+**Example** (see [ReadingV2.ts](../models/v2/ReadingV2.ts)):
+```typescript
+metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }
+```
 
-The project uses an **Expand-Contract pattern** for zero-downtime schema upgrades:
-- **Phase 1**: Create `devices_v2`, `readings_v2` collections with enhanced fields (audit trails, health metrics, compliance)
-- **Phase 2**: Build `/api/v2/*` endpoints; dual-write v1→v2 during transition
-- **Phase 3**: Migrate dashboard to v2; deprecate v1
-
-See `plan.md` for full implementation roadmap.
+### Custom Device IDs (Not Auto-Generated)
+Device `_id` is a **custom string** (`device_001`, not ObjectId). Must be set explicitly in code:
+```typescript
+await DeviceV2.create({ _id: 'device_050', serial_number: 'SN-12345', ... });
+```
+See [scripts/v2/seed-v2.ts](../scripts/v2/seed-v2.ts) for examples.
 
 ## Development Workflows
 
-### Setup
+### Essential Commands
 ```bash
-pnpm install
-cp example.env .env.local  # Add MONGODB_URI, PUSHER_* credentials
+pnpm dev              # Next.js with Turbopack (localhost:3000)
+pnpm build           # Production build
+pnpm seed            # Populate 50 v1 test devices
+pnpm seed-v2         # Populate 50 v2 test devices + 100 readings each
+pnpm simulate        # Generate synthetic readings (real-time testing)
+pnpm create-indexes-v2  # Create v2 collection indexes
+pnpm backfill-v2     # Migrate v1 data → v2 (one-time)
+pnpm test-v2         # Test v2 API endpoints
 ```
 
-### Running
-```bash
-pnpm dev              # Start with Turbopack; opens http://localhost:3000
-pnpm build           # Production build with Turbopack
-pnpm start           # Run production server
+### Required Environment Variables
+All checked at import time—app fails loudly if missing:
+- `MONGODB_URI`: Connection string
+- `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`: Server-side real-time
+- `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER`: Client-side (must have `NEXT_PUBLIC_` prefix)
+
+Copy `example.env` → `.env.local` and populate.
+
+## Code Patterns & Critical Conventions
+
+### API Routes (V2 Standard)
+V2 routes use **Zod validation + centralized error handling**:
+```typescript
+// See app/api/v2/devices/route.ts
+export async function GET(request: NextRequest) {
+  return withErrorHandler(async () => {
+    const validationResult = validateQuery(searchParams, listDevicesQuerySchema);
+    if (!validationResult.success) throw new ApiError(...);
+    
+    const devices = await DeviceV2.findActive(filter);
+    return jsonPaginated(devices, pagination, meta);
+  });
+}
+```
+- **Validation**: `lib/validations/v2/` contains Zod schemas for all v2 operations
+- **Error handling**: `withErrorHandler` wrapper (see [lib/errors/errorHandler.ts](../lib/errors/errorHandler.ts)) normalizes all errors to `ApiError` with consistent format
+- **Responses**: Use `jsonSuccess()`, `jsonPaginated()` from `lib/api/response.ts` (NOT raw `NextResponse.json`)
+
+### Model Anti-Patterns (Critical!)
+1. **Always check `mongoose.models` before creating**:
+   ```typescript
+   const DeviceV2 = mongoose.models.DeviceV2 || mongoose.model('DeviceV2', schema);
+   ```
+   Hot reload will crash without this.
+
+2. **Avoid `model` as field name in schemas** (conflicts with Mongoose Document.model):
+   ```typescript
+   // BAD: model: string
+   // GOOD: device_model: string (see DeviceV2.ts)
+   ```
+
+3. **Don't mutate timeseries metadata fields** after collection creation—requires full migration.
+
+### Frontend Real-Time Subscriptions
+Components use Pusher client singleton ([lib/pusher-client.ts](../lib/pusher-client.ts)):
+```typescript
+const pusher = getPusherClient();
+const channel = pusher.subscribe('sensor-readings');
+channel.bind('new-reading', (data: PusherReading) => {
+  // Update local state
+});
+```
+- **Pattern**: Subscribe in `useEffect`, unsubscribe on cleanup
+- **Data shape**: `PusherReading` has `metadata.device_id`, `value`, `timestamp`
+- **Event names**: No convention yet; common: `'new-reading'`, `'device-status'`
+
+### V2 API Client Pattern
+Dashboard uses typed client wrapper ([lib/api/v2-client.ts](../lib/api/v2-client.ts)):
+```typescript
+import { v2Api } from '@/lib/api/v2-client';
+
+const response = await v2Api.devices.list({ floor: 1, status: 'active' });
+// response.data is DeviceV2Response[]
+```
+Prefer this over raw `fetch()` for type safety.
+
+## Project Structure Essentials
+
+```
+models/
+  Device.ts, Reading.ts           # V1 (legacy, 7-day TTL)
+  v2/DeviceV2.ts, ReadingV2.ts    # V2 (production, 90-day TTL, audit trails)
+lib/
+  db.ts                            # Global cached connection (prevents hot-reload leak)
+  validations/v2/                  # Zod schemas for all v2 operations
+  errors/                          # ApiError + error handling utilities
+  migration/                       # Dual-write adapter, v1→v2 mappers
+  api/v2-client.ts                 # Typed client for v2 endpoints
+app/api/v2/                        # V2 routes (use Zod + withErrorHandler)
+scripts/v2/                        # seed-v2, backfill-v2, create-indexes-v2
+components/                        # React components (all use 'use client')
+types/v2/                          # TypeScript types for v2 API contracts
 ```
 
-### Database Operations
-```bash
-pnpm seed            # Populate 50 test devices with random metadata (scripts/seed.ts)
-pnpm simulate        # Generate synthetic readings to test real-time pipeline
-npm run lint         # ESLint check (eslint.config.mjs)
-```
+## Common Tasks & Examples
 
-### Key Environment Variables
-- `MONGODB_URI`: MongoDB connection string (required, errors if missing in `lib/db.ts`)
-- `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`: Real-time broadcasting (required)
-- `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER`: Client-side (must be public)
+### Adding a New V2 API Endpoint
+1. Create Zod schema in `lib/validations/v2/` (e.g., `listAnomaliesQuerySchema`)
+2. Add route in `app/api/v2/anomalies/route.ts`:
+   ```typescript
+   export async function GET(request: NextRequest) {
+     return withErrorHandler(async () => {
+       const query = validateQuery(searchParams, listAnomaliesQuerySchema);
+       const anomalies = await ReadingV2.getAnomalies(query.data);
+       return jsonSuccess(anomalies);
+     });
+   }
+   ```
+3. Add method to `v2Api` client in `lib/api/v2-client.ts`
+4. Update types in `types/v2/api.types.ts`
 
-## Code Patterns & Conventions
+### Adding a New Device Type
+1. Update `deviceTypeSchema` in both:
+   - [models/v2/DeviceV2.ts](../models/v2/DeviceV2.ts) (enum array)
+   - [lib/validations/v2/device.validation.ts](../lib/validations/v2/device.validation.ts) (Zod enum)
+2. Update `ReadingType` in [models/v2/ReadingV2.ts](../models/v2/ReadingV2.ts) if needed
+3. Add appropriate `ReadingUnit` enum values (e.g., for new measurement types)
 
-### API Routes
-- Located in `app/api/*` following Next.js file-based routing
-- Pattern: Extract query params → validate → query DB → return JSON
-- Example validation in `app/api/devices/route.ts`:
-  - Floor param: numeric, ≥1
-  - Status param: enum validation against allowed values
-  - Sort param: `field:asc|desc` format parsed and applied to Mongoose `.sort()`
-- **Error handling**: Generic 500 catches with console.error; no custom error types currently used
-- **No authentication**: V1 APIs are open; auth planned for v2
+### Debugging Connection Issues
+- Check MongoDB connection: `lib/db.ts` has 5s timeout
+- Verify env vars: All Pusher/MongoDB vars checked at import
+- Use `pnpm test-v2` to validate v2 API responses
 
-### Models & Validation
-- **Custom ID format**: Use string IDs like `device_001` (set explicitly in code, not auto-generated)
-- **Mongoose setup**: Prevent model recompilation in dev with `mongoose.models.Device || mongoose.model()` pattern
-- **Timeseries**: Reading model uses MongoDB timeseries compression; granularity = 'seconds'
-- **Validation**: Currently manual in route handlers; **Zod planned for v2** (available in package.json but unused)
+## Critical Pitfalls to Avoid
 
-### Frontend Components
-- **'use client' directive**: All interactive components marked for client-side rendering
-- **State management**: useState + useEffect; no Redux/Zustand
-- **Real-time subscriptions**: Use Pusher singleton, subscribe to channels in useEffect
-- **TanStack Table**: Used in `DeviceGrid.tsx` for sorting, filtering, mobile collapsible rows
-- **Responsive design**: Mobile-first with conditional rendering (expand/collapse cards on small screens)
-- **Toast notifications**: react-toastify with centered position, auto-close disabled
+1. **Timeseries schema changes**: Cannot modify `metadata`, `timestamp`, or timeseries config after collection exists—requires full migration
+2. **Custom IDs**: Never use ObjectId for Device `_id`—always string like `device_001`
+3. **Mongoose model recompilation**: Always use `mongoose.models.X || mongoose.model()` pattern
+4. **Client-side secrets**: Only `NEXT_PUBLIC_*` vars allowed in browser code
+5. **V1 vs V2 confusion**: Check which version you're editing—v2 is current standard, v1 is legacy
 
-### Database Connection
-- **Connection pooling**: Global cached connection in `lib/db.ts` to prevent hot-reload exhaustion
-- **Timeouts**: serverSelectionTimeoutMS = 5s, socketTimeoutMS = 45s
-- **Error propagation**: Throws on connection failure; caught by route handlers
+## Key Files to Reference
 
-## Critical Integration Points
-
-### Pusher Real-time Flow
-1. Backend publishes via `pusherServer.trigger(channel, event, data)`
-2. Frontend subscribes via `pusherClient.subscribe(channel).bind(event, handler)`
-3. **Channel naming convention**: None formally defined yet; examples use device IDs
-4. **Data shape**: Events broadcast `PusherReading` objects with metadata.device_id, timestamp, value
-
-### API Response Contracts
-- Devices: Array of Device objects
-- Latest readings: Aggregation result with `_id` (device_id), `value`, `timestamp`, `type`
-- No wrapper format; raw JSON arrays/objects
-
-## Project Structure Notes
-
-- `components/ui/`: shadcn-provided Radix UI wrappers (button, card, badge, etc.)
-- `scripts/`: One-off utilities (seed.ts, simulate.ts, setup-ttl.ts)
-- `lib/utils.ts`: Shared utilities (cn() for clsx + tailwind-merge)
-- No `pages/` directory; uses App Router (`app/` dir)
-- Path alias `@/*` maps to workspace root for clean imports
-
-## Avoid Common Pitfalls
-
-1. **Model recompilation**: Always use mongoose.models check or model will fail in dev hot-reload
-2. **Missing env vars**: Pusher and MongoDB URI are checked at import time; failures are loud and immediate
-3. **Timeseries compression**: Don't modify Reading schema without understanding MongoDB timeseries constraints
-4. **Custom IDs**: Device._id is NOT auto-generated; must be set when creating records (see seed.ts)
-5. **Client-side Pusher config**: Use `NEXT_PUBLIC_*` prefix; avoid server secrets in browser code
-6. **Real-time sync**: Pusher broadcasts don't persist—subscribe on component mount; design for eventual consistency
-
-## Recommended Next Steps for Enhancement
-
-1. Add Zod validation schemas in `/lib/validations/` (already in package.json)
-2. Create unified error response type for consistency
-3. Add API request logging middleware
-4. Implement rate limiting (Redis-based, as noted in plan.md)
-5. Setup monitoring/observability for sensor health metrics
-6. Document Pusher channel naming convention once finalized
+- Migration strategy: [plan.md](../plans/plan.md), [QUICK_START_V2.md](../plans/QUICK_START_V2.md)
+- Dual-write logic: [lib/migration/dual-write-adapter.ts](../lib/migration/dual-write-adapter.ts)
+- V2 models: [models/v2/DeviceV2.ts](../models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](../models/v2/ReadingV2.ts)
+- Error handling: [lib/errors/errorHandler.ts](../lib/errors/errorHandler.ts), [lib/errors/errorCodes.ts](../lib/errors/errorCodes.ts)
+- Validation schemas: [lib/validations/v2/](../lib/validations/v2/)
+- API client: [lib/api/v2-client.ts](../lib/api/v2-client.ts)
