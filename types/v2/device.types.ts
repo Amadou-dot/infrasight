@@ -370,7 +370,7 @@ export interface DeviceV2Response {
   serial_number: string;
   manufacturer: string;
   /** API returns 'model' instead of 'device_model' */
-  model: string;
+  device_model: string;
   firmware_version: string;
   type: DeviceType;
   configuration: DeviceConfiguration;
