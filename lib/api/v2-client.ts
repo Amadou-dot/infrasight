@@ -18,6 +18,10 @@ import type {
   LatestReadingsResponse,
   ListReadingsQuery,
   LatestReadingsQuery,
+  MaintenanceForecastQuery,
+  MaintenanceForecastResponse,
+  TemperatureCorrelationQuery,
+  TemperatureCorrelationResponse,
 } from '@/types/v2';
 
 // ============================================================================
@@ -442,6 +446,26 @@ export const analyticsApi = {
   } = {}): Promise<ApiSuccessResponse<AnomalyResponse>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/analytics/anomalies${queryString}`);
+  },
+
+  /**
+   * Get maintenance forecast
+   */
+  async maintenanceForecast(
+    query: MaintenanceForecastQuery = {}
+  ): Promise<ApiSuccessResponse<MaintenanceForecastResponse>> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    return apiCall(`/api/v2/analytics/maintenance-forecast${queryString}`);
+  },
+
+  /**
+   * Get temperature correlation analysis
+   */
+  async temperatureCorrelation(
+    query: TemperatureCorrelationQuery
+  ): Promise<ApiSuccessResponse<TemperatureCorrelationResponse>> {
+    const queryString = buildQueryString(query as unknown as Record<string, unknown>);
+    return apiCall(`/api/v2/analytics/temperature-correlation${queryString}`);
   },
 };
 

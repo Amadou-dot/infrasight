@@ -99,6 +99,13 @@ export type {
   HealthAnalyticsQuery,
   AnomalySummary,
   AnomalyAnalyticsQuery,
+  MaintenanceForecastQuery,
+  MaintenanceForecastResponse,
+  TemperatureCorrelationQuery,
+  TemperatureCorrelationResponse,
+  TemperatureDiagnosis,
+  TemperatureDataPoint,
+  ThresholdBreach,
   // Metadata
   MetadataResponse,
   // Audit
