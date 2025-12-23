@@ -1,7 +1,8 @@
 'use client';
 
 import { getPusherClient } from '@/lib/pusher-client';
-import type { IDevice } from '@/models/Device';
+import { v2Api } from '@/lib/api/v2-client';
+import type { DeviceV2Response } from '@/types/v2';
 import {
   Activity,
   AlertTriangle,
@@ -33,14 +34,17 @@ interface PusherReading {
 interface FloorPlanProps {
   selectedFloor: number | 'all';
   onDeviceClick?: (roomName: string) => void;
+  onDeviceDetailClick?: (deviceId: string) => void; // V2: Opens device detail modal
 }
 
 export default function FloorPlan({
   selectedFloor,
   onDeviceClick,
+  onDeviceDetailClick,
 }: FloorPlanProps) {
-  const [devices, setDevices] = useState<IDevice[]>([]);
+  const [devices, setDevices] = useState<DeviceV2Response[]>([]);
   const [readings, setReadings] = useState<Record<string, Reading>>({});
+  const [loading, setLoading] = useState(true);
   const alertedDevices = useRef<Set<string>>(new Set());
 
   // UI State
@@ -61,9 +65,25 @@ export default function FloorPlan({
   };
 
   useEffect(() => {
-    fetch('/api/devices')
-      .then(res => res.json())
-      .then(setDevices);
+    const fetchDevices = async () => {
+      try {
+        setLoading(true);
+        const response = await v2Api.devices.list();
+        if (response.success) {
+          setDevices(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching devices:', error);
+        // Fallback to v1 API
+        fetch('/api/devices')
+          .then(res => res.json())
+          .then(setDevices)
+          .catch(console.error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDevices();
   }, []);
 
   useEffect(() => {
@@ -85,9 +105,9 @@ export default function FloorPlan({
       }
     };
 
-    if (devices.length > 0) 
+    if (devices && devices.length > 0) {
       fetchReadings();
-    
+    }
   }, [devices]);
 
   // Real-time updates with Pusher
@@ -120,22 +140,26 @@ export default function FloorPlan({
   useEffect(() => {
     devices.forEach(device => {
       const reading = readings[device._id];
-      if (reading && device.type === 'temperature') 
-        if (reading.value > device.configuration.threshold_critical) {
+      if (reading && device.type === 'temperature') {
+        const criticalThreshold = device.configuration?.threshold_critical;
+        const warningThreshold = device.configuration?.threshold_warning;
+        const roomName = device.location?.room_name || device._id;
+        
+        if (criticalThreshold && reading.value > criticalThreshold) {
           if (!alertedDevices.current.has(device._id + '_critical')) {
             toast.error(
-              `CRITICAL: ${device.room_name} is ${reading.value}°F!`
+              `CRITICAL: ${roomName} is ${reading.value}°F!`
             );
             alertedDevices.current.add(device._id + '_critical');
             alertedDevices.current.delete(device._id + '_warning');
           }
-        } else if (reading.value > device.configuration.threshold_warning) {
+        } else if (warningThreshold && reading.value > warningThreshold) {
           if (
             !alertedDevices.current.has(device._id + '_warning') &&
             !alertedDevices.current.has(device._id + '_critical')
           ) {
             toast.warn(
-              `WARNING: ${device.room_name} is ${reading.value}°F`
+              `WARNING: ${roomName} is ${reading.value}°F`
             );
             alertedDevices.current.add(device._id + '_warning');
           }
@@ -143,7 +167,7 @@ export default function FloorPlan({
           alertedDevices.current.delete(device._id + '_critical');
           alertedDevices.current.delete(device._id + '_warning');
         }
-      
+      }
     });
   }, [devices, readings]);
 
@@ -162,30 +186,30 @@ export default function FloorPlan({
     }
   };
 
-  const getFormattedValue = (device: IDevice, value: number) => {
-    if (device.type === 'temperature')  return `${value}°F`; 
-    if (device.type === 'humidity')  return `${value}%`; 
-    if (device.type === 'power')  return `${value} kW`; 
-    if (device.type === 'occupancy')  return `${value}`; 
+  const getFormattedValue = (device: DeviceV2Response, value: number) => {
+    if (device.type === 'temperature') return `${value}°F`;
+    if (device.type === 'humidity') return `${value}%`;
+    if (device.type === 'power') return `${value} kW`;
+    if (device.type === 'occupancy') return `${value}`;
     return `${value}`;
   };
 
-  const getStatusInfo = (device: IDevice, value: number | undefined) => {
-    if (value === undefined) 
+  const getStatusInfo = (device: DeviceV2Response, value: number | undefined) => {
+    if (value === undefined) {
       return {
         color:
           'bg-gray-100 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700',
         icon: null,
         text: 'Offline',
       };
-    
+    }
 
     // Default thresholds if not temp (simplified logic)
     const isCritical =
-      value > (device.configuration.threshold_critical || 9999);
-    const isWarning = value > (device.configuration.threshold_warning || 9999);
+      value > (device.configuration?.threshold_critical || 9999);
+    const isWarning = value > (device.configuration?.threshold_warning || 9999);
 
-    if (isCritical) 
+    if (isCritical) {
       return {
         color:
           'bg-red-50 border-red-200 ring-1 ring-red-200 dark:bg-red-950 dark:border-red-900 dark:ring-red-900',
@@ -195,8 +219,8 @@ export default function FloorPlan({
         text: 'Critical',
         textColor: 'text-red-700 dark:text-red-200',
       };
-    
-    if (isWarning) 
+    }
+    if (isWarning) {
       return {
         color:
           'bg-yellow-50 border-yellow-200 ring-1 ring-yellow-200 dark:bg-yellow-950 dark:border-yellow-900 dark:ring-yellow-900',
@@ -206,7 +230,7 @@ export default function FloorPlan({
         text: 'Warning',
         textColor: 'text-yellow-700 dark:text-yellow-200',
       };
-    
+    }
     return {
       color:
         'bg-white border-gray-200 hover:border-blue-300 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:border-blue-500',
@@ -219,15 +243,20 @@ export default function FloorPlan({
   };
 
   const groupedDevices = useMemo(() => {
+    if (!devices || devices.length === 0) return {};
+    
     const filtered =
       selectedFloor === 'all'
         ? devices
-        : devices.filter(d => d.floor === selectedFloor);
+        : devices.filter(d => d.location?.floor === selectedFloor);
 
-    const grouped: Record<number, IDevice[]> = {};
+    const grouped: Record<number, DeviceV2Response[]> = {};
     filtered.forEach(d => {
-      if (!grouped[d.floor])  grouped[d.floor] = []; 
-      grouped[d.floor].push(d);
+      const floor = d.location?.floor;
+      if (floor) {
+        if (!grouped[floor]) grouped[floor] = [];
+        grouped[floor].push(d);
+      }
     });
     return grouped;
   }, [devices, selectedFloor]);
@@ -307,17 +336,24 @@ export default function FloorPlan({
                     {floorDevices.map(device => {
                       const reading = readings[device._id];
                       const status = getStatusInfo(device, reading?.value);
+                      const roomName = device.location?.room_name || device._id;
 
                       return (
                         <div
                           key={device._id}
-                          onClick={() => onDeviceClick?.(device.room_name)}
+                          onClick={() => {
+                            if (onDeviceDetailClick) {
+                              onDeviceDetailClick(device._id);
+                            } else if (onDeviceClick) {
+                              onDeviceClick(roomName);
+                            }
+                          }}
                           className={`p-3 rounded-lg border transition-all duration-200 ${status.color} flex flex-col gap-2 cursor-pointer hover:shadow-md`}>
                           <div className='flex justify-between items-start'>
                             <div className='flex items-center gap-2 text-gray-600 dark:text-gray-400'>
                               {getDeviceIcon(device.type)}
                               <span className='text-xs font-medium truncate max-w-20'>
-                                {device.room_name}
+                                {roomName}
                               </span>
                             </div>
                             {status.icon}

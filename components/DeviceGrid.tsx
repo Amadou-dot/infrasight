@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { getPusherClient } from '@/lib/pusher-client';
+import { v2Api } from '@/lib/api/v2-client';
+import type { DeviceV2Response } from '@/types/v2';
 import {
   useReactTable,
   getCoreRowModel,
@@ -11,7 +13,6 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table';
-import type { IDevice } from '@/models/Device';
 import {
   ArrowUpDown,
   ChevronDown,
@@ -42,12 +43,14 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-const columnHelper = createColumnHelper<IDevice>();
+const columnHelper = createColumnHelper<DeviceV2Response>();
 
 interface DeviceGridProps {
   selectedFloor: number | 'all';
   selectedRoom?: string | 'all';
   onClearRoomFilter?: () => void;
+  onDeviceClick?: (deviceId: string) => void; // V2: Opens device detail modal
+  externalFilter?: { status?: string; hasIssues?: boolean } | null; // V2: External filtering
 }
 
 interface Reading {
@@ -70,11 +73,14 @@ export default function DeviceGrid({
   selectedFloor,
   selectedRoom = 'all',
   onClearRoomFilter,
+  onDeviceClick,
+  externalFilter = null,
 }: DeviceGridProps) {
-  const [data, setData] = useState<IDevice[]>([]);
+  const [data, setData] = useState<DeviceV2Response[]>([]);
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [loading, setLoading] = useState(true);
 
   // Mobile state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -105,22 +111,38 @@ export default function DeviceGrid({
     const filtered =
       selectedFloor === 'all'
         ? data
-        : data.filter(d => d.floor === selectedFloor);
-    return Array.from(new Set(filtered.map(d => d.room_name))).sort();
+        : data.filter(d => d.location?.floor === selectedFloor);
+    return Array.from(new Set(filtered.map(d => d.location?.room_name).filter(Boolean))).sort();
   }, [data, selectedFloor]);
 
   const types = useMemo(() => {
     const filtered =
       selectedFloor === 'all'
         ? data
-        : data.filter(d => d.floor === selectedFloor);
-    return Array.from(new Set(filtered.map(d => d.type))).sort();
+        : data.filter(d => d.location?.floor === selectedFloor);
+    return Array.from(new Set(filtered.map(d => d.type).filter(Boolean))).sort();
   }, [data, selectedFloor]);
 
   useEffect(() => {
-    fetch('/api/devices')
-      .then(res => res.json())
-      .then(setData);
+    const fetchDevices = async () => {
+      try {
+        setLoading(true);
+        const response = await v2Api.devices.list();
+        if (response.success) {
+          setData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching devices:', error);
+        // Fallback to v1 API
+        fetch('/api/devices')
+          .then(res => res.json())
+          .then(setData)
+          .catch(console.error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDevices();
   }, []);
 
   useEffect(() => {
@@ -176,16 +198,22 @@ export default function DeviceGrid({
   const filteredData = useMemo(() => {
     return data.filter(device => {
       // Floor filter
-      if (selectedFloor !== 'all' && device.floor !== selectedFloor)  return false; 
+      if (selectedFloor !== 'all' && device.location?.floor !== selectedFloor) return false;
 
       // Advanced filters
-      if (filterRoom !== 'all' && device.room_name !== filterRoom)  return false; 
-      if (filterType !== 'all' && device.type !== filterType)  return false; 
-      if (filterStatus !== 'all' && device.status !== filterStatus)  return false; 
+      if (filterRoom !== 'all' && device.location?.room_name !== filterRoom) return false;
+      if (filterType !== 'all' && device.type !== filterType) return false;
+      if (filterStatus !== 'all' && device.status !== filterStatus) return false;
+
+      // External filter from DeviceHealthWidget
+      if (externalFilter) {
+        if (externalFilter.status && device.status !== externalFilter.status) return false;
+        if (externalFilter.hasIssues && device.status !== 'error' && device.status !== 'offline') return false;
+      }
 
       return true;
     });
-  }, [data, selectedFloor, filterRoom, filterType, filterStatus]);
+  }, [data, selectedFloor, filterRoom, filterType, filterStatus, externalFilter]);
 
   const toggleCard = (id: string) => {
     const newExpanded = new Set(expandedCards);
@@ -215,14 +243,22 @@ export default function DeviceGrid({
   const getStatusColor = (
     status: string,
     reading?: Reading,
-    device?: IDevice
+    device?: DeviceV2Response
   ) => {
-    if (status === 'offline') 
-      return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'; 
+    if (status === 'offline') {
+      return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
+    }
 
     if (reading && device) {
-      if (reading.value > device.configuration.threshold_critical)  return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900'; 
-      if (reading.value > device.configuration.threshold_warning)  return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900'; 
+      const criticalThreshold = device.configuration?.threshold_critical;
+      const warningThreshold = device.configuration?.threshold_warning;
+      
+      if (criticalThreshold && reading.value > criticalThreshold) {
+        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900';
+      }
+      if (warningThreshold && reading.value > warningThreshold) {
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900';
+      }
     }
     return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
   };
@@ -230,19 +266,23 @@ export default function DeviceGrid({
   const getStatusLabel = (
     status: string,
     reading?: Reading,
-    device?: IDevice
+    device?: DeviceV2Response
   ) => {
-    if (status === 'offline')  return 'Offline'; 
+    if (status === 'offline') return 'Offline';
     if (reading && device) {
-      if (reading.value > device.configuration.threshold_critical)  return 'Critical'; 
-      if (reading.value > device.configuration.threshold_warning)  return 'Warning'; 
+      const criticalThreshold = device.configuration?.threshold_critical;
+      const warningThreshold = device.configuration?.threshold_warning;
+      
+      if (criticalThreshold && reading.value > criticalThreshold) return 'Critical';
+      if (warningThreshold && reading.value > warningThreshold) return 'Warning';
     }
     return 'OK';
   };
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('room_name', {
+      columnHelper.accessor(row => row.location?.room_name || 'N/A', {
+        id: 'room_name',
         header: ({ column }) => {
           return (
             <button
@@ -257,7 +297,8 @@ export default function DeviceGrid({
         },
         cell: info => <span className='font-medium'>{info.getValue()}</span>,
       }),
-      columnHelper.accessor('floor', {
+      columnHelper.accessor(row => row.location?.floor || 0, {
+        id: 'floor',
         header: 'Floor',
         cell: info => info.getValue(),
       }),
@@ -302,17 +343,21 @@ export default function DeviceGrid({
           );
         },
       }),
-      columnHelper.accessor('configuration.threshold_critical', {
+      columnHelper.accessor(row => row.configuration?.threshold_critical, {
+        id: 'threshold_critical',
         header: 'Critical Threshold',
         cell: info => {
           const device = info.row.original;
+          const value = info.getValue();
+          if (value === undefined) return <span className='text-gray-400'>N/A</span>;
+          
           let unit = '';
-          if (device.type === 'temperature')  unit = '°F'; 
-          if (device.type === 'humidity')  unit = '%'; 
-          if (device.type === 'power')  unit = ' kW'; 
+          if (device.type === 'temperature') unit = '°F';
+          if (device.type === 'humidity') unit = '%';
+          if (device.type === 'power') unit = ' kW';
           return (
             <span className='text-gray-500'>
-              {info.getValue()}
+              {value}
               {unit}
             </span>
           );
@@ -466,6 +511,8 @@ export default function DeviceGrid({
           const statusColor = getStatusColor(device.status, reading, device);
           const statusText = getStatusLabel(device.status, reading, device);
           const isExpanded = expandedCards.has(device._id);
+          const roomName = device.location?.room_name || device._id;
+          const floor = device.location?.floor || 0;
 
           // Adaptive behavior: Dim if occupancy is 0
           const isDimmed = device.type === 'occupancy' && reading?.value === 0;
@@ -476,17 +523,18 @@ export default function DeviceGrid({
             <Card
               key={device._id}
               className={cn(
-                'transition-all duration-300',
+                'transition-all duration-300 cursor-pointer hover:shadow-lg',
                 isDimmed && 'opacity-60 grayscale',
                 isCritical && 'animate-pulse ring-2 ring-red-200'
-              )}>
+              )}
+              onClick={() => onDeviceClick?.(device._id)}>
               <CardHeader className='p-4 pb-2'>
                 <div className='flex justify-between items-start'>
                   <div>
                     <CardTitle className='text-base font-medium flex items-center gap-2'>
-                      {device.room_name}
+                      {roomName}
                       <span className='text-xs font-normal text-gray-500'>
-                        Floor {device.floor}
+                        Floor {floor}
                       </span>
                     </CardTitle>
                     <div className='flex items-center gap-2 mt-1 text-sm text-gray-600'>
@@ -544,13 +592,13 @@ export default function DeviceGrid({
                         Critical Threshold
                       </p>
                       <p className='font-mono text-sm'>
-                        {device.configuration.threshold_critical}
+                        {device.configuration?.threshold_critical || 'N/A'}
                       </p>
                     </div>
                     <div>
                       <p className='text-xs text-gray-500'>Warning Threshold</p>
                       <p className='font-mono text-sm'>
-                        {device.configuration.threshold_warning}
+                        {device.configuration?.threshold_warning || 'N/A'}
                       </p>
                     </div>
                     <div className='col-span-2'>
@@ -600,7 +648,8 @@ export default function DeviceGrid({
               table.getRowModel().rows.map(row => (
                 <tr
                   key={row.id}
-                  className='border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50'>
+                  onClick={() => onDeviceClick?.(row.original._id)}
+                  className='border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer'>
                   {row.getVisibleCells().map(cell => (
                     <td key={cell.id} className='px-6 py-4 whitespace-nowrap'>
                       {flexRender(
