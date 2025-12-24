@@ -271,7 +271,7 @@ export default function CriticalDevicesList({
   }
 
   return (
-    <Card className='border-red-200 dark:border-red-900/50'>
+    <Card className='border-red-200 dark:border-red-900/50 h-full flex flex-col'>
       <CardHeader className='flex flex-row items-center justify-between pb-2'>
         <CardTitle className='flex items-center gap-2 text-lg'>
           <AlertTriangle className='h-5 w-5 text-red-500' />
@@ -286,8 +286,8 @@ export default function CriticalDevicesList({
           View all <ChevronRight className='h-4 w-4' />
         </Link>
       </CardHeader>
-      <CardContent>
-        <div className='space-y-2'>
+      <CardContent className='flex-1 flex flex-col min-h-0'>
+        <div className='space-y-2 overflow-y-auto flex-1'>
           {devices.map(device => (
             <button
               key={`${device.id}-${device.issue}`}

@@ -275,7 +275,7 @@ export default function FloorPlan({
   }, [sortedFloors, initializedCollapse]);
 
   return (
-    <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm h-[600px] flex flex-col'>
+    <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm min-h-[500px] h-[calc(100vh-16rem)] flex flex-col'>
       <div className='flex justify-between items-center mb-4'>
         <div className='flex items-center gap-4'>
           <h3 className='text-lg font-semibold'>Live Device Status</h3>
@@ -300,13 +300,13 @@ export default function FloorPlan({
       <div className='flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar'>
         {sortedFloors.map(floor => {
           const floorDevices = groupedDevices[floor].filter(d => {
-            if (!showIssuesOnly)  return true; 
+            if (!showIssuesOnly) return true;
             const reading = readings[d._id];
             const status = getStatusInfo(d, reading?.value);
             return status.text !== 'Normal' && status.text !== 'Offline';
           });
 
-          if (showIssuesOnly && floorDevices.length === 0)  return null; 
+          if (showIssuesOnly && floorDevices.length === 0) return null;
 
           const isCollapsed = collapsedFloors.has(floor);
 
@@ -324,8 +324,9 @@ export default function FloorPlan({
                   </span>
                 </h4>
                 <span
-                  className={`text-gray-400 transform transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'
-                    }`}>
+                  className={`text-gray-400 transform transition-transform ${
+                    isCollapsed ? '-rotate-90' : 'rotate-0'
+                  }`}>
                   ▼
                 </span>
               </div>
