@@ -413,7 +413,7 @@ export default function DeviceDetailModal({
                       <div className={`
                         rounded-lg p-4 border-2
                         ${device.compliance.data_classification === 'restricted' 
-                          ? 'bg-gradient-to-r from-purple-50 to-amber-50 dark:from-purple-900/20 dark:to-amber-900/20 border-purple-500'
+                          ? 'bg-linear-to-r from-purple-50 to-amber-50 dark:from-purple-900/20 dark:to-amber-900/20 border-purple-500'
                           : device.compliance.data_classification === 'confidential'
                           ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500'
                           : device.compliance.data_classification === 'internal'
