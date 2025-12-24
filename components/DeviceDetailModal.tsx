@@ -176,9 +176,9 @@ export default function DeviceDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">
             Device Details
           </DialogTitle>
         </DialogHeader>
@@ -198,68 +198,68 @@ export default function DeviceDetailModal({
         {device && !loading && (
           <div className="space-y-6">
             {/* Header Section */}
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div className="space-y-2 min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-all">
                   {device._id}
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {getStatusIcon(device.status)}
                   {getStatusBadge(device.status)}
                   <Badge variant="outline">{device.type}</Badge>
                 </div>
               </div>
-              <div className="text-right text-sm text-gray-600 dark:text-gray-400">
-                <p>Serial: {device.serial_number}</p>
+              <div className="text-left sm:text-right text-sm text-gray-600 dark:text-gray-400 shrink-0">
+                <p className="break-all">Serial: {device.serial_number}</p>
                 <p>Last seen: {formatDate(device.health?.last_seen)}</p>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex gap-1 sm:gap-2 border-b border-gray-200 dark:border-gray-700 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'overview'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <Info className="h-4 w-4 inline mr-1" />
+                <Info className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
                 Overview
               </button>
               <button
                 onClick={() => setActiveTab('readings')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'readings'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <TrendingUp className="h-4 w-4 inline mr-1" />
+                <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
                 Readings
               </button>
               <button
                 onClick={() => setActiveTab('config')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'config'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <Settings className="h-4 w-4 inline mr-1" />
-                Configuration
+                <Settings className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
+                Config
               </button>
               <button
                 onClick={() => setActiveTab('audit')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'audit'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <History className="h-4 w-4 inline mr-1" />
-                Audit Log
+                <History className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
+                Audit
               </button>
             </div>
 
