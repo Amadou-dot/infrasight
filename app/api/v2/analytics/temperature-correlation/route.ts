@@ -55,26 +55,26 @@ export async function GET(request: NextRequest) {
       searchParams,
       temperatureCorrelationQuerySchema
     );
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map((e) => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as TemperatureCorrelationQuery;
 
     // Verify device exists
     const device = await DeviceV2.findById(query.device_id).lean();
-    if (!device) {
+    if (!device) 
       throw new ApiError(
         ErrorCodes.DEVICE_NOT_FOUND,
         404,
         `Device with ID '${query.device_id}' not found`
       );
-    }
+    
 
     // Calculate time range
     const endTime = new Date();
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       .lean();
 
     // Check if we have sufficient data
-    if (readings.length === 0) {
+    if (readings.length === 0) 
       return jsonSuccess({
         device_id: query.device_id,
         device_temp_series: [],
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           end: endTime.toISOString(),
         },
       });
-    }
+    
 
     // Extract device temperatures and ambient temperatures
     const deviceTempSeries: Array<{ timestamp: string; value: number }> = [];
@@ -138,13 +138,13 @@ export async function GET(request: NextRequest) {
         if (
           deviceTemp > query.device_temp_threshold ||
           ambientTemp > query.ambient_temp_threshold
-        ) {
+        ) 
           thresholdBreaches.push({
             timestamp,
             device_temp: deviceTemp,
             ambient_temp: ambientTemp,
           });
-        }
+        
       }
     }
 

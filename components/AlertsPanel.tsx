@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { v2Api, type AnomalyData, type AnomalyResponse } from '@/lib/api/v2-client';
+import { v2Api, type AnomalyData } from '@/lib/api/v2-client';
 import {
   AlertTriangle,
   Battery,
@@ -28,9 +28,9 @@ export default function AlertsPanel({
   useEffect(() => {
     const fetchAnomalies = async (showLoading = false) => {
       try {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(true);
-        }
+        
         setError(null);
         const response = await v2Api.analytics.anomalies({
           limit: maxAlerts,
@@ -41,9 +41,9 @@ export default function AlertsPanel({
         setError(err instanceof Error ? err.message : 'Failed to load alerts');
         console.error('Error fetching anomalies:', err);
       } finally {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(false);
-        }
+        
       }
     };
 
@@ -107,7 +107,7 @@ export default function AlertsPanel({
     });
   };
 
-  if (loading) {
+  if (loading) 
     return (
       <Card className="w-full">
         <CardHeader>
@@ -123,9 +123,9 @@ export default function AlertsPanel({
         </CardContent>
       </Card>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <Card className="w-full border-red-200 dark:border-red-800">
         <CardHeader>
@@ -139,7 +139,7 @@ export default function AlertsPanel({
         </CardContent>
       </Card>
     );
-  }
+  
 
   return (
     <Card className='w-full h-full flex flex-col'>

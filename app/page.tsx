@@ -1,86 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import AlertsPanel from '@/components/AlertsPanel';
+import CriticalDevicesList from '@/components/CriticalDevicesList';
+import DeviceDetailModal from '@/components/DeviceDetailModal';
 import PrioritySummaryCards, {
   type CardFilter,
 } from '@/components/PrioritySummaryCards';
-import CriticalDevicesList from '@/components/CriticalDevicesList';
-import AlertsPanel from '@/components/AlertsPanel';
-import DeviceDetailModal from '@/components/DeviceDetailModal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import { v2Api } from '@/lib/api/v2-client';
 import {
   Activity,
 } from 'lucide-react';
-
-export default function Home() {
-  const [healthScore, setHealthScore] = useState<number | null>(null);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-
-  // Fetch health score for header
-  useEffect(() => {
-import FloorPlan from '@/components/FloorPlan';
-import AnomalyChart from '@/components/AnomalyChart';
-import DeviceGrid from '@/components/DeviceGrid';
-import DeviceHealthWidget from '@/components/DeviceHealthWidget';
-import AlertsPanel from '@/components/AlertsPanel';
-import DeviceDetailModal from '@/components/DeviceDetailModal';
+import { useEffect, useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { ModeToggle } from '@/components/mode-toggle';
-import { Logo } from '@/components/logo';
-import { v2Api } from '@/lib/api/v2-client';
-import { Activity } from 'lucide-react';
 
 export default function Home() {
-  const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
-  const [selectedRoom, setSelectedRoom] = useState<string | 'all'>('all');
-  const [floors, setFloors] = useState<number[]>([]);
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-  const [deviceFilter, setDeviceFilter] = useState<{ status?: string; hasIssues?: boolean } | null>(null);
-
-  // Fetch metadata from v2 API
-  useEffect(() => {
-    const fetchMetadata = async () => {
-      try {
-        const response = await v2Api.metadata.get();
-        if (response.success && response.data.floors) {
-          setFloors(response.data.floors);
-        }
-      } catch (error) {
-        console.error('Error fetching metadata:', error);
-        // Fallback to v1 API if v2 is not available
-        fetch('/api/metadata')
-          .then(res => res.json())
-          .then(data => {
-            if (data.floors) setFloors(data.floors);
-          });
-      }
-    };
-
-    fetchMetadata();
-  }, []);
 
   // Fetch health score for header
   useEffect(() => {
     const fetchHealthScore = async () => {
       try {
         const response = await v2Api.analytics.health();
-        if (response.success) {
+        if (response.success) 
           setHealthScore(response.data.summary?.health_score ?? null);
-        }
+        
       } catch (error) {
         console.error('Error fetching health score:', error);
       }
     };
 
     fetchHealthScore();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchHealthScore, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -90,37 +42,19 @@ export default function Home() {
     setDeviceModalOpen(true);
   };
 
-  const handleCardClick = (filter: CardFilter) => {
+  const handleCardClick = (_filter: CardFilter) => {
     // Navigate to devices page with filters in the future
-    console.log('Card clicked:', filter);
+    // TODO: Implement navigation to devices page with filter
   };
 
   const healthScoreColor =
     healthScore === null
       ? 'text-gray-600 dark:text-gray-400'
       : healthScore >= 90
-      ? 'text-green-600 dark:text-green-400'
-      : healthScore >= 70
-      ? 'text-yellow-600 dark:text-yellow-400'
-      : 'text-red-600 dark:text-red-400';
-
-  const handleDeviceClick = (deviceId: string) => {
-    setSelectedDeviceId(deviceId);
-    setDeviceModalOpen(true);
-  };
-
-  const handleFilterDevices = (filter: { status?: string; hasIssues?: boolean }) => {
-    setDeviceFilter(filter);
-  };
-
-  const healthScoreColor =
-    healthScore === null
-      ? 'text-gray-600 dark:text-gray-400'
-      : healthScore >= 90
-      ? 'text-green-600 dark:text-green-400'
-      : healthScore >= 70
-      ? 'text-yellow-600 dark:text-yellow-400'
-      : 'text-red-600 dark:text-red-400';
+        ? 'text-green-600 dark:text-green-400'
+        : healthScore >= 70
+          ? 'text-yellow-600 dark:text-yellow-400'
+          : 'text-red-600 dark:text-red-400';
 
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-black p-4 md:p-8'>

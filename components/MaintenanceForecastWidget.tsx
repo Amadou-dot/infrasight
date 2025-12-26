@@ -42,9 +42,9 @@ export default function MaintenanceForecastWidget({
   // Fetch forecast data
   const fetchForecast = async (showLoading = false) => {
     try {
-      if (showLoading) {
+      if (showLoading) 
         setLoading(true);
-      }
+      
       setError(null);
       const response = await v2Api.analytics.maintenanceForecast({
         days_ahead: daysAhead,
@@ -54,9 +54,9 @@ export default function MaintenanceForecastWidget({
       setError(err instanceof Error ? err.message : 'Failed to load forecast');
       console.error('Maintenance forecast error:', err);
     } finally {
-      if (showLoading) {
+      if (showLoading) 
         setLoading(false);
-      }
+      
     }
   };
 
@@ -75,11 +75,11 @@ export default function MaintenanceForecastWidget({
   const toggleSection = (section: Section) => {
     setExpandedSections(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(section)) {
+      if (newSet.has(section)) 
         newSet.delete(section);
-      } else {
+       else 
         newSet.add(section);
-      }
+      
       return newSet;
     });
   };
@@ -91,32 +91,32 @@ export default function MaintenanceForecastWidget({
   ): string => {
     const issues: string[] = [];
 
-    if (device.health.battery_level !== undefined) {
-      if (severity === 'critical' && device.health.battery_level < 15) {
+    if (device.health.battery_level !== undefined) 
+      if (severity === 'critical' && device.health.battery_level < 15) 
         issues.push(`Battery ${device.health.battery_level}%`);
-      } else if (severity === 'warning' && device.health.battery_level < 30) {
+       else if (severity === 'warning' && device.health.battery_level < 30) 
         issues.push(`Battery ${device.health.battery_level}%`);
-      }
-    }
+      
+    
 
     if (device.metadata.next_maintenance) {
       const maintenanceDate = new Date(device.metadata.next_maintenance);
       const isPast = maintenanceDate < new Date();
 
-      if (isPast) {
+      if (isPast) 
         issues.push(
           `Maintenance overdue ${formatRelativeDate(maintenanceDate)}`
         );
-      } else {
+       else 
         issues.push(`Maintenance ${formatRelativeDate(maintenanceDate)}`);
-      }
+      
     }
 
-    if (device.metadata.warranty_expiry && severity === 'watch') {
+    if (device.metadata.warranty_expiry && severity === 'watch') 
       issues.push(
         `Warranty ${formatRelativeDate(device.metadata.warranty_expiry)}`
       );
-    }
+    
 
     return issues.length > 0 ? issues.join(', ') : 'Requires attention';
   };
@@ -210,7 +210,7 @@ export default function MaintenanceForecastWidget({
   };
 
   // Loading state
-  if (loading && !forecast) {
+  if (loading && !forecast) 
     return (
       <Card>
         <CardHeader>
@@ -221,15 +221,15 @@ export default function MaintenanceForecastWidget({
         </CardHeader>
         <CardContent>
           <div className='flex items-center justify-center py-8'>
-            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
+            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary' />
           </div>
         </CardContent>
       </Card>
     );
-  }
+  
 
   // Error state
-  if (error || !forecast) {
+  if (error || !forecast) 
     return (
       <Card>
         <CardHeader>
@@ -255,7 +255,7 @@ export default function MaintenanceForecastWidget({
         </CardContent>
       </Card>
     );
-  }
+  
 
   const totalAtRisk = forecast.summary.total_at_risk;
 

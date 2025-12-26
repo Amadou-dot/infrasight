@@ -28,9 +28,9 @@ export default function DeviceHealthWidget({
   useEffect(() => {
     const fetchHealthData = async (showLoading = false) => {
       try {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(true);
-        }
+        
         setError(null);
         const response = await v2Api.analytics.health();
         setHealthData(response.data);
@@ -38,9 +38,9 @@ export default function DeviceHealthWidget({
         setError(err instanceof Error ? err.message : 'Failed to load health data');
         console.error('Error fetching health metrics:', err);
       } finally {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(false);
-        }
+        
       }
     };
 
@@ -52,7 +52,7 @@ export default function DeviceHealthWidget({
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
+  if (loading) 
     return (
       <Card className="w-full">
         <CardHeader>
@@ -68,9 +68,9 @@ export default function DeviceHealthWidget({
         </CardContent>
       </Card>
     );
-  }
+  
 
-  if (error || !healthData) {
+  if (error || !healthData) 
     return (
       <Card className="w-full border-red-200 dark:border-red-800">
         <CardHeader>
@@ -86,7 +86,7 @@ export default function DeviceHealthWidget({
         </CardContent>
       </Card>
     );
-  }
+  
 
   // Extract values from nested structure
   const healthScore = healthData.summary?.health_score ?? 0;

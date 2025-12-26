@@ -19,9 +19,9 @@ export default function FloorPlanPage() {
     const fetchMetadata = async () => {
       try {
         const response = await v2Api.metadata.get();
-        if (response.success && response.data.floors) {
+        if (response.success && response.data.floors) 
           setFloors(response.data.floors);
-        }
+        
       } catch (error) {
         console.error('Error fetching metadata:', error);
       }

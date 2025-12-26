@@ -45,9 +45,9 @@ export default function PrioritySummaryCards({ onCardClick }: PrioritySummaryCar
   // Fetch all data in parallel
   const fetchData = async (showLoading = false) => {
     try {
-      if (showLoading) {
+      if (showLoading) 
         setLoading(true);
-      }
+      
       const [healthRes, forecastRes, anomaliesRes] = await Promise.all([
         v2Api.analytics.health(),
         v2Api.analytics.maintenanceForecast({ days_ahead: 7 }),
@@ -60,9 +60,9 @@ export default function PrioritySummaryCards({ onCardClick }: PrioritySummaryCar
     } catch (err) {
       console.error('Failed to fetch summary data:', err);
     } finally {
-      if (showLoading) {
+      if (showLoading) 
         setLoading(false);
-      }
+      
     }
   };
 
@@ -150,21 +150,21 @@ export default function PrioritySummaryCards({ onCardClick }: PrioritySummaryCar
   ];
 
   // Loading skeleton
-  if (loading) {
+  if (loading) 
     return (
       <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
         {[1, 2, 3, 4].map(i => (
           <Card key={i} className='animate-pulse'>
             <CardContent className='p-6'>
-              <div className='h-12 bg-muted rounded mb-2'></div>
-              <div className='h-8 bg-muted rounded mb-2'></div>
-              <div className='h-4 bg-muted rounded'></div>
+              <div className='h-12 bg-muted rounded mb-2' />
+              <div className='h-8 bg-muted rounded mb-2' />
+              <div className='h-4 bg-muted rounded' />
             </CardContent>
           </Card>
         ))}
       </div>
     );
-  }
+  
 
   return (
     <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>

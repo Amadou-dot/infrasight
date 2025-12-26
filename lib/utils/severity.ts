@@ -76,9 +76,9 @@ export function calculateDeviceSeverity(device: DeviceV2Response): SeverityResul
   }
 
   // If already critical, return early
-  if (severity === 'critical') {
+  if (severity === 'critical') 
     return { severity, reasons };
-  }
+  
 
   // Warning conditions
   if (device.status === 'maintenance') {
@@ -133,12 +133,12 @@ export function calculateDeviceSeverity(device: DeviceV2Response): SeverityResul
   }
 
   // If no issues found, it's healthy
-  if (reasons.length === 0) {
+  if (reasons.length === 0) 
     reasons.push({
       code: 'HEALTHY',
       message: 'All systems normal',
     });
-  }
+  
 
   return { severity, reasons };
 }

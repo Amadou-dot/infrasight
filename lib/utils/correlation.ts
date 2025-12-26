@@ -26,9 +26,9 @@ export function calculatePearsonCorrelation(
   y: number[]
 ): number | null {
   // Validate inputs
-  if (x.length !== y.length || x.length === 0) {
+  if (x.length !== y.length || x.length === 0) 
     return null;
-  }
+  
 
   const n = x.length;
 
@@ -53,9 +53,9 @@ export function calculatePearsonCorrelation(
   const denominator = Math.sqrt(sumXSquared * sumYSquared);
 
   // Avoid division by zero
-  if (denominator === 0) {
+  if (denominator === 0) 
     return null;
-  }
+  
 
   return numerator / denominator;
 }
@@ -82,14 +82,14 @@ export function diagnoseTemperature(
   ambientTempThreshold: number = 30
 ): TemperatureDiagnosis {
   // Device is hot, but ambient is normal → Device failure
-  if (deviceTemp > deviceTempThreshold && ambientTemp < ambientTempThreshold) {
+  if (deviceTemp > deviceTempThreshold && ambientTemp < ambientTempThreshold) 
     return 'device_failure';
-  }
+  
 
   // Both device and ambient are hot → Environmental issue
-  if (deviceTemp > 50 && ambientTemp > 35) {
+  if (deviceTemp > 50 && ambientTemp > 35) 
     return 'environmental';
-  }
+  
 
   // Everything is normal
   return 'normal';

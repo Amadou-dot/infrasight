@@ -42,14 +42,14 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
 
   const fetchEnergyData = async (showLoading = false) => {
     try {
-      if (showLoading) {
+      if (showLoading) 
         setLoading(true);
-      }
+      
       setError(null);
 
       // Calculate date range for last 24 hours
       const endDate = new Date();
-      const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+      const _startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
 
       const response = await v2Api.analytics.energy({
         period: '24h',
@@ -69,13 +69,13 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
 
         let rawResults: RawDataPoint[];
 
-        if (Array.isArray(response.data)) {
+        if (Array.isArray(response.data)) 
           // Direct array of data points
           rawResults = response.data.map(d => ({
             timestamp: d.timestamp,
             value: d.value,
           }));
-        } else {
+         else {
           // Nested structure with results array
           const nestedData = response.data as { results?: RawDataPoint[] };
           rawResults = nestedData.results || [];
@@ -101,16 +101,16 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
           const current = values[values.length - 1];
           setIsSpiking(current > avg * 1.2);
         }
-      } else {
+      } else 
         setData([]);
-      }
+      
     } catch (err) {
       console.error('Error fetching energy data:', err);
       setError('Failed to load energy data');
     } finally {
-      if (showLoading) {
+      if (showLoading) 
         setLoading(false);
-      }
+      
     }
   };
 
@@ -135,10 +135,10 @@ export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
       const hasPowerReadings = newReadings.some(
         r => r.metadata.type === 'power'
       );
-      if (hasPowerReadings) {
+      if (hasPowerReadings) 
         // Re-fetch data to keep it consistent with the aggregation logic
         fetchEnergyData(false);
-      }
+      
     });
 
     return () => {

@@ -9,10 +9,9 @@
  */
 
 import { config } from 'dotenv';
-import { resolve } from 'path';
 import mongoose from 'mongoose';
+import { resolve } from 'path';
 import DeviceV2 from '../../models/v2/DeviceV2';
-import ReadingV2 from '../../models/v2/ReadingV2';
 
 // Load environment variables from .env.local
 config({ path: resolve(process.cwd(), '.env.local') });
@@ -35,30 +34,32 @@ let BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
  */
 async function findServerUrl(): Promise<string> {
   const ports = [3000, 3001, 3002];
-  
+
   for (const port of ports) {
     const url = `http://localhost:${port}`;
     try {
       // Create an AbortController for timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
-      
+
       const response = await fetch(`${url}/api/v2/analytics/health`, {
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (response.status !== 404) {
         console.log(`✅ Found server running on port ${port}`);
         return url;
       }
-    } catch (error) {
+    } catch (_error) {
       // Port not reachable, try next
     }
   }
-  
-  throw new Error('No server found on ports 3000, 3001, or 3002. Please start the dev server with: pnpm dev');
+
+  throw new Error(
+    'No server found on ports 3000, 3001, or 3002. Please start the dev server with: pnpm dev'
+  );
 }
 
 async function testEndpoint(
@@ -71,10 +72,10 @@ async function testEndpoint(
     console.log(`   URL: ${url}`);
 
     const response = await fetch(`${BASE_URL}${url}`);
-    
+
     // Check if response has content
     const text = await response.text();
-    
+
     if (!text || text.trim() === '') {
       console.log(`   ❌ Empty response from server`);
       console.log(`   Status: ${response.status}`);
@@ -89,7 +90,7 @@ async function testEndpoint(
     let data;
     try {
       data = JSON.parse(text);
-    } catch (parseError) {
+    } catch (_parseError) {
       console.log(`   ❌ Failed to parse JSON response`);
       console.log(`   Response text:`, text.substring(0, 200));
       return false;
@@ -108,7 +109,7 @@ async function testEndpoint(
     }
 
     // Check expected fields
-    const missingFields = expectedFields.filter((field) => {
+    const missingFields = expectedFields.filter(field => {
       const keys = field.split('.');
       let value: any = data.data;
       for (const key of keys) {
@@ -118,14 +119,16 @@ async function testEndpoint(
       return value === undefined;
     });
 
-    if (missingFields.length > 0) {
+    if (missingFields.length > 0) 
       console.log(`   ⚠️  Missing fields:`, missingFields);
-    }
+    
 
     console.log(`   ✅ Success`);
-    console.log(`   Data sample:`, JSON.stringify(data.data, null, 2).substring(0, 200) + '...');
+    console.log(
+      `   Data sample:`,
+      JSON.stringify(data.data, null, 2).substring(0, 200) + '...'
+    );
     return true;
-
   } catch (error) {
     console.log(`   ❌ Error:`, error instanceof Error ? error.message : error);
     return false;
@@ -146,7 +149,9 @@ async function runTests() {
     BASE_URL = await findServerUrl();
   } catch (error) {
     console.error('\n❌', error instanceof Error ? error.message : error);
-    console.error('\nMake sure the dev server is running before running tests.');
+    console.error(
+      '\nMake sure the dev server is running before running tests.'
+    );
     process.exit(1);
   }
 
@@ -171,7 +176,13 @@ async function runTests() {
   results['Maintenance Forecast - Default'] = await testEndpoint(
     'Maintenance Forecast - Default',
     '/api/v2/analytics/maintenance-forecast',
-    ['critical', 'warning', 'watch', 'summary.total_at_risk', 'summary.critical_count']
+    [
+      'critical',
+      'warning',
+      'watch',
+      'summary.total_at_risk',
+      'summary.critical_count',
+    ]
   );
 
   // Test 2: Maintenance Forecast (with filters)
@@ -191,7 +202,7 @@ async function runTests() {
       'ambient_temp_series',
       'correlation_score',
       'diagnosis',
-      'diagnosis_explanation'
+      'diagnosis_explanation',
     ]
   );
 
@@ -202,7 +213,7 @@ async function runTests() {
     [
       'summary.health_score',
       'alerts.predictive_maintenance',
-      'alerts.predictive_maintenance.count'
+      'alerts.predictive_maintenance.count',
     ]
   );
 
@@ -219,11 +230,11 @@ async function runTests() {
 
   console.log(`\n${passed}/${total} tests passed`);
 
-  if (passed === total) {
+  if (passed === total) 
     console.log('\n🎉 All Phase 1 endpoints working correctly!');
-  } else {
+   else 
     console.log('\n⚠️  Some tests failed. Check the output above.');
-  }
+  
 
   // Disconnect
   await mongoose.disconnect();
@@ -234,7 +245,7 @@ async function runTests() {
 // Run Tests
 // ============================================================================
 
-runTests().catch((error) => {
+runTests().catch(error => {
   console.error('\n💥 Test script failed:', error);
   process.exit(1);
 });

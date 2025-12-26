@@ -115,7 +115,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
     : [];
 
   // Loading state
-  if (loading) {
+  if (loading) 
     return (
       <Card>
         <CardHeader>
@@ -126,15 +126,15 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         </CardContent>
       </Card>
     );
-  }
+  
 
   // Error state
-  if (error || !correlation) {
+  if (error || !correlation) 
     return (
       <Card>
         <CardHeader>
@@ -156,7 +156,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
         </CardContent>
       </Card>
     );
-  }
+  
 
   const diagnosisStyle = getDiagnosisStyle(correlation.diagnosis);
   const currentDeviceTemp =

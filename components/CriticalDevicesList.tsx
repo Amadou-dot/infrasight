@@ -46,9 +46,9 @@ export default function CriticalDevicesList({
   useEffect(() => {
     const fetchCriticalDevices = async (showLoading = false) => {
       try {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(true);
-        }
+        
 
         // Fetch health data and maintenance forecast in parallel
         const [healthRes, forecastRes, devicesRes] = await Promise.all([
@@ -68,7 +68,7 @@ export default function CriticalDevicesList({
         const criticalDevices: CriticalDevice[] = [];
 
         // 1. Offline devices (highest priority)
-        if (health.alerts?.offline_devices?.devices) {
+        if (health.alerts?.offline_devices?.devices) 
           health.alerts.offline_devices.devices.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -80,10 +80,10 @@ export default function CriticalDevicesList({
               details: 'Device offline',
             });
           });
-        }
+        
 
         // 2. Error devices
-        if (health.alerts?.error_devices?.devices) {
+        if (health.alerts?.error_devices?.devices) 
           health.alerts.error_devices.devices.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -95,10 +95,10 @@ export default function CriticalDevicesList({
               details: 'Device error',
             });
           });
-        }
+        
 
         // 3. Low battery devices
-        if (health.alerts?.low_battery_devices?.devices) {
+        if (health.alerts?.low_battery_devices?.devices) 
           health.alerts.low_battery_devices.devices.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -112,10 +112,10 @@ export default function CriticalDevicesList({
                 : 'Low battery',
             });
           });
-        }
+        
 
         // 4. Maintenance overdue (from forecast summary)
-        if (forecast.summary?.maintenance_overdue) {
+        if (forecast.summary?.maintenance_overdue) 
           forecast.summary.maintenance_overdue.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -127,12 +127,12 @@ export default function CriticalDevicesList({
               details: 'Maintenance overdue',
             });
           });
-        }
+        
 
         // 5. Critical maintenance (from forecast critical list)
         forecast.critical?.forEach(d => {
           // Avoid duplicates
-          if (!criticalDevices.some(cd => cd.id === d._id)) {
+          if (!criticalDevices.some(cd => cd.id === d._id)) 
             criticalDevices.push({
               id: d._id,
               name: d.serial_number || 'Unknown Device',
@@ -142,7 +142,7 @@ export default function CriticalDevicesList({
               issue: 'maintenance_critical',
               details: 'Critical maintenance',
             });
-          }
+          
         });
 
         setDevices(criticalDevices.slice(0, maxItems));
@@ -151,9 +151,9 @@ export default function CriticalDevicesList({
         console.error('Failed to fetch critical devices:', err);
         setError('Failed to load critical devices');
       } finally {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(false);
-        }
+        
       }
     };
 
@@ -215,7 +215,7 @@ export default function CriticalDevicesList({
     }
   };
 
-  if (loading) {
+  if (loading) 
     return (
       <Card>
         <CardHeader>
@@ -241,9 +241,9 @@ export default function CriticalDevicesList({
         </CardContent>
       </Card>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <Card className='border-red-200 dark:border-red-900'>
         <CardContent className='py-6'>
@@ -251,9 +251,9 @@ export default function CriticalDevicesList({
         </CardContent>
       </Card>
     );
-  }
+  
 
-  if (devices.length === 0) {
+  if (devices.length === 0) 
     return (
       <Card className='border-green-200 dark:border-green-900'>
         <CardHeader>
@@ -268,7 +268,7 @@ export default function CriticalDevicesList({
         </CardContent>
       </Card>
     );
-  }
+  
 
   return (
     <Card className='border-red-200 dark:border-red-900/50 h-full flex flex-col'>

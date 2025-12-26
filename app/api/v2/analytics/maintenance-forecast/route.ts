@@ -46,14 +46,14 @@ export async function GET(request: NextRequest) {
       searchParams,
       maintenanceForecastQuerySchema
     );
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map((e) => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const query = validationResult.data as MaintenanceForecastQuery;
 
@@ -62,12 +62,12 @@ export async function GET(request: NextRequest) {
       'audit.deleted_at': { $exists: false },
     };
 
-    if (query.building_id) {
+    if (query.building_id) 
       baseFilter['location.building_id'] = query.building_id;
-    }
-    if (query.floor !== undefined) {
+    
+    if (query.floor !== undefined) 
       baseFilter['location.floor'] = query.floor;
-    }
+    
 
     // Calculate date thresholds
     const now = new Date();
@@ -98,44 +98,44 @@ export async function GET(request: NextRequest) {
       if (
         device.health.battery_level !== undefined &&
         device.health.battery_level < 15
-      ) {
+      ) 
         isCritical = true;
-      }
+      
 
       // Critical: Maintenance overdue (next_maintenance < now)
       if (
         device.metadata.next_maintenance &&
         new Date(device.metadata.next_maintenance) < now
-      ) {
+      ) 
         isCritical = true;
-      }
+      
 
       // Critical: Maintenance within 3 days
       if (
         !isCritical &&
         device.metadata.next_maintenance &&
         new Date(device.metadata.next_maintenance) < criticalMaintenanceDate
-      ) {
+      ) 
         isCritical = true;
-      }
+      
 
       // Warning: Battery < 30%
       if (
         !isCritical &&
         device.health.battery_level !== undefined &&
         device.health.battery_level < 30
-      ) {
+      ) 
         isWarning = true;
-      }
+      
 
       // Warning: Maintenance within specified days_ahead
       if (
         !isCritical &&
         device.metadata.next_maintenance &&
         new Date(device.metadata.next_maintenance) < warningMaintenanceDate
-      ) {
+      ) 
         isWarning = true;
-      }
+      
 
       // Watch: Warranty expiring within 30 days
       if (
@@ -143,9 +143,9 @@ export async function GET(request: NextRequest) {
         !isWarning &&
         device.metadata.warranty_expiry &&
         new Date(device.metadata.warranty_expiry) < warrantyWarningDate
-      ) {
+      ) 
         isWatch = true;
-      }
+      
 
       // Add to appropriate category
       if (isCritical) critical.push(device);
@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Apply severity threshold filter if requested
-    if (query.severity_threshold === 'critical') {
+    if (query.severity_threshold === 'critical') 
       return jsonSuccess({
         ...response,
         warning: [],
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
           watch_count: 0,
         },
       });
-    } else if (query.severity_threshold === 'warning') {
+     else if (query.severity_threshold === 'warning') 
       return jsonSuccess({
         ...response,
         watch: [],
@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
           watch_count: 0,
         },
       });
-    }
+    
 
     return jsonSuccess(response);
   } catch (error) {

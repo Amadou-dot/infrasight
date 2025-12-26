@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { v2Api, type ApiClientError } from '@/lib/api/v2-client';
+import { v2Api } from '@/lib/api/v2-client';
 import type { DeviceV2Response } from '@/types/v2';
 import {
   Dialog,
@@ -10,19 +10,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import AuditLogViewer from './AuditLogViewer';
 import TemperatureCorrelationPanel from './TemperatureCorrelationPanel';
 import {
-  X,
   MapPin,
   Cpu,
   Battery,
   Signal,
   Calendar,
   Tag,
-  Building,
   AlertTriangle,
   CheckCircle,
   Clock,
@@ -91,16 +87,16 @@ export default function DeviceDetailModal({
           limit: 100,
         });
         
-        if (readingsResponse.success && readingsResponse.data) {
+        if (readingsResponse.success && readingsResponse.data) 
           setRecentReadings(readingsResponse.data);
-        }
+        
 
         // Fetch audit log
         try {
           const auditResponse = await v2Api.devices.getHistory(deviceId);
-          if (auditResponse.success && auditResponse.data) {
+          if (auditResponse.success && auditResponse.data) 
             setAuditLog(Array.isArray(auditResponse.data) ? auditResponse.data : []);
-          }
+          
         } catch (err) {
           console.warn('Audit log not available:', err);
         }
