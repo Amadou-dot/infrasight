@@ -22,6 +22,52 @@ export default function Home() {
 
   // Fetch health score for header
   useEffect(() => {
+import FloorPlan from '@/components/FloorPlan';
+import AnomalyChart from '@/components/AnomalyChart';
+import DeviceGrid from '@/components/DeviceGrid';
+import DeviceHealthWidget from '@/components/DeviceHealthWidget';
+import AlertsPanel from '@/components/AlertsPanel';
+import DeviceDetailModal from '@/components/DeviceDetailModal';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { ModeToggle } from '@/components/mode-toggle';
+import { Logo } from '@/components/logo';
+import { v2Api } from '@/lib/api/v2-client';
+import { Activity } from 'lucide-react';
+
+export default function Home() {
+  const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
+  const [selectedRoom, setSelectedRoom] = useState<string | 'all'>('all');
+  const [floors, setFloors] = useState<number[]>([]);
+  const [healthScore, setHealthScore] = useState<number | null>(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const [deviceFilter, setDeviceFilter] = useState<{ status?: string; hasIssues?: boolean } | null>(null);
+
+  // Fetch metadata from v2 API
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const response = await v2Api.metadata.get();
+        if (response.success && response.data.floors) {
+          setFloors(response.data.floors);
+        }
+      } catch (error) {
+        console.error('Error fetching metadata:', error);
+        // Fallback to v1 API if v2 is not available
+        fetch('/api/metadata')
+          .then(res => res.json())
+          .then(data => {
+            if (data.floors) setFloors(data.floors);
+          });
+      }
+    };
+
+    fetchMetadata();
+  }, []);
+
+  // Fetch health score for header
+  useEffect(() => {
     const fetchHealthScore = async () => {
       try {
         const response = await v2Api.analytics.health();
@@ -34,6 +80,7 @@ export default function Home() {
     };
 
     fetchHealthScore();
+    // Refresh every 30 seconds
     const interval = setInterval(fetchHealthScore, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -46,6 +93,24 @@ export default function Home() {
   const handleCardClick = (filter: CardFilter) => {
     // Navigate to devices page with filters in the future
     console.log('Card clicked:', filter);
+  };
+
+  const healthScoreColor =
+    healthScore === null
+      ? 'text-gray-600 dark:text-gray-400'
+      : healthScore >= 90
+      ? 'text-green-600 dark:text-green-400'
+      : healthScore >= 70
+      ? 'text-yellow-600 dark:text-yellow-400'
+      : 'text-red-600 dark:text-red-400';
+
+  const handleDeviceClick = (deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    setDeviceModalOpen(true);
+  };
+
+  const handleFilterDevices = (filter: { status?: string; hasIssues?: boolean }) => {
+    setDeviceFilter(filter);
   };
 
   const healthScoreColor =
