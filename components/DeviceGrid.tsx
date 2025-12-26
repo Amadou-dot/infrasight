@@ -80,7 +80,6 @@ export default function DeviceGrid({
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [loading, setLoading] = useState(true);
 
   // Mobile state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
