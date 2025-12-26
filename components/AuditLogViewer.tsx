@@ -1,9 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import type { DeviceHistoryResponse } from '@/types/v2';
 
 interface AuditLogEntry {
   timestamp: string;
@@ -19,7 +17,7 @@ interface AuditLogViewerProps {
 }
 
 export default function AuditLogViewer({
-  deviceId,
+  deviceId: _deviceId,
   entries,
   loading = false,
 }: AuditLogViewerProps) {
@@ -32,15 +30,15 @@ export default function AuditLogViewer({
 
   const getActionBadge = (action: string) => {
     const lowerAction = action.toLowerCase();
-    if (lowerAction.includes('create')) {
+    if (lowerAction.includes('create')) 
       return <Badge className="bg-green-500">Created</Badge>;
-    }
-    if (lowerAction.includes('update')) {
+    
+    if (lowerAction.includes('update')) 
       return <Badge className="bg-blue-500">Updated</Badge>;
-    }
-    if (lowerAction.includes('delete')) {
+    
+    if (lowerAction.includes('delete')) 
       return <Badge variant="destructive">Deleted</Badge>;
-    }
+    
     return <Badge variant="secondary">{action}</Badge>;
   };
 
@@ -55,13 +53,13 @@ export default function AuditLogViewer({
     });
   };
 
-  if (loading) {
+  if (loading) 
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     );
-  }
+  
 
   return (
     <div className="space-y-4">

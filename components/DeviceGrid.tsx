@@ -80,7 +80,7 @@ export default function DeviceGrid({
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   // Mobile state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -128,9 +128,9 @@ export default function DeviceGrid({
       try {
         setLoading(true);
         const response = await v2Api.devices.list();
-        if (response.success) {
+        if (response.success) 
           setData(response.data);
-        }
+        
       } catch (error) {
         console.error('Error fetching devices:', error);
         // Fallback to v1 API
@@ -245,20 +245,20 @@ export default function DeviceGrid({
     reading?: Reading,
     device?: DeviceV2Response
   ) => {
-    if (status === 'offline') {
+    if (status === 'offline') 
       return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
-    }
+    
 
     if (reading && device) {
       const criticalThreshold = device.configuration?.threshold_critical;
       const warningThreshold = device.configuration?.threshold_warning;
       
-      if (criticalThreshold && reading.value > criticalThreshold) {
+      if (criticalThreshold && reading.value > criticalThreshold) 
         return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900';
-      }
-      if (warningThreshold && reading.value > warningThreshold) {
+      
+      if (warningThreshold && reading.value > warningThreshold) 
         return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900';
-      }
+      
     }
     return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
   };

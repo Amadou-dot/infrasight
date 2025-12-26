@@ -175,6 +175,71 @@ export async function GET(request: NextRequest) {
       ? Math.round((activeDevices / totalDevices) * 100) 
       : 100;
 
+    // Predictive maintenance: devices at risk
+    const now = new Date();
+    const predictiveMaintenanceDevices = await DeviceV2.find(
+      {
+        ...baseFilter,
+        $or: [
+          // Battery critical (< 15%)
+          { 'health.battery_level': { $lt: 15, $ne: null } },
+          // Maintenance overdue or within 3 days
+          {
+            'metadata.next_maintenance': {
+              $lte: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+              $ne: null,
+            },
+          },
+          // High error count
+          { 'health.error_count': { $gt: 10 } },
+        ],
+      },
+      {
+        _id: 1,
+        serial_number: 1,
+        'location.room_name': 1,
+        'health.battery_level': 1,
+        'health.error_count': 1,
+        'metadata.next_maintenance': 1,
+      }
+    ).lean();
+
+    // Categorize predictive maintenance issues
+    const predictiveMaintenanceItems = predictiveMaintenanceDevices.map((device) => {
+      let issueType = 'unknown';
+      let daysUntil: number | null = null;
+      let severity: 'critical' | 'warning' = 'warning';
+
+      // Determine issue type and severity
+      if (device.health.battery_level !== undefined && device.health.battery_level < 15) {
+        issueType = 'battery_critical';
+        severity = 'critical';
+      } else if (device.metadata.next_maintenance) {
+        const maintenanceDate = new Date(device.metadata.next_maintenance);
+        daysUntil = Math.ceil((maintenanceDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+        
+        if (daysUntil < 0) {
+          issueType = 'maintenance_overdue';
+          severity = 'critical';
+        } else if (daysUntil <= 3) {
+          issueType = 'maintenance_due';
+          severity = 'critical';
+        }
+      } else if (device.health.error_count > 10) {
+        issueType = 'high_error_count';
+        severity = 'critical';
+      }
+
+      return {
+        id: device._id,
+        serial_number: device.serial_number,
+        room_name: device.location.room_name,
+        issue_type: issueType,
+        days_until: daysUntil,
+        severity,
+      };
+    });
+
     return jsonSuccess({
       summary: {
         total_devices: totalDevices,
@@ -206,6 +271,10 @@ export async function GET(request: NextRequest) {
         maintenance_due: {
           count: maintenanceDue.length,
           devices: maintenanceDue.slice(0, 10),
+        },
+        predictive_maintenance: {
+          count: predictiveMaintenanceDevices.length,
+          devices: predictiveMaintenanceItems.slice(0, 10),
         },
       },
       filters_applied: {

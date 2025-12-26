@@ -10,14 +10,16 @@ import type {
   ApiErrorResponse,
   PaginatedResponse,
   DeviceV2Response,
-  DeviceListResponse,
   DeviceHistoryResponse,
   ListDevicesQuery,
   ReadingV2Response,
-  ReadingListResponse,
   LatestReadingsResponse,
   ListReadingsQuery,
   LatestReadingsQuery,
+  MaintenanceForecastQuery,
+  MaintenanceForecastResponse,
+  TemperatureCorrelationQuery,
+  TemperatureCorrelationResponse,
 } from '@/types/v2';
 
 // ============================================================================
@@ -49,11 +51,11 @@ function buildQueryString(params: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
 
-    if (Array.isArray(value)) {
+    if (Array.isArray(value)) 
       value.forEach((v) => searchParams.append(key, String(v)));
-    } else {
+     else 
       searchParams.append(key, String(value));
-    }
+    
   }
 
   const query = searchParams.toString();
@@ -92,7 +94,7 @@ async function fetchWithRetry(
 ): Promise<Response> {
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) 
     try {
       const response = await fetch(url, options);
 
@@ -100,9 +102,9 @@ async function fetchWithRetry(
       if (
         response.ok ||
         !config.retryableStatuses.includes(response.status)
-      ) {
+      ) 
         return response;
-      }
+      
 
       // If retryable error and not last attempt, retry
       if (attempt < config.maxRetries) {
@@ -120,7 +122,7 @@ async function fetchWithRetry(
         continue;
       }
     }
-  }
+  
 
   throw lastError || new Error('Request failed after retries');
 }
@@ -152,9 +154,9 @@ async function apiCall<T>(
 
     return data;
   } catch (error) {
-    if (error instanceof ApiClientError) {
+    if (error instanceof ApiClientError) 
       throw error;
-    }
+    
 
     throw new ApiClientError(
       500,
@@ -442,6 +444,26 @@ export const analyticsApi = {
   } = {}): Promise<ApiSuccessResponse<AnomalyResponse>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/analytics/anomalies${queryString}`);
+  },
+
+  /**
+   * Get maintenance forecast
+   */
+  async maintenanceForecast(
+    query: MaintenanceForecastQuery = {}
+  ): Promise<ApiSuccessResponse<MaintenanceForecastResponse>> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    return apiCall(`/api/v2/analytics/maintenance-forecast${queryString}`);
+  },
+
+  /**
+   * Get temperature correlation analysis
+   */
+  async temperatureCorrelation(
+    query: TemperatureCorrelationQuery
+  ): Promise<ApiSuccessResponse<TemperatureCorrelationResponse>> {
+    const queryString = buildQueryString(query as unknown as Record<string, unknown>);
+    return apiCall(`/api/v2/analytics/temperature-correlation${queryString}`);
   },
 };
 

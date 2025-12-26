@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { v2Api, type AnomalyData, type AnomalyResponse } from '@/lib/api/v2-client';
+import { v2Api, type AnomalyData } from '@/lib/api/v2-client';
 import {
   AlertTriangle,
   Battery,
@@ -28,9 +28,9 @@ export default function AlertsPanel({
   useEffect(() => {
     const fetchAnomalies = async (showLoading = false) => {
       try {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(true);
-        }
+        
         setError(null);
         const response = await v2Api.analytics.anomalies({
           limit: maxAlerts,
@@ -41,9 +41,9 @@ export default function AlertsPanel({
         setError(err instanceof Error ? err.message : 'Failed to load alerts');
         console.error('Error fetching anomalies:', err);
       } finally {
-        if (showLoading) {
+        if (showLoading) 
           setLoading(false);
-        }
+        
       }
     };
 
@@ -107,7 +107,7 @@ export default function AlertsPanel({
     });
   };
 
-  if (loading) {
+  if (loading) 
     return (
       <Card className="w-full">
         <CardHeader>
@@ -123,9 +123,9 @@ export default function AlertsPanel({
         </CardContent>
       </Card>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <Card className="w-full border-red-200 dark:border-red-800">
         <CardHeader>
@@ -139,73 +139,80 @@ export default function AlertsPanel({
         </CardContent>
       </Card>
     );
-  }
+  
 
   return (
-    <Card className="w-full">
+    <Card className='w-full h-full flex flex-col'>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
+        <CardTitle className='flex items-center justify-between'>
+          <span className='flex items-center gap-2'>
+            <AlertTriangle className='h-5 w-5' />
             Recent Alerts
           </span>
           {anomalies.length > 0 && (
-            <Badge variant="destructive" className="ml-2">
+            <Badge variant='destructive' className='ml-2'>
               {anomalies.length}
             </Badge>
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className='flex-1 flex flex-col min-h-0'>
         {anomalies.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/20 mb-4">
-              <Clock className="h-8 w-8 text-green-600 dark:text-green-400" />
+          <div className='text-center py-8'>
+            <div className='inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/20 mb-4'>
+              <Clock className='h-8 w-8 text-green-600 dark:text-green-400' />
             </div>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className='text-gray-600 dark:text-gray-400'>
               No anomalies detected
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+            <p className='text-sm text-gray-500 dark:text-gray-500 mt-1'>
               All systems operating normally
             </p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+          <div className='space-y-3 overflow-y-auto flex-1'>
             {anomalies.map((anomaly, index) => {
               const severity = getAlertSeverity(anomaly.quality.anomaly_score);
               return (
                 <button
                   key={index}
                   onClick={() => onDeviceClick?.(anomaly.metadata.device_id)}
-                  className="w-full text-left p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
+                  className='w-full text-left p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors'>
+                  <div className='flex items-start justify-between gap-2 mb-2'>
+                    <div className='flex items-center gap-2'>
                       {getAlertIcon(anomaly.metadata.type)}
-                      <span className="font-medium text-gray-900 dark:text-white">
+                      <span className='font-medium text-gray-900 dark:text-white'>
                         {anomaly.metadata.device_id}
                       </span>
                     </div>
                     {getSeverityBadge(severity)}
                   </div>
 
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        {anomaly.metadata.type.charAt(0).toUpperCase() + anomaly.metadata.type.slice(1)} anomaly
+                  <div className='space-y-1'>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-gray-600 dark:text-gray-400'>
+                        {anomaly.metadata.type.charAt(0).toUpperCase() +
+                          anomaly.metadata.type.slice(1)}{' '}
+                        anomaly
                       </span>
-                      <span className="text-gray-500 dark:text-gray-500">
+                      <span className='text-gray-500 dark:text-gray-500'>
                         {formatTimestamp(anomaly.timestamp)}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Value: <span className="font-medium text-gray-900 dark:text-white">{anomaly.value.toFixed(2)}</span>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-gray-600 dark:text-gray-400'>
+                        Value:{' '}
+                        <span className='font-medium text-gray-900 dark:text-white'>
+                          {anomaly.value.toFixed(2)}
+                        </span>
                       </span>
                       {anomaly.quality.anomaly_score !== undefined && (
-                        <span className="text-gray-600 dark:text-gray-400">
-                          Score: <span className="font-medium text-gray-900 dark:text-white">{(anomaly.quality.anomaly_score * 100).toFixed(0)}%</span>
+                        <span className='text-gray-600 dark:text-gray-400'>
+                          Score:{' '}
+                          <span className='font-medium text-gray-900 dark:text-white'>
+                            {(anomaly.quality.anomaly_score * 100).toFixed(0)}%
+                          </span>
                         </span>
                       )}
                     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { v2Api, type ApiClientError } from '@/lib/api/v2-client';
+import { v2Api } from '@/lib/api/v2-client';
 import type { DeviceV2Response } from '@/types/v2';
 import {
   Dialog,
@@ -10,18 +10,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import AuditLogViewer from './AuditLogViewer';
+import TemperatureCorrelationPanel from './TemperatureCorrelationPanel';
 import {
-  X,
   MapPin,
   Cpu,
   Battery,
   Signal,
   Calendar,
   Tag,
-  Building,
   AlertTriangle,
   CheckCircle,
   Clock,
@@ -30,6 +27,8 @@ import {
   Info,
   Settings,
   TrendingUp,
+  Lock,
+  Shield,
 } from 'lucide-react';
 import {
   LineChart,
@@ -88,16 +87,16 @@ export default function DeviceDetailModal({
           limit: 100,
         });
         
-        if (readingsResponse.success && readingsResponse.data) {
+        if (readingsResponse.success && readingsResponse.data) 
           setRecentReadings(readingsResponse.data);
-        }
+        
 
         // Fetch audit log
         try {
           const auditResponse = await v2Api.devices.getHistory(deviceId);
-          if (auditResponse.success && auditResponse.data) {
+          if (auditResponse.success && auditResponse.data) 
             setAuditLog(Array.isArray(auditResponse.data) ? auditResponse.data : []);
-          }
+          
         } catch (err) {
           console.warn('Audit log not available:', err);
         }
@@ -173,9 +172,9 @@ export default function DeviceDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">
             Device Details
           </DialogTitle>
         </DialogHeader>
@@ -195,68 +194,68 @@ export default function DeviceDetailModal({
         {device && !loading && (
           <div className="space-y-6">
             {/* Header Section */}
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div className="space-y-2 min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-all">
                   {device._id}
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {getStatusIcon(device.status)}
                   {getStatusBadge(device.status)}
                   <Badge variant="outline">{device.type}</Badge>
                 </div>
               </div>
-              <div className="text-right text-sm text-gray-600 dark:text-gray-400">
-                <p>Serial: {device.serial_number}</p>
+              <div className="text-left sm:text-right text-sm text-gray-600 dark:text-gray-400 shrink-0">
+                <p className="break-all">Serial: {device.serial_number}</p>
                 <p>Last seen: {formatDate(device.health?.last_seen)}</p>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex gap-1 sm:gap-2 border-b border-gray-200 dark:border-gray-700 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'overview'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <Info className="h-4 w-4 inline mr-1" />
+                <Info className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
                 Overview
               </button>
               <button
                 onClick={() => setActiveTab('readings')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'readings'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <TrendingUp className="h-4 w-4 inline mr-1" />
+                <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
                 Readings
               </button>
               <button
                 onClick={() => setActiveTab('config')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'config'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <Settings className="h-4 w-4 inline mr-1" />
-                Configuration
+                <Settings className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
+                Config
               </button>
               <button
                 onClick={() => setActiveTab('audit')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'audit'
                     ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <History className="h-4 w-4 inline mr-1" />
-                Audit Log
+                <History className="h-3 w-3 sm:h-4 sm:w-4 inline mr-1" />
+                Audit
               </button>
             </div>
 
@@ -397,14 +396,118 @@ export default function DeviceDetailModal({
                       </div>
                     </div>
                   )}
+
+                  {/* Security & Compliance */}
+                  {device.compliance && (
+                    <div className="space-y-4 md:col-span-2">
+                      <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Security & Compliance
+                      </h3>
+                      
+                      {/* Data Classification Badge */}
+                      <div className={`
+                        rounded-lg p-4 border-2
+                        ${device.compliance.data_classification === 'restricted' 
+                          ? 'bg-linear-to-r from-purple-50 to-amber-50 dark:from-purple-900/20 dark:to-amber-900/20 border-purple-500'
+                          : device.compliance.data_classification === 'confidential'
+                          ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500'
+                          : device.compliance.data_classification === 'internal'
+                          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500'
+                          : 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                        }
+                      `}>
+                        <div className="flex items-start gap-3">
+                          {device.compliance.requires_encryption ? (
+                            <Lock className={`h-5 w-5 mt-0.5 ${
+                              device.compliance.data_classification === 'restricted'
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : device.compliance.data_classification === 'confidential'
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : device.compliance.data_classification === 'internal'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-green-600 dark:text-green-400'
+                            }`} />
+                          ) : (
+                            <Shield className={`h-5 w-5 mt-0.5 ${
+                              device.compliance.data_classification === 'restricted'
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : device.compliance.data_classification === 'confidential'
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : device.compliance.data_classification === 'internal'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-green-600 dark:text-green-400'
+                            }`} />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className={`
+                                ${device.compliance.data_classification === 'restricted'
+                                  ? 'bg-purple-600 hover:bg-purple-700'
+                                  : device.compliance.data_classification === 'confidential'
+                                  ? 'bg-orange-600 hover:bg-orange-700'
+                                  : device.compliance.data_classification === 'internal'
+                                  ? 'bg-blue-600 hover:bg-blue-700'
+                                  : 'bg-green-600 hover:bg-green-700'
+                                }
+                              `}>
+                                {device.compliance.data_classification.toUpperCase()}
+                              </Badge>
+                              {device.compliance.requires_encryption && (
+                                <Badge variant="outline" className="flex items-center gap-1">
+                                  <Lock className="h-3 w-3" />
+                                  Encrypted
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p className={`font-medium ${
+                                device.compliance.data_classification === 'restricted'
+                                  ? 'text-purple-900 dark:text-purple-200'
+                                  : device.compliance.data_classification === 'confidential'
+                                  ? 'text-orange-900 dark:text-orange-200'
+                                  : device.compliance.data_classification === 'internal'
+                                  ? 'text-blue-900 dark:text-blue-200'
+                                  : 'text-green-900 dark:text-green-200'
+                              }`}>
+                                {device.compliance.data_classification === 'restricted' 
+                                  ? 'Highly Sensitive Data - Maximum Security Required'
+                                  : device.compliance.data_classification === 'confidential'
+                                  ? 'Confidential Data - Restricted Access'
+                                  : device.compliance.data_classification === 'internal'
+                                  ? 'Internal Use Only - Standard Security'
+                                  : 'Public Data - No Restrictions'
+                                }
+                              </p>
+                              {device.compliance.requires_encryption && (
+                                <p className="text-muted-foreground">
+                                  All data from this device is encrypted at rest and in transit
+                                </p>
+                              )}
+                              <p className="text-muted-foreground">
+                                Data retention: {device.compliance.retention_days} days
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {activeTab === 'readings' && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
-                    Recent Readings (Last 24 Hours)
-                  </h3>
+                <div className="space-y-6">
+                  {/* Temperature Correlation Panel for temperature devices */}
+                  {device.type === 'temperature' && (
+                    <TemperatureCorrelationPanel deviceId={device._id} />
+                  )}
+                  
+                  {/* Standard Readings Chart */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      Recent Readings (Last 24 Hours)
+                    </h3>
                   {recentReadings.length === 0 ? (
                     <p className="text-gray-500 dark:text-gray-400 text-center py-8">
                       No recent readings available
@@ -430,6 +533,7 @@ export default function DeviceDetailModal({
                       </LineChart>
                     </ResponsiveContainer>
                   )}
+                  </div>
                 </div>
               )}
 

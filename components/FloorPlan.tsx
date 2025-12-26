@@ -44,7 +44,7 @@ export default function FloorPlan({
 }: FloorPlanProps) {
   const [devices, setDevices] = useState<DeviceV2Response[]>([]);
   const [readings, setReadings] = useState<Record<string, Reading>>({});
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const alertedDevices = useRef<Set<string>>(new Set());
 
   // UI State
@@ -69,9 +69,9 @@ export default function FloorPlan({
       try {
         setLoading(true);
         const response = await v2Api.devices.list();
-        if (response.success) {
+        if (response.success) 
           setDevices(response.data);
-        }
+        
       } catch (error) {
         console.error('Error fetching devices:', error);
         // Fallback to v1 API
@@ -105,9 +105,9 @@ export default function FloorPlan({
       }
     };
 
-    if (devices && devices.length > 0) {
+    if (devices && devices.length > 0) 
       fetchReadings();
-    }
+    
   }, [devices]);
 
   // Real-time updates with Pusher
@@ -195,21 +195,21 @@ export default function FloorPlan({
   };
 
   const getStatusInfo = (device: DeviceV2Response, value: number | undefined) => {
-    if (value === undefined) {
+    if (value === undefined) 
       return {
         color:
           'bg-gray-100 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700',
         icon: null,
         text: 'Offline',
       };
-    }
+    
 
     // Default thresholds if not temp (simplified logic)
     const isCritical =
       value > (device.configuration?.threshold_critical || 9999);
     const isWarning = value > (device.configuration?.threshold_warning || 9999);
 
-    if (isCritical) {
+    if (isCritical) 
       return {
         color:
           'bg-red-50 border-red-200 ring-1 ring-red-200 dark:bg-red-950 dark:border-red-900 dark:ring-red-900',
@@ -219,8 +219,8 @@ export default function FloorPlan({
         text: 'Critical',
         textColor: 'text-red-700 dark:text-red-200',
       };
-    }
-    if (isWarning) {
+    
+    if (isWarning) 
       return {
         color:
           'bg-yellow-50 border-yellow-200 ring-1 ring-yellow-200 dark:bg-yellow-950 dark:border-yellow-900 dark:ring-yellow-900',
@@ -230,7 +230,7 @@ export default function FloorPlan({
         text: 'Warning',
         textColor: 'text-yellow-700 dark:text-yellow-200',
       };
-    }
+    
     return {
       color:
         'bg-white border-gray-200 hover:border-blue-300 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:border-blue-500',
@@ -275,7 +275,7 @@ export default function FloorPlan({
   }, [sortedFloors, initializedCollapse]);
 
   return (
-    <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm h-[600px] flex flex-col'>
+    <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm min-h-[500px] h-[calc(100vh-16rem)] flex flex-col'>
       <div className='flex justify-between items-center mb-4'>
         <div className='flex items-center gap-4'>
           <h3 className='text-lg font-semibold'>Live Device Status</h3>
@@ -300,13 +300,13 @@ export default function FloorPlan({
       <div className='flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar'>
         {sortedFloors.map(floor => {
           const floorDevices = groupedDevices[floor].filter(d => {
-            if (!showIssuesOnly)  return true; 
+            if (!showIssuesOnly) return true;
             const reading = readings[d._id];
             const status = getStatusInfo(d, reading?.value);
             return status.text !== 'Normal' && status.text !== 'Offline';
           });
 
-          if (showIssuesOnly && floorDevices.length === 0)  return null; 
+          if (showIssuesOnly && floorDevices.length === 0) return null;
 
           const isCollapsed = collapsedFloors.has(floor);
 
@@ -324,8 +324,9 @@ export default function FloorPlan({
                   </span>
                 </h4>
                 <span
-                  className={`text-gray-400 transform transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'
-                    }`}>
+                  className={`text-gray-400 transform transition-transform ${
+                    isCollapsed ? '-rotate-90' : 'rotate-0'
+                  }`}>
                   ▼
                 </span>
               </div>
@@ -342,11 +343,11 @@ export default function FloorPlan({
                         <div
                           key={device._id}
                           onClick={() => {
-                            if (onDeviceDetailClick) {
+                            if (onDeviceDetailClick) 
                               onDeviceDetailClick(device._id);
-                            } else if (onDeviceClick) {
+                             else if (onDeviceClick) 
                               onDeviceClick(roomName);
-                            }
+                            
                           }}
                           className={`p-3 rounded-lg border transition-all duration-200 ${status.color} flex flex-col gap-2 cursor-pointer hover:shadow-md`}>
                           <div className='flex justify-between items-start'>
