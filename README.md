@@ -5,7 +5,7 @@
 <h1>🏢 Infrasight – Real-Time IoT Building Monitoring Dashboard</h1>
 
 <p>
-  <a>
+  <a href="https://infrasight.aseck.dev/">
     <img src="https://img.shields.io/badge/Live%20Preview-000000?style=for-the-badge&logo=vercel&logoColor=white">
   </a>
   
