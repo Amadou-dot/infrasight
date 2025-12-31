@@ -437,8 +437,8 @@ export const analyticsApi = {
    */
   async anomalies(query: {
     deviceId?: string;
-    startTime?: string;
-    endTime?: string;
+    startDate?: string;
+    endDate?: string;
     minScore?: number;
     limit?: number;
   } = {}): Promise<ApiSuccessResponse<AnomalyResponse>> {

@@ -253,9 +253,9 @@ export interface ListReadingsQuery {
   /** Filter by reading type */
   type?: ReadingType;
   /** Start date for range query */
-  start_date?: string;
+  startDate?: string;
   /** End date for range query */
-  end_date?: string;
+  endDate?: string;
   /** Filter by data source */
   source?: ReadingSource;
   /** Filter by anomaly flag */
