@@ -14,6 +14,8 @@ export interface PaginationProps {
   itemsPerPage: number;
   onPageChange: (page: number) => void;
   className?: string;
+  /** Compact mode for inline usage (e.g., in table headers) */
+  compact?: boolean;
 }
 
 // ============================================================================
@@ -27,12 +29,41 @@ export default function Pagination({
   itemsPerPage,
   onPageChange,
   className = '',
+  compact = false,
 }: PaginationProps) {
   if (totalItems === 0) return null;
 
   const startItem = (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
+  // Compact variant - minimal inline pagination
+  if (compact) {
+    return (
+      <div className={`flex items-center gap-2 text-sm text-muted-foreground ${className}`}>
+        Showing {startItem}–{endItem} of {totalItems}
+        <Button
+          variant='ghost'
+          size='sm'
+          className='h-8 w-8 p-0'
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        >
+          <ChevronLeft className='h-4 w-4' />
+        </Button>
+        <Button
+          variant='ghost'
+          size='sm'
+          className='h-8 w-8 p-0'
+          disabled={currentPage >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+        >
+          <ChevronRight className='h-4 w-4' />
+        </Button>
+      </div>
+    );
+  }
+
+  // Full variant - with page numbers
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}>
       <div className='text-sm text-muted-foreground'>

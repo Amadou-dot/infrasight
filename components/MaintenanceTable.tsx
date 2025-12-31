@@ -4,10 +4,9 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import Pagination from '@/components/Pagination';
 import {
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   Wifi,
   Router,
@@ -16,7 +15,16 @@ import {
 } from 'lucide-react';
 import type { DeviceV2Response } from '@/types/v2';
 
-// Type definitions
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const PAGE_SIZE = 10;
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
 type MaintenanceStatus = 'critical' | 'warning' | 'scheduled' | 'healthy';
 type FilterLocation = 'all' | string;
 type FilterStatus = 'all' | MaintenanceStatus;
@@ -102,7 +110,6 @@ export default function MaintenanceTable({
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
 
   // Get unique locations
   const locations = useMemo(() => {
@@ -122,10 +129,10 @@ export default function MaintenanceTable({
       filtered = filtered.filter(d => d.location.room_name === locationFilter);
     }
 
-    const total = Math.ceil(filtered.length / pageSize);
+    const total = Math.ceil(filtered.length / PAGE_SIZE);
     const paginated = filtered.slice(
-      (currentPage - 1) * pageSize,
-      currentPage * pageSize
+      (currentPage - 1) * PAGE_SIZE,
+      currentPage * PAGE_SIZE
     );
 
     return {
@@ -249,27 +256,16 @@ export default function MaintenanceTable({
             Date Range
           </Button>
 
-          {/* Results count */}
-          <div className='ml-auto text-sm text-muted-foreground'>
-            Showing {(currentPage - 1) * pageSize + 1}-
-            {Math.min(currentPage * pageSize, filteredDevices.length)} of{' '}
-            {filteredDevices.length}
-            <Button
-              variant='ghost'
-              size='sm'
-              className='ml-2'
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(p => p - 1)}>
-              <ChevronLeft className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage(p => p + 1)}>
-              <ChevronRight className='h-4 w-4' />
-            </Button>
-          </div>
+          {/* Results count and pagination */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredDevices.length}
+            itemsPerPage={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            compact
+            className='ml-auto'
+          />
         </div>
 
         {/* Table */}
