@@ -44,6 +44,11 @@ const deviceTypes = [
   'light',
   'motion',
   'air_quality',
+  'water_flow',
+  'gas',
+  'vibration',
+  'voltage',
+  'current',
   'energy',
 ] as const;
 
@@ -64,6 +69,11 @@ const unitsByType: Record<string, string> = {
   light: 'lux',
   motion: 'boolean',
   air_quality: 'ppm',
+  water_flow: 'liters_per_minute',
+  gas: 'ppm',
+  vibration: 'raw',
+  voltage: 'volts',
+  current: 'amperes',
   energy: 'kilowatt_hours',
 };
 
@@ -190,6 +200,21 @@ function generateReading(deviceId: string, type: string, timestamp: Date): unkno
       break;
     case 'air_quality':
       value = randomInt(0, 300);
+      break;
+    case 'water_flow':
+      value = randomFloat(0.5, 50);
+      break;
+    case 'gas':
+      value = randomInt(0, 500);
+      break;
+    case 'vibration':
+      value = randomFloat(0, 10);
+      break;
+    case 'voltage':
+      value = randomFloat(110, 240);
+      break;
+    case 'current':
+      value = randomFloat(0.1, 15);
       break;
     case 'energy':
       value = randomFloat(0, 100);
