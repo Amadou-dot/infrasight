@@ -27,8 +27,8 @@ const mongoUri: string = MONGODB_URI;
 // Configuration
 // ============================================================================
 
-const NUM_DEVICES = 50;
-const READINGS_PER_DEVICE = 100;
+const NUM_DEVICES = 500;
+const READINGS_PER_DEVICE = 25;
 
 // ============================================================================
 // Data Generators
@@ -124,7 +124,7 @@ function generateDevice(index: number): unknown {
     },
     location: {
       building_id: randomChoice(buildings),
-      floor: randomInt(1, 10),
+      floor: randomInt(1, 5),
       room_name: randomChoice(rooms),
       coordinates: {
         x: randomFloat(0, 100),
@@ -135,7 +135,7 @@ function generateDevice(index: number): unknown {
     metadata: {
       tags: [
         type,
-        `floor-${randomInt(1, 10)}`,
+        `floor-${randomInt(1, 5)}`,
         ...(Math.random() > 0.5 ? ['critical'] : []),
         ...(Math.random() > 0.7 ? ['monitored'] : []),
       ],
