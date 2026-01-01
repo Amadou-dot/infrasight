@@ -82,8 +82,8 @@ export default function DeviceDetailModal({
         const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const readingsResponse = await v2Api.readings.list({
           device_id: deviceId,
-          start_date: oneDayAgo.toISOString(),
-          end_date: now.toISOString(),
+          startDate: oneDayAgo.toISOString(),
+          endDate: now.toISOString(),
           limit: 100,
         });
         
