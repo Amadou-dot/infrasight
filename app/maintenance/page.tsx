@@ -12,6 +12,19 @@ import 'react-toastify/dist/ReactToastify.css';
 import { v2Api } from '@/lib/api/v2-client';
 import type { MaintenanceForecastResponse, DeviceV2Response } from '@/types/v2';
 
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** Maximum pages to fetch when loading all devices (100 per page = 2000 max devices) */
+const MAX_PAGINATION_PAGES = 20;
+
+/** Days after which a device needs recalibration (90 days) */
+const CALIBRATION_THRESHOLD_DAYS = 90;
+
+/** Milliseconds per day */
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 export default function MaintenancePage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
@@ -34,13 +47,25 @@ export default function MaintenancePage() {
         setLoading(true);
         setError(null);
 
-        const [forecastRes, devicesRes] = await Promise.all([
-          v2Api.analytics.maintenanceForecast({ days_ahead: 30 }),
-          v2Api.devices.list({ limit: 100 }),
-        ]);
-
+        // Fetch forecast
+        const forecastRes = await v2Api.analytics.maintenanceForecast({ days_ahead: 30 });
         setForecast(forecastRes.data);
-        setAllDevices(devicesRes.data);
+
+        // Fetch all devices with pagination (API max limit is 100)
+        const allDevicesList: DeviceV2Response[] = [];
+        let page = 1;
+        let hasMore = true;
+
+        while (hasMore) {
+          const devicesRes = await v2Api.devices.list({ limit: 100, page });
+          allDevicesList.push(...devicesRes.data);
+          hasMore = devicesRes.pagination?.hasNext ?? false;
+          page++;
+          // Safety limit to prevent infinite loops (max 2000 devices)
+          if (page > MAX_PAGINATION_PAGES) break;
+        }
+
+        setAllDevices(allDevicesList);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
         console.error('Maintenance page error:', err);
@@ -54,9 +79,9 @@ export default function MaintenancePage() {
 
   // Calculate status counts
   const { criticalCount, dueForServiceCount, healthyCount } = useMemo(() => {
-    if (!forecast) {
+    if (!forecast) 
       return { criticalCount: 0, dueForServiceCount: 0, healthyCount: 0 };
-    }
+    
 
     return {
       criticalCount: forecast.critical.length,
@@ -75,6 +100,77 @@ export default function MaintenancePage() {
     const activeDevices = allDevices.filter(d => d.status === 'active').length;
     return Math.round((activeDevices / allDevices.length) * 100);
   }, [allDevices]);
+
+  // Convert forecast data to timeline tasks
+  const timelineTasks = useMemo(() => {
+    if (!forecast) return [];
+
+    const tasks: Array<{
+      id: string;
+      deviceId: string;
+      deviceName: string;
+      taskType: 'emergency' | 'firmware' | 'calibration' | 'routine';
+      startDate: Date;
+      endDate: Date;
+      label: string;
+    }> = [];
+
+    const today = new Date();
+
+    // Add critical devices as emergency tasks
+    forecast.critical.forEach((device) => {
+      const nextMaint = device.metadata?.next_maintenance
+        ? new Date(device.metadata.next_maintenance)
+        : today;
+      tasks.push({
+        id: `critical-${device._id}`,
+        deviceId: device._id,
+        deviceName: device.serial_number || device._id,
+        taskType: 'emergency',
+        startDate: nextMaint,
+        endDate: new Date(nextMaint.getTime() + 2 * MS_PER_DAY),
+        label: 'EMERGENCY FIX',
+      });
+    });
+
+    // Add warning devices as firmware/calibration tasks
+    forecast.warning.forEach((device) => {
+      const nextMaint = device.metadata?.next_maintenance
+        ? new Date(device.metadata.next_maintenance)
+        : new Date(today.getTime() + 7 * MS_PER_DAY);
+      const needsCalibration = device.configuration?.calibration_date
+        ? new Date(device.configuration.calibration_date).getTime() < today.getTime() - CALIBRATION_THRESHOLD_DAYS * MS_PER_DAY
+        : false;
+      tasks.push({
+        id: `warning-${device._id}`,
+        deviceId: device._id,
+        deviceName: device.serial_number || device._id,
+        taskType: needsCalibration ? 'calibration' : 'firmware',
+        startDate: nextMaint,
+        endDate: new Date(nextMaint.getTime() + 1 * MS_PER_DAY),
+        label: needsCalibration ? 'CALIBRATION' : 'FW UPDATE',
+      });
+    });
+
+    // Add watch devices as routine tasks
+    forecast.watch.forEach((device) => {
+      const nextMaint = device.metadata?.next_maintenance
+        ? new Date(device.metadata.next_maintenance)
+        : new Date(today.getTime() + 14 * MS_PER_DAY);
+      tasks.push({
+        id: `watch-${device._id}`,
+        deviceId: device._id,
+        deviceName: device.serial_number || device._id,
+        taskType: 'routine',
+        startDate: nextMaint,
+        endDate: new Date(nextMaint.getTime() + 1 * MS_PER_DAY),
+        label: 'ROUTINE CHECK',
+      });
+    });
+
+    // Sort by start date
+    return tasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  }, [forecast]);
 
   return (
     <div className='min-h-screen bg-background p-4 md:p-6 lg:p-8'>
@@ -140,7 +236,7 @@ export default function MaintenancePage() {
 
       {/* Timeline */}
       <section className='mb-6'>
-        <MaintenanceTimeline loading={loading} />
+        <MaintenanceTimeline tasks={timelineTasks} loading={loading} />
       </section>
 
       {/* Data Table */}
