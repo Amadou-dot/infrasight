@@ -219,7 +219,7 @@ export default function Home() {
           </div>
 
           {/* Anomaly Detection Chart */}
-          <div className="min-h-[320px]">
+          <div className="min-h-80">
             <AnomalyDetectionChart hours={6} />
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function Home() {
         {/* Right Column - System Health + Maintenance */}
         <div className="space-y-6">
           {/* System Health Widget */}
-          <div className="min-h-[320px]">
+          <div className="min-h-80">
             <SystemHealthWidget />
           </div>
 
