@@ -17,14 +17,16 @@ import {
   DeviceSearchBar,
   DeviceFilterModal,
   INITIAL_FILTERS,
+  type DeviceFilters,
 } from './_components';
-import type { DeviceFilters } from './_components';
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const DEVICES_PER_PAGE = 16;
+/** Maximum pages to fetch when loading all devices (100 per page = 2000 max devices) */
+const MAX_PAGINATION_PAGES = 20;
 
 // ============================================================================
 // COMPONENT
@@ -57,12 +59,29 @@ export default function DevicesPage() {
   // ============================================================================
 
   useEffect(() => {
-    const fetchDevices = async () => {
+    const fetchAllDevices = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await v2Api.devices.list({ limit: 100 });
-        setDevices(response.data);
+        
+        // Fetch all devices by paginating through all pages
+        const allDevices: DeviceV2Response[] = [];
+        let page = 1;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const response = await v2Api.devices.list({ limit: 100, page });
+          allDevices.push(...response.data);
+          
+          // Check if there are more pages
+          hasMore = response.pagination?.hasNext ?? false;
+          page++;
+          
+          // Safety limit to prevent infinite loops (max 2000 devices)
+          if (page > MAX_PAGINATION_PAGES) break;
+        }
+        
+        setDevices(allDevices);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load devices');
         console.error('Devices fetch error:', err);
@@ -71,7 +90,7 @@ export default function DevicesPage() {
       }
     };
 
-    fetchDevices();
+    fetchAllDevices();
   }, []);
 
   // ============================================================================
@@ -104,9 +123,9 @@ export default function DevicesPage() {
   const filteredDevices = useMemo(() => {
     let filtered = devices;
 
-    if (selectedFloor !== 'all') {
+    if (selectedFloor !== 'all') 
       filtered = filtered.filter(d => d.location.floor === selectedFloor);
-    }
+    
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -119,18 +138,18 @@ export default function DevicesPage() {
     }
 
     // Apply advanced filters
-    if (filters.status.length > 0) {
+    if (filters.status.length > 0) 
       filtered = filtered.filter(d => filters.status.includes(d.status));
-    }
-    if (filters.type.length > 0) {
+    
+    if (filters.type.length > 0) 
       filtered = filtered.filter(d => filters.type.includes(d.type));
-    }
-    if (filters.manufacturer.length > 0) {
+    
+    if (filters.manufacturer.length > 0) 
       filtered = filtered.filter(d => filters.manufacturer.includes(d.manufacturer));
-    }
-    if (filters.department.length > 0) {
+    
+    if (filters.department.length > 0) 
       filtered = filtered.filter(d => filters.department.includes(d.metadata?.department || ''));
-    }
+    
 
     return filtered;
   }, [devices, selectedFloor, searchQuery, filters]);
