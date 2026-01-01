@@ -1,33 +1,51 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import FloorPlan from '@/components/FloorPlan';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
+import { Select } from '@/components/ui/select';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Map } from 'lucide-react';
-import { v2Api } from '@/lib/api/v2-client';
+import { v2Api, type MetadataBuilding } from '@/lib/api/v2-client';
 
 export default function FloorPlanPage() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
-  const [floors, setFloors] = useState<number[]>([]);
+  const [selectedBuilding, setSelectedBuilding] = useState<string | 'all'>('all');
+  const [buildings, setBuildings] = useState<MetadataBuilding[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
 
-  // Fetch available floors
+  // Fetch available buildings with their floors
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
         const response = await v2Api.metadata.get();
-        if (response.success && response.data.floors) 
-          setFloors(response.data.floors);
-        
+        if (response.success && response.data.buildings) {
+          setBuildings(response.data.buildings);
+          // Auto-select first building if available
+          if (response.data.buildings.length > 0) 
+            setSelectedBuilding(response.data.buildings[0].building);
+          
+        }
       } catch (error) {
         console.error('Error fetching metadata:', error);
       }
     };
     fetchMetadata();
   }, []);
+
+  // Get floors for the selected building
+  const availableFloors = useMemo(() => {
+    if (selectedBuilding === 'all') {
+      // Combine all floors from all buildings, deduplicated and sorted
+      const allFloors = new Set<number>();
+      buildings.forEach(b => b.floors.forEach(f => allFloors.add(f.floor)));
+      return Array.from(allFloors).sort((a, b) => a - b);
+    }
+    const building = buildings.find(b => b.building === selectedBuilding);
+    return building ? building.floors.map(f => f.floor).sort((a, b) => a - b) : [];
+  }, [buildings, selectedBuilding]);
 
   const handleDeviceClick = (deviceId: string) => {
     setSelectedDeviceId(deviceId);
@@ -59,26 +77,40 @@ export default function FloorPlanPage() {
             </p>
           </div>
 
-          {/* Floor Selector */}
-          <div className='flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm'>
-            <span className='text-sm font-medium text-gray-600 dark:text-gray-300 px-2'>
-              Floor:
-            </span>
-            <select
-              value={selectedFloor}
-              onChange={e =>
-                setSelectedFloor(
-                  e.target.value === 'all' ? 'all' : parseInt(e.target.value)
-                )
+          {/* Building & Floor Selectors */}
+          <div className='flex items-center gap-4'>
+            {/* Building Selector */}
+            <Select
+              label='Building'
+              value={selectedBuilding as string}
+              onValueChange={(val) => {
+                setSelectedBuilding(val);
+                setSelectedFloor('all');
+              }}
+              options={[
+                { value: 'all', label: 'All Buildings' },
+                ...buildings.map(b => ({
+                  value: b.building,
+                  label: `${b.building} (${b.device_count})`,
+                })),
+              ]}
+            />
+
+            {/* Floor Selector */}
+            <Select
+              label='Floor'
+              value={String(selectedFloor)}
+              onValueChange={(val) =>
+                setSelectedFloor(val === 'all' ? 'all' : parseInt(val))
               }
-              className='bg-transparent border-none text-gray-900 dark:text-white text-sm focus:ring-0 cursor-pointer outline-none'>
-              <option value='all'>All Floors</option>
-              {floors.map(f => (
-                <option key={f} value={f}>
-                  Floor {f}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'all', label: 'All Floors' },
+                ...availableFloors.map(f => ({
+                  value: String(f),
+                  label: `Floor ${f}`,
+                })),
+              ]}
+            />
           </div>
         </div>
       </header>
@@ -87,6 +119,7 @@ export default function FloorPlanPage() {
       <div className='grid grid-cols-1 gap-6'>
         <FloorPlan
           selectedFloor={selectedFloor}
+          selectedBuilding={selectedBuilding}
           onDeviceDetailClick={handleDeviceClick}
         />
       </div>

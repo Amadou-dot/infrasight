@@ -37,7 +37,7 @@ export default function Pagination({
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
   // Compact variant - minimal inline pagination
-  if (compact) {
+  if (compact) 
     return (
       <div className={`flex items-center gap-2 text-sm text-muted-foreground ${className}`}>
         Showing {startItem}–{endItem} of {totalItems}
@@ -61,7 +61,7 @@ export default function Pagination({
         </Button>
       </div>
     );
-  }
+  
 
   // Full variant - with page numbers
   return (
@@ -93,13 +93,13 @@ export default function Pagination({
               const showEllipsisBefore = page === currentPage - 2 && currentPage > 3;
               const showEllipsisAfter = page === currentPage + 2 && currentPage < totalPages - 2;
               
-              if (showEllipsisBefore || showEllipsisAfter) {
+              if (showEllipsisBefore || showEllipsisAfter) 
                 return (
                   <span key={page} className='px-2 text-muted-foreground'>
                     ...
                   </span>
                 );
-              }
+              
               
               if (!showPage) return null;
               

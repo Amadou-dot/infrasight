@@ -102,7 +102,7 @@ export default function CriticalIssuesPanel({
 
         // Critical maintenance - Critical
         forecast.critical?.forEach((d) => {
-          if (!collectedIssues.some((i) => i.id === d._id)) {
+          if (!collectedIssues.some((i) => i.id === d._id)) 
             collectedIssues.push({
               id: d._id,
               title: `Critical Maintenance Needed`,
@@ -111,14 +111,12 @@ export default function CriticalIssuesPanel({
               timestamp: new Date(d.metadata?.next_maintenance || Date.now()),
               type: 'maintenance',
             });
-          }
+          
         });
 
         // Sort by severity (critical first) then by timestamp
         collectedIssues.sort((a, b) => {
-          if (a.severity !== b.severity) {
-            return a.severity === 'critical' ? -1 : 1;
-          }
+          if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1;
           return b.timestamp.getTime() - a.timestamp.getTime();
         });
 
@@ -184,7 +182,7 @@ export default function CriticalIssuesPanel({
     return `${diffDays}d ago`;
   };
 
-  if (loading) {
+  if (loading) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -195,9 +193,9 @@ export default function CriticalIssuesPanel({
         </div>
       </div>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -208,7 +206,7 @@ export default function CriticalIssuesPanel({
         </div>
       </div>
     );
-  }
+  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">

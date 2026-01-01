@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 
 interface TimelineTask {
   id: string;
@@ -17,42 +16,7 @@ interface TimelineTask {
 interface MaintenanceTimelineProps {
   tasks?: TimelineTask[];
   loading?: boolean;
-}
-
-type ViewMode = 'day' | 'week' | 'month';
-
-// Generate demo tasks for display
-function generateDemoTasks(): TimelineTask[] {
-  const today = new Date();
-  return [
-    {
-      id: '1',
-      deviceId: 'sensor-x99',
-      deviceName: 'Sensor-X99',
-      taskType: 'emergency',
-      startDate: today,
-      endDate: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000),
-      label: 'EMERGENCY FIX',
-    },
-    {
-      id: '2',
-      deviceId: 'gateway-04',
-      deviceName: 'Gateway-04',
-      taskType: 'firmware',
-      startDate: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000),
-      endDate: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000),
-      label: 'FW UPDATE',
-    },
-    {
-      id: '3',
-      deviceId: 'hvac-ctrl',
-      deviceName: 'HVAC-Ctrl',
-      taskType: 'calibration',
-      startDate: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000),
-      endDate: new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000),
-      label: 'CALIBRATION',
-    },
-  ];
+  maxTasks?: number;
 }
 
 function getTaskColor(type: TimelineTask['taskType']): string {
@@ -70,29 +34,74 @@ function getTaskColor(type: TimelineTask['taskType']): string {
   }
 }
 
-function getDateLabels(viewMode: ViewMode): string[] {
+/**
+ * Get unique dates from tasks that have scheduled maintenance
+ */
+function getUniqueDatesFromTasks(tasks: TimelineTask[]): Date[] {
+  const dateSet = new Set<string>();
   const today = new Date();
-  const labels: string[] = ['Today'];
-  const daysToShow = viewMode === 'day' ? 1 : viewMode === 'week' ? 6 : 30;
+  today.setHours(0, 0, 0, 0);
   
-  for (let i = 1; i <= daysToShow; i++) {
-    const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
-    labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  }
+  // Always include today
+  dateSet.add(today.toISOString().split('T')[0]);
   
-  return labels;
+  tasks.forEach(task => {
+    const startDate = new Date(task.startDate);
+    startDate.setHours(0, 0, 0, 0);
+    
+    // Add each day the task spans
+    const endDate = new Date(task.endDate);
+    endDate.setHours(0, 0, 0, 0);
+    
+    let current = new Date(startDate);
+    while (current <= endDate) {
+      dateSet.add(current.toISOString().split('T')[0]);
+      current = new Date(current.getTime() + 24 * 60 * 60 * 1000);
+    }
+  });
+  
+  // Convert to sorted array of dates
+  return Array.from(dateSet)
+    .sort()
+    .map(dateStr => new Date(dateStr));
+}
+
+/**
+ * Format date for display
+ */
+function formatDateLabel(date: Date): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const compareDate = new Date(date);
+  compareDate.setHours(0, 0, 0, 0);
+  
+  if (compareDate.getTime() === today.getTime()) return 'Today';
+  
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+  if (compareDate.getTime() === tomorrow.getTime()) return 'Tomorrow';
+  
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function MaintenanceTimeline({
-  tasks,
+  tasks = [],
   loading = false,
+  maxTasks = 20,
 }: MaintenanceTimelineProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  // Sort tasks by start date and take only the closest N
+  const displayTasks = useMemo(() => {
+    const now = new Date();
+    return [...tasks]
+      .filter(task => task.startDate >= now || task.endDate >= now) // Only future/ongoing tasks
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+      .slice(0, maxTasks);
+  }, [tasks, maxTasks]);
   
-  const displayTasks = tasks || generateDemoTasks();
-  const dateLabels = getDateLabels(viewMode);
+  // Get only dates that have tasks
+  const scheduledDates = useMemo(() => getUniqueDatesFromTasks(displayTasks), [displayTasks]);
+  const dateLabels = scheduledDates.map(formatDateLabel);
 
-  if (loading) {
+  if (loading) 
     return (
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -108,27 +117,25 @@ export default function MaintenanceTimeline({
         </CardContent>
       </Card>
     );
-  }
+  
 
   return (
     <Card className="bg-card border-border overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <CardTitle className="text-lg font-semibold">Upcoming Timeline</CardTitle>
-        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-          {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
-            <Button
-              key={mode}
-              variant={viewMode === mode ? 'default' : 'ghost'}
-              size="sm"
-              className="text-xs capitalize px-3"
-              onClick={() => setViewMode(mode)}
-            >
-              {mode}
-            </Button>
-          ))}
-        </div>
+        {displayTasks.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            Showing {displayTasks.length} of {tasks.length} tasks
+          </span>
+        )}
       </CardHeader>
       <CardContent className="pt-0">
+        {displayTasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="text-muted-foreground mb-2">No upcoming maintenance tasks</div>
+            <div className="text-xs text-muted-foreground/70">All devices are healthy with no scheduled maintenance</div>
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <div className="min-w-[600px]">
             {/* Date headers */}
@@ -147,15 +154,32 @@ export default function MaintenanceTimeline({
             {/* Task rows */}
             <div className="space-y-3">
               {displayTasks.map((task) => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
+                // Find which column(s) this task should span
+                const taskStartDate = new Date(task.startDate);
+                taskStartDate.setHours(0, 0, 0, 0);
+                const taskEndDate = new Date(task.endDate);
+                taskEndDate.setHours(0, 0, 0, 0);
                 
-                const startOffset = Math.floor((task.startDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-                const duration = Math.max(1, Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (24 * 60 * 60 * 1000)));
-                const totalDays = dateLabels.length;
+                // Find the index of the start date column
+                const startColIndex = scheduledDates.findIndex(d => {
+                  const compareDate = new Date(d);
+                  compareDate.setHours(0, 0, 0, 0);
+                  return compareDate.getTime() >= taskStartDate.getTime();
+                });
                 
-                const startPercent = Math.max(0, (startOffset / totalDays) * 100);
-                const widthPercent = Math.min((duration / totalDays) * 100, 100 - startPercent);
+                // Find how many columns this task spans
+                let endColIndex = startColIndex;
+                for (let i = startColIndex; i < scheduledDates.length; i++) {
+                  const colDate = new Date(scheduledDates[i]);
+                  colDate.setHours(0, 0, 0, 0);
+                  if (colDate <= taskEndDate) endColIndex = i;
+                }
+                
+                const colSpan = Math.max(1, endColIndex - startColIndex + 1);
+                const totalCols = scheduledDates.length;
+                
+                const startPercent = (startColIndex / totalCols) * 100;
+                const widthPercent = (colSpan / totalCols) * 100;
 
                 return (
                   <div
@@ -171,8 +195,8 @@ export default function MaintenanceTimeline({
                         className={`absolute h-full rounded ${getTaskColor(task.taskType)} flex items-center justify-center`}
                         style={{
                           left: `${startPercent}%`,
-                          width: `${widthPercent}%`,
-                          minWidth: '80px',
+                          width: `${Math.max(widthPercent, 10)}%`,
+                          minWidth: '70px',
                         }}
                       >
                         <span className="text-xs font-medium text-white px-2 truncate">
@@ -186,6 +210,7 @@ export default function MaintenanceTimeline({
             </div>
           </div>
         </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -12,7 +12,6 @@ import {
   Gauge,
   Sun,
   Activity,
-  Wind,
   Waves,
   Flame,
   BarChart3,
@@ -100,14 +99,14 @@ function getIconBgColor(type: string): string {
 // Get status badge styling
 function getStatusBadge(status: string, batteryLevel?: number) {
   // Check for low battery
-  if (batteryLevel !== undefined && batteryLevel < 20) {
+  if (batteryLevel !== undefined && batteryLevel < 20) 
     return (
       <Badge className='bg-orange-500/20 text-orange-400 border-orange-500/30 text-xs gap-1'>
         <BatteryWarning className='h-3 w-3' />
         Low Battery
       </Badge>
     );
-  }
+  
 
   switch (status) {
     case 'active':
@@ -171,9 +170,9 @@ function getSecondaryStat(
 ): { label: string; value: string } | null {
   const { health } = device;
 
-  if (health.battery_level !== undefined) {
+  if (health.battery_level !== undefined) 
     return { label: 'Battery', value: `${health.battery_level}%` };
-  }
+  
 
   if (health.signal_strength !== undefined) {
     const strength =
@@ -188,12 +187,12 @@ function getSecondaryStat(
     };
   }
 
-  if (health.uptime_percentage !== undefined) {
+  if (health.uptime_percentage !== undefined) 
     return {
       label: 'Uptime',
       value: `${Math.round(health.uptime_percentage)}%`,
     };
-  }
+  
 
   return null;
 }

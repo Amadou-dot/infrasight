@@ -20,9 +20,7 @@ export default function SystemHealthWidget({
       try {
         if (showLoading) setLoading(true);
         const response = await v2Api.analytics.health();
-        if (response.success) {
-          setHealth(response.data);
-        }
+        if (response.success) setHealth(response.data);
         setError(null);
       } catch (err) {
         console.error('Error fetching health:', err);
@@ -38,7 +36,7 @@ export default function SystemHealthWidget({
   }, []);
 
   const healthScore = health?.summary?.health_score ?? 0;
-  const totalDevices = health?.summary?.total_devices ?? 0;
+  const _totalDevices = health?.summary?.total_devices ?? 0;
   const activeDevices = health?.summary?.active_devices ?? 0;
   const issuesCount =
     (health?.alerts?.offline_devices?.count ?? 0) +
@@ -65,7 +63,7 @@ export default function SystemHealthWidget({
     return 'POOR';
   };
 
-  if (loading) {
+  if (loading) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <h3 className="text-lg font-semibold text-foreground mb-4">System Health</h3>
@@ -74,9 +72,9 @@ export default function SystemHealthWidget({
         </div>
       </div>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <h3 className="text-lg font-semibold text-foreground mb-4">System Health</h3>
@@ -85,7 +83,7 @@ export default function SystemHealthWidget({
         </div>
       </div>
     );
-  }
+  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">

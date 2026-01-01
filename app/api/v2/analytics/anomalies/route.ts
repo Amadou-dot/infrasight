@@ -7,6 +7,7 @@
 import {
   calculateOffsetPagination,
   getOffsetPaginationParams,
+  MAX_ANALYTICS_PAGE_SIZE,
 } from '@/lib/api/pagination';
 import { jsonSuccess } from '@/lib/api/response';
 import dbConnect from '@/lib/db';
@@ -65,11 +66,14 @@ export async function GET(request: NextRequest) {
 
     const query = validationResult.data as AnomalyAnalyticsQuery;
 
-    // Extract pagination
-    const pagination = getOffsetPaginationParams({
-      page: query.page,
-      limit: query.limit,
-    });
+    // Extract pagination (analytics endpoints allow higher limits)
+    const pagination = getOffsetPaginationParams(
+      {
+        page: query.page,
+        limit: query.limit,
+      },
+      { maxLimit: MAX_ANALYTICS_PAGE_SIZE }
+    );
 
     // Build match stage
     const matchStage: Record<string, unknown> = {

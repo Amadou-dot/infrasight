@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { v2Api, type AnomalyResponse } from '@/lib/api/v2-client';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
+import { v2Api } from '@/lib/api/v2-client';
 import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts';
 
 interface ChartDataPoint {
   time: string;
@@ -45,77 +44,60 @@ export default function AnomalyDetectionChart({
           v2Api.readings.list({
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
-            limit: 1000,
+            limit: 1, // We only need the total count
           }),
           v2Api.analytics.anomalies({
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
-            limit: 500,
+            limit: 1000, // Fetch more anomalies to get accurate counts
           }),
         ]);
 
-        // Group readings by hour for the chart
-        const hourlyBuckets: Map<
-          string,
-          { normal: number; anomaly: number }
-        > = new Map();
+        // Create hourly buckets using epoch hour as key for reliable matching
+        const hourlyBuckets: Map<number, { time: string; normal: number; anomaly: number }> = new Map();
 
-        // Initialize buckets for each hour
-        for (let i = 0; i < hours; i++) {
-          const bucketTime = new Date(
-            endDate.getTime() - (hours - 1 - i) * 60 * 60 * 1000
-          );
-          const key = bucketTime.toLocaleTimeString([], {
+        // Initialize buckets for each hour (including current hour)
+        for (let i = 0; i <= hours; i++) {
+          const bucketTime = new Date(startDate.getTime() + i * 60 * 60 * 1000);
+          // Use epoch hour as key (floor to hour)
+          const epochHour = Math.floor(bucketTime.getTime() / (60 * 60 * 1000));
+          const timeLabel = bucketTime.toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
           });
-          hourlyBuckets.set(key, { normal: 0, anomaly: 0 });
+          hourlyBuckets.set(epochHour, { time: timeLabel, normal: 0, anomaly: 0 });
         }
 
         // Count anomalies per hour
         const anomalies = anomaliesRes.data?.anomalies || [];
         anomalies.forEach((a) => {
           const timestamp = new Date(a.timestamp);
-          const key = timestamp.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
+          const epochHour = Math.floor(timestamp.getTime() / (60 * 60 * 1000));
 
-          // Find closest bucket
-          const bucketKeys = Array.from(hourlyBuckets.keys());
-          let closestKey = bucketKeys[0];
-          for (const bKey of bucketKeys) {
-            closestKey = bKey;
-            // Simple matching by hour
-            if (key.slice(0, 2) === bKey.slice(0, 2)) {
-              break;
-            }
-          }
-
-          const bucket = hourlyBuckets.get(closestKey);
-          if (bucket) {
-            bucket.anomaly += 1;
-          }
+          const bucket = hourlyBuckets.get(epochHour);
+          if (bucket) bucket.anomaly += 1;
         });
 
-        // Calculate normal readings (total minus anomalies)
-        // Since we don't have exact totals per hour, we'll simulate based on total
-        const totalReadings = readingsRes.pagination?.total || 100;
-        const avgReadingsPerHour = Math.floor(totalReadings / hours);
+        // Calculate normal readings per bucket (distribute evenly)
+        const totalReadings = readingsRes.pagination?.total || 0;
+        const totalAnomalies = anomaliesRes.data?.pagination?.total || anomalies.length;
+        const totalNormal = Math.max(0, totalReadings - totalAnomalies);
+        const bucketCount = hourlyBuckets.size;
+        const avgNormalPerHour = Math.floor(totalNormal / bucketCount);
 
         hourlyBuckets.forEach((bucket) => {
-          // Normal readings = estimated total - anomalies
-          bucket.normal = Math.max(0, avgReadingsPerHour - bucket.anomaly);
+          bucket.normal = avgNormalPerHour;
         });
 
-        // Convert to chart data
-        const chartData: ChartDataPoint[] = Array.from(
-          hourlyBuckets.entries()
-        ).map(([time, counts]) => ({
-          time,
-          normal: counts.normal,
-          anomaly: counts.anomaly,
-        }));
+        // Convert to chart data (sorted by time, take last 'hours' buckets)
+        const chartData: ChartDataPoint[] = Array.from(hourlyBuckets.entries())
+          .sort(([a], [b]) => a - b)
+          .slice(-hours) // Take only the last N hours
+          .map(([, bucket]) => ({
+            time: bucket.time,
+            normal: bucket.normal,
+            anomaly: bucket.anomaly,
+          }));
 
         setData(chartData);
         setError(null);
@@ -123,7 +105,7 @@ export default function AnomalyDetectionChart({
         console.error('Error fetching anomaly data:', err);
         setError('Failed to load data');
       } finally {
-        if (showLoading) setLoading(false);
+        setLoading(false);
       }
     };
 
@@ -132,7 +114,7 @@ export default function AnomalyDetectionChart({
     return () => clearInterval(interval);
   }, [hours]);
 
-  if (loading) {
+  if (loading) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -150,9 +132,9 @@ export default function AnomalyDetectionChart({
         </div>
       </div>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -170,7 +152,7 @@ export default function AnomalyDetectionChart({
         </div>
       </div>
     );
-  }
+  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">
@@ -195,33 +177,34 @@ export default function AnomalyDetectionChart({
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-[200px]">
+      <div className="h-[250px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
             margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis
               dataKey="time"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
+              tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
-              tickFormatter={(value) => `${value}%`}
+              tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
                 borderRadius: '8px',
+                color: 'hsl(var(--foreground))',
               }}
-              labelStyle={{ color: '#94a3b8' }}
-              itemStyle={{ color: '#fff' }}
+              labelStyle={{ color: 'hsl(var(--muted-foreground))' }}
+              itemStyle={{ color: 'hsl(var(--foreground))' }}
+              cursor={{ fill: 'hsl(var(--muted) / 0.3)' }}
             />
             <Bar
               dataKey="normal"

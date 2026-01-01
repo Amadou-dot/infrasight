@@ -34,7 +34,7 @@ interface ChartDataPoint {
   timestamp: string;
 }
 
-export default function AnomalyChart({ selectedFloor }: AnomalyChartProps) {
+export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
   const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

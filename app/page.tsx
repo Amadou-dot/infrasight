@@ -26,7 +26,7 @@ export default function Home() {
   // Data state
   const [health, setHealth] = useState<HealthMetrics | null>(null);
   const [forecast, setForecast] = useState<MaintenanceForecastResponse | null>(null);
-  const [anomalies, setAnomalies] = useState<AnomalyResponse | null>(null);
+  const [_anomalies, setAnomalies] = useState<AnomalyResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<'24h' | '7d' | '30d'>('24h');
 

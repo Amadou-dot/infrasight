@@ -471,24 +471,78 @@ export const analyticsApi = {
 // METADATA API
 // ============================================================================
 
-export interface MetadataResponse {
-  manufacturers: string[];
+export interface MetadataManufacturer {
+  name: string;
+  device_count: number;
   models: string[];
-  departments: string[];
-  tags: string[];
-  buildings: string[];
-  floors: number[];
-  rooms: string[];
-  deviceTypes: Array<{
-    type: string;
-    count: number;
-    activeCount: number;
-  }>;
-  healthStats: {
-    online: number;
-    maintenance: number;
+}
+
+export interface MetadataDepartment {
+  name: string;
+  device_count: number;
+  cost_centers: string[];
+}
+
+export interface MetadataDeviceType {
+  type: string;
+  total: number;
+  by_status: {
+    active: number;
     offline: number;
-    decommissioned: number;
+    maintenance: number;
+  };
+}
+
+export interface MetadataRoom {
+  room: string;
+  device_count: number;
+}
+
+export interface MetadataFloor {
+  floor: number;
+  device_count: number;
+  rooms: MetadataRoom[];
+}
+
+export interface MetadataBuilding {
+  building: string;
+  device_count: number;
+  floors: MetadataFloor[];
+}
+
+export interface MetadataTag {
+  tag: string;
+  device_count: number;
+}
+
+export interface MetadataResponse {
+  manufacturers: MetadataManufacturer[];
+  departments: MetadataDepartment[];
+  device_types: MetadataDeviceType[];
+  buildings: MetadataBuilding[];
+  tags: MetadataTag[];
+  statistics?: {
+    total_devices: number;
+    total_readings: number;
+    last_24_hours: {
+      by_type: Array<{
+        type: string;
+        count: number;
+        avg_value: number;
+        anomaly_count: number;
+      }>;
+    };
+    last_7_days: {
+      total: number;
+      anomalies: number;
+      invalid: number;
+    };
+  };
+  schema_info: {
+    version: string;
+    device_collection: string;
+    readings_collection: string;
+    api_version: string;
   };
 }
 

@@ -8,7 +8,6 @@ import {
   Wrench,
   Settings,
   Loader2,
-  ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -56,13 +55,13 @@ export default function MaintenanceWidget({
             // Determine maintenance type based on device type or serial
             let maintType: MaintenanceItem['type'] = 'inspection';
             
-            if (d.type === 'temperature' || d.type === 'humidity' || d.type === 'pressure') {
+            if (d.type === 'temperature' || d.type === 'humidity' || d.type === 'pressure') 
               maintType = 'calibration';
-            } else if (d.firmware_version && index % 3 === 0) {
+             else if (d.firmware_version && index % 3 === 0) 
               maintType = 'firmware';
-            } else if (d.status === 'error') {
+             else if (d.status === 'error') 
               maintType = 'repair';
-            }
+            
 
             return {
               id: d._id,
@@ -131,12 +130,12 @@ export default function MaintenanceWidget({
       date.getDate()
     );
 
-    if (targetDate.getTime() === today.getTime()) {
+    if (targetDate.getTime() === today.getTime()) 
       return `Today, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-    if (targetDate.getTime() === tomorrow.getTime()) {
+    
+    if (targetDate.getTime() === tomorrow.getTime()) 
       return `Tomorrow, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
+    
     return date.toLocaleDateString([], {
       month: 'short',
       day: 'numeric',
@@ -145,7 +144,7 @@ export default function MaintenanceWidget({
     });
   };
 
-  if (loading) {
+  if (loading) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -156,9 +155,9 @@ export default function MaintenanceWidget({
         </div>
       </div>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -169,7 +168,7 @@ export default function MaintenanceWidget({
         </div>
       </div>
     );
-  }
+  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">

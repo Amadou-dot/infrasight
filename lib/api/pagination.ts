@@ -20,6 +20,9 @@ export const DEFAULT_PAGE_SIZE = 20;
 /** Maximum number of items per page */
 export const MAX_PAGE_SIZE = 100;
 
+/** Maximum number of items per page for analytics endpoints */
+export const MAX_ANALYTICS_PAGE_SIZE = 1000;
+
 /** Minimum number of items per page */
 export const MIN_PAGE_SIZE = 1;
 
@@ -114,16 +117,41 @@ export const cursorPaginationSchema = z.object({
 /**
  * Extracts offset-based pagination parameters from query
  *
+ * @param query - Raw pagination input from query parameters
+ * @param options - Optional configuration
+ * @param options.maxLimit - Maximum allowed limit (default: MAX_PAGE_SIZE = 100)
+ *
  * @example
  * ```typescript
  * const params = getOffsetPaginationParams({ page: '2', limit: '10' });
  * // { type: 'offset', page: 2, limit: 10, skip: 10 }
+ * 
+ * // For analytics endpoints with higher limit:
+ * const params = getOffsetPaginationParams({ limit: '500' }, { maxLimit: 1000 });
  * ```
  */
 export function getOffsetPaginationParams(
-  query: RawPaginationInput
+  query: RawPaginationInput,
+  options: { maxLimit?: number } = {}
 ): OffsetPaginationParams {
-  const result = offsetPaginationSchema.safeParse({
+  const maxLimit = options.maxLimit ?? MAX_PAGE_SIZE;
+  
+  // Create schema with custom max limit
+  const schema = z.object({
+    page: z.coerce
+      .number()
+      .int('Page must be an integer')
+      .min(1, 'Page must be at least 1')
+      .default(1),
+    limit: z.coerce
+      .number()
+      .int('Limit must be an integer')
+      .min(MIN_PAGE_SIZE, `Limit must be at least ${MIN_PAGE_SIZE}`)
+      .max(maxLimit, `Limit cannot exceed ${maxLimit}`)
+      .default(DEFAULT_PAGE_SIZE),
+  });
+
+  const result = schema.safeParse({
     page: query.page,
     limit: query.limit,
   });

@@ -23,7 +23,7 @@ export default function MaintenanceStatusCards({
   uptimePercentage,
   loading = false,
 }: MaintenanceStatusCardsProps) {
-  if (loading) {
+  if (loading) 
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[1, 2, 3].map((i) => (
@@ -39,7 +39,7 @@ export default function MaintenanceStatusCards({
         ))}
       </div>
     );
-  }
+  
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

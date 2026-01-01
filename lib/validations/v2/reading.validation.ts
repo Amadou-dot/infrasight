@@ -7,6 +7,7 @@ import {
   signalStrengthSchema,
   pastDateSchema,
   paginationSchema,
+  analyticsPaginationSchema,
   dateRangeSchema,
   createSortSchema,
 } from '../common.validation';
@@ -391,10 +392,11 @@ export const readingAnalyticsQuerySchema = z.object({
 
 /**
  * Schema for anomaly analytics query (GET /api/v2/analytics/anomalies)
+ * Uses analytics pagination with higher limit (up to 1000)
  */
 export const anomalyAnalyticsQuerySchema = z.object({
-  // Pagination
-  ...paginationSchema.shape,
+  // Pagination (higher limit for analytics)
+  ...analyticsPaginationSchema.shape,
   
   // Time range
   ...dateRangeSchema.shape,
