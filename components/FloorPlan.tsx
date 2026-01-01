@@ -33,12 +33,14 @@ interface PusherReading {
 
 interface FloorPlanProps {
   selectedFloor: number | 'all';
+  selectedBuilding?: string | 'all';
   onDeviceClick?: (roomName: string) => void;
   onDeviceDetailClick?: (deviceId: string) => void; // V2: Opens device detail modal
 }
 
 export default function FloorPlan({
   selectedFloor,
+  selectedBuilding = 'all',
   onDeviceClick,
   onDeviceDetailClick,
 }: FloorPlanProps) {
@@ -68,7 +70,8 @@ export default function FloorPlan({
     const fetchDevices = async () => {
       try {
         setLoading(true);
-        const response = await v2Api.devices.list();
+        // Fetch all devices (up to 100 per page)
+        const response = await v2Api.devices.list({ limit: 100 });
         if (response.success) 
           setDevices(response.data);
         
@@ -87,19 +90,37 @@ export default function FloorPlan({
   }, []);
 
   useEffect(() => {
-    // Initial fetch
+    // Initial fetch - use v2 readings API
     const fetchReadings = async () => {
       try {
-        const res = await fetch('/api/readings/latest');
-        const data = await res.json();
-        const readingMap = data.reduce(
-          (acc: Record<string, Reading>, curr: Reading) => {
-            acc[curr._id] = curr;
-            return acc;
-          },
-          {} as Record<string, Reading>
-        );
-        setReadings(readingMap);
+        // Get device IDs for the v2 readings API
+        const deviceIds = devices.map(d => d._id);
+        
+        // Fetch in batches of 50 to avoid URL length limits
+        const batchSize = 50;
+        const allReadings: Record<string, Reading> = {};
+        
+        for (let i = 0; i < deviceIds.length; i += batchSize) {
+          const batch = deviceIds.slice(i, i + batchSize);
+          const params = new URLSearchParams();
+          batch.forEach(id => params.append('device_ids', id));
+          
+          const res = await fetch(`/api/v2/readings/latest?${params.toString()}`);
+          const data = await res.json();
+          
+          if (data.success && data.data?.readings) {
+            data.data.readings.forEach((r: { device_id: string; value: number; timestamp: string; type: string }) => {
+              allReadings[r.device_id] = {
+                _id: r.device_id,
+                value: r.value,
+                timestamp: r.timestamp,
+                type: r.type,
+              };
+            });
+          }
+        }
+        
+        setReadings(allReadings);
       } catch (error) {
         console.error('Error fetching latest readings:', error);
       }
@@ -245,10 +266,15 @@ export default function FloorPlan({
   const groupedDevices = useMemo(() => {
     if (!devices || devices.length === 0) return {};
     
-    const filtered =
-      selectedFloor === 'all'
-        ? devices
-        : devices.filter(d => d.location?.floor === selectedFloor);
+    // Filter by building first
+    let filtered = selectedBuilding === 'all'
+      ? devices
+      : devices.filter(d => d.location?.building_id === selectedBuilding);
+    
+    // Then filter by floor
+    filtered = selectedFloor === 'all'
+      ? filtered
+      : filtered.filter(d => d.location?.floor === selectedFloor);
 
     const grouped: Record<number, DeviceV2Response[]> = {};
     filtered.forEach(d => {
@@ -259,7 +285,7 @@ export default function FloorPlan({
       }
     });
     return grouped;
-  }, [devices, selectedFloor]);
+  }, [devices, selectedFloor, selectedBuilding]);
 
   const sortedFloors = Object.keys(groupedDevices)
     .map(Number)
@@ -276,10 +302,10 @@ export default function FloorPlan({
 
   return (
     <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm min-h-[500px] h-[calc(100vh-16rem)] flex flex-col'>
-      <div className='flex justify-between items-center mb-4'>
+          <div className='flex justify-between items-center mb-4'>
         <div className='flex items-center gap-4'>
           <h3 className='text-lg font-semibold'>Live Device Status</h3>
-          <label className='flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none'>
+          <label className='flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200 cursor-pointer select-none'>
             <div className='relative inline-flex items-center cursor-pointer'>
               <input
                 type='checkbox'
@@ -287,12 +313,12 @@ export default function FloorPlan({
                 checked={showIssuesOnly}
                 onChange={e => setShowIssuesOnly(e.target.checked)}
               />
-              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500" />
+              <div className="w-9 h-5 bg-gray-200 dark:bg-zinc-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white dark:after:bg-gray-100 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600" />
             </div>
             Show Issues Only
           </label>
         </div>
-        <span className='text-xs text-gray-400'>
+        <span className='text-xs text-gray-400 dark:text-gray-300'>
           {Object.keys(readings).length > 0 ? 'Live' : 'Connecting...'}
         </span>
       </div>
