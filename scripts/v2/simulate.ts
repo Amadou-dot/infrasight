@@ -1,6 +1,6 @@
-import dbConnect from '../lib/db';
-import DeviceV2 from '../models/v2/DeviceV2';
-import ReadingV2, { type ReadingUnit, type ReadingType } from '../models/v2/ReadingV2';
+import dbConnect from '../../lib/db';
+import DeviceV2 from '../../models/v2/DeviceV2';
+import ReadingV2, { type ReadingUnit, type ReadingType } from '../../models/v2/ReadingV2';
 
 // ============================================================================
 // VALUE GENERATORS BY DEVICE TYPE

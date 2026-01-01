@@ -77,11 +77,6 @@ export default function FloorPlan({
         
       } catch (error) {
         console.error('Error fetching devices:', error);
-        // Fallback to v1 API
-        fetch('/api/devices')
-          .then(res => res.json())
-          .then(setDevices)
-          .catch(console.error);
       } finally {
         setLoading(false);
       }
