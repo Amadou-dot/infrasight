@@ -133,11 +133,6 @@ export default function DeviceGrid({
         
       } catch (error) {
         console.error('Error fetching devices:', error);
-        // Fallback to v1 API
-        fetch('/api/devices')
-          .then(res => res.json())
-          .then(setData)
-          .catch(console.error);
       } finally {
         setLoading(false);
       }
@@ -146,19 +141,26 @@ export default function DeviceGrid({
   }, []);
 
   useEffect(() => {
-    // Initial fetch
+    // Initial fetch using v2 API
     const fetchReadings = async () => {
       try {
-        const res = await fetch('/api/readings/latest');
-        const data = await res.json();
-        const readingMap = data.reduce(
-          (acc: Record<string, Reading>, curr: Reading) => {
-            acc[curr._id] = curr;
-            return acc;
-          },
-          {} as Record<string, Reading>
-        );
-        setReadings(readingMap);
+        const deviceIds = data.map(d => d._id).join(',');
+        const response = await v2Api.readings.latest({ device_ids: deviceIds });
+        if (response.success && response.data?.readings) {
+          const readingMap = response.data.readings.reduce(
+            (acc: Record<string, Reading>, curr: { device_id: string; value: number; timestamp: string; type: string }) => {
+              acc[curr.device_id] = {
+                _id: curr.device_id,
+                value: curr.value,
+                timestamp: curr.timestamp,
+                type: curr.type,
+              };
+              return acc;
+            },
+            {} as Record<string, Reading>
+          );
+          setReadings(readingMap);
+        }
       } catch (error) {
         console.error('Error fetching latest readings:', error);
       }

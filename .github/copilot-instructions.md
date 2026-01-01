@@ -6,22 +6,20 @@
 
 ## Critical Architecture Decisions
 
-### Expand-Contract Migration Strategy (V1 → V2)
-The project is migrating from v1 to v2 collections **without downtime**:
-- **V1 Collections**: `devices`, `readings` (basic schema, 7-day TTL)
-- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance)
-- **Dual-write adapter** (`lib/migration/dual-write-adapter.ts`) syncs v1→v2 during transition
-- **API versioning**: `/api/devices` (v1) vs `/api/v2/devices` (v2)
-- **Mappers**: `lib/migration/v1-to-v2-mapper.ts` transforms old schema to new
+### V2 API (Production)
+The migration from v1 to v2 is **complete**. All code now uses v2 exclusively:
+- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance, 90-day TTL)
+- **V2 API**: All endpoints under `/api/v2/`
+- **V1 Deprecated**: All v1 files moved to `_deprecated` folders and excluded from TypeScript compilation
 
-**When editing models or APIs**: Check if both v1 and v2 need changes. V2 is production-ready; v1 is legacy.
+**Important**: Only use v2 models and APIs. V1 code exists only for historical reference.
 
 ### MongoDB Timeseries Collections
-Both v1 and v2 use timeseries for `readings` with **critical constraints**:
+Readings use MongoDB timeseries with **critical constraints**:
 - `timeField: 'timestamp'`, `metaField: 'metadata'`, `granularity: 'seconds'`
 - `metadata` field is the bucketing key—keep **LOW CARDINALITY** (device_id, type, unit, source only)
 - Cannot modify schema fields after creation without recreating collection
-- TTL: v1=7 days, v2=90 days (`expireAfterSeconds`)
+- TTL: 90 days (`expireAfterSeconds`)
 
 **Example** (see [ReadingV2.ts](../models/v2/ReadingV2.ts)):
 ```typescript
@@ -40,13 +38,11 @@ See [scripts/v2/seed-v2.ts](../scripts/v2/seed-v2.ts) for examples.
 ### Essential Commands
 ```bash
 pnpm dev              # Next.js with Turbopack (localhost:3000)
-pnpm build           # Production build
-pnpm seed            # Populate 50 v1 test devices
-pnpm seed-v2         # Populate 50 v2 test devices + 100 readings each
-pnpm simulate        # Generate synthetic readings (real-time testing)
+pnpm build            # Production build
+pnpm seed             # Populate 500 v2 test devices + readings
+pnpm simulate         # Generate synthetic readings (real-time testing)
 pnpm create-indexes-v2  # Create v2 collection indexes
-pnpm backfill-v2     # Migrate v1 data → v2 (one-time)
-pnpm test-v2         # Test v2 API endpoints
+pnpm test             # Test v2 API endpoints
 ```
 
 ### Required Environment Variables
@@ -119,16 +115,18 @@ Prefer this over raw `fetch()` for type safety.
 
 ```
 models/
-  Device.ts, Reading.ts           # V1 (legacy, 7-day TTL)
-  v2/DeviceV2.ts, ReadingV2.ts    # V2 (production, 90-day TTL, audit trails)
+  v2/DeviceV2.ts, ReadingV2.ts    # Production models (90-day TTL, audit trails)
+  v1 (deprecated)/                 # Archived v1 models (excluded from compilation)
 lib/
   db.ts                            # Global cached connection (prevents hot-reload leak)
   validations/v2/                  # Zod schemas for all v2 operations
   errors/                          # ApiError + error handling utilities
-  migration/                       # Dual-write adapter, v1→v2 mappers
   api/v2-client.ts                 # Typed client for v2 endpoints
-app/api/v2/                        # V2 routes (use Zod + withErrorHandler)
-scripts/v2/                        # seed-v2, backfill-v2, create-indexes-v2
+  deprecated/                      # Archived migration utilities
+app/api/
+  v2/                              # Production API routes
+  _v1-deprecated/                  # Archived v1 routes (ignored by Next.js)
+scripts/v2/                        # seed-v2, simulate, test-api
 components/                        # React components (all use 'use client')
 types/v2/                          # TypeScript types for v2 API contracts
 ```
@@ -168,13 +166,12 @@ types/v2/                          # TypeScript types for v2 API contracts
 2. **Custom IDs**: Never use ObjectId for Device `_id`—always string like `device_001`
 3. **Mongoose model recompilation**: Always use `mongoose.models.X || mongoose.model()` pattern
 4. **Client-side secrets**: Only `NEXT_PUBLIC_*` vars allowed in browser code
-5. **V1 vs V2 confusion**: Check which version you're editing—v2 is current standard, v1 is legacy
+5. **Deprecated folders**: Never import from `_deprecated` folders—they are excluded from TypeScript compilation
 
 ## Key Files to Reference
 
-- Migration strategy: [plan.md](../plans/plan.md), [QUICK_START_V2.md](../plans/QUICK_START_V2.md)
-- Dual-write logic: [lib/migration/dual-write-adapter.ts](../lib/migration/dual-write-adapter.ts)
 - V2 models: [models/v2/DeviceV2.ts](../models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](../models/v2/ReadingV2.ts)
 - Error handling: [lib/errors/errorHandler.ts](../lib/errors/errorHandler.ts), [lib/errors/errorCodes.ts](../lib/errors/errorCodes.ts)
 - Validation schemas: [lib/validations/v2/](../lib/validations/v2/)
 - API client: [lib/api/v2-client.ts](../lib/api/v2-client.ts)
+- Quick start: [QUICK_START_V2.md](../plans/QUICK_START_V2.md)

@@ -1,6 +1,6 @@
-import dbConnect from '../lib/db';
-import DeviceV2 from '../models/v2/DeviceV2';
-import ReadingV2, { type ReadingUnit, type ReadingType } from '../models/v2/ReadingV2';
+import dbConnect from '../../lib/db';
+import DeviceV2 from '../../models/v2/DeviceV2';
+import ReadingV2, { type ReadingUnit, type ReadingType } from '../../models/v2/ReadingV2';
 
 // ============================================================================
 // VALUE GENERATORS BY DEVICE TYPE
@@ -207,7 +207,7 @@ async function generateReadings() {
         `[${timestamp.toISOString()}] Inserted ${readings.length} readings (${anomalyCount} anomalies)`
       );
     } else 
-      console.log('No devices found. Run `pnpm seed-v2` to create V2 devices.');
+      console.log('No devices found. Run `pnpm seed` to create V2 devices.');
     
   } catch (error) {
     console.error('Error generating readings:', error);
