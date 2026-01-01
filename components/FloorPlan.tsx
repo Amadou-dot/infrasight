@@ -108,7 +108,7 @@ export default function FloorPlan({
           const res = await fetch(`/api/v2/readings/latest?${params.toString()}`);
           const data = await res.json();
           
-          if (data.success && data.data?.readings) {
+          if (data.success && data.data?.readings) 
             data.data.readings.forEach((r: { device_id: string; value: number; timestamp: string; type: string }) => {
               allReadings[r.device_id] = {
                 _id: r.device_id,
@@ -117,7 +117,7 @@ export default function FloorPlan({
                 type: r.type,
               };
             });
-          }
+          
         }
         
         setReadings(allReadings);
@@ -126,9 +126,7 @@ export default function FloorPlan({
       }
     };
 
-    if (devices && devices.length > 0) 
-      fetchReadings();
-    
+    if (devices && devices.length > 0) fetchReadings();
   }, [devices]);
 
   // Real-time updates with Pusher

@@ -18,9 +18,7 @@ export default function AnalyticsPage() {
     const fetchMetadata = async () => {
       try {
         const response = await v2Api.metadata.get();
-        if (response.success && response.data.buildings) {
-          setBuildings(response.data.buildings);
-        }
+        if (response.success && response.data.buildings) setBuildings(response.data.buildings);
       } catch (error) {
         console.error('Error fetching metadata:', error);
       }

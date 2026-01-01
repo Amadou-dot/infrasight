@@ -121,13 +121,13 @@ export default function MaintenanceTable({
   const { filteredDevices, paginatedDevices, totalPages } = useMemo(() => {
     let filtered = devices;
 
-    if (statusFilter !== 'all') {
+    if (statusFilter !== 'all') 
       filtered = filtered.filter(d => getMaintenanceStatus(d) === statusFilter);
-    }
+    
 
-    if (locationFilter !== 'all') {
+    if (locationFilter !== 'all') 
       filtered = filtered.filter(d => d.location.room_name === locationFilter);
-    }
+    
 
     const total = Math.ceil(filtered.length / PAGE_SIZE);
     const paginated = filtered.slice(
@@ -142,7 +142,7 @@ export default function MaintenanceTable({
     };
   }, [devices, statusFilter, locationFilter, currentPage]);
 
-  if (loading) {
+  if (loading) 
     return (
       <Card className='bg-card border-border'>
         <CardContent className='p-6'>
@@ -161,7 +161,7 @@ export default function MaintenanceTable({
         </CardContent>
       </Card>
     );
-  }
+  
 
   return (
     <Card className='bg-card border-border'>

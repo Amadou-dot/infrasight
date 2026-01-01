@@ -75,9 +75,7 @@ export default function AnomalyDetectionChart({
           const epochHour = Math.floor(timestamp.getTime() / (60 * 60 * 1000));
 
           const bucket = hourlyBuckets.get(epochHour);
-          if (bucket) {
-            bucket.anomaly += 1;
-          }
+          if (bucket) bucket.anomaly += 1;
         });
 
         // Calculate normal readings per bucket (distribute evenly)
@@ -116,7 +114,7 @@ export default function AnomalyDetectionChart({
     return () => clearInterval(interval);
   }, [hours]);
 
-  if (loading) {
+  if (loading) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -134,9 +132,9 @@ export default function AnomalyDetectionChart({
         </div>
       </div>
     );
-  }
+  
 
-  if (error) {
+  if (error) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -154,7 +152,7 @@ export default function AnomalyDetectionChart({
         </div>
       </div>
     );
-  }
+  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">

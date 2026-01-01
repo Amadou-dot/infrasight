@@ -75,14 +75,10 @@ function formatDateLabel(date: Date): string {
   const compareDate = new Date(date);
   compareDate.setHours(0, 0, 0, 0);
   
-  if (compareDate.getTime() === today.getTime()) {
-    return 'Today';
-  }
+  if (compareDate.getTime() === today.getTime()) return 'Today';
   
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-  if (compareDate.getTime() === tomorrow.getTime()) {
-    return 'Tomorrow';
-  }
+  if (compareDate.getTime() === tomorrow.getTime()) return 'Tomorrow';
   
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
@@ -105,7 +101,7 @@ export default function MaintenanceTimeline({
   const scheduledDates = useMemo(() => getUniqueDatesFromTasks(displayTasks), [displayTasks]);
   const dateLabels = scheduledDates.map(formatDateLabel);
 
-  if (loading) {
+  if (loading) 
     return (
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -121,7 +117,7 @@ export default function MaintenanceTimeline({
         </CardContent>
       </Card>
     );
-  }
+  
 
   return (
     <Card className="bg-card border-border overflow-hidden">
@@ -176,9 +172,7 @@ export default function MaintenanceTimeline({
                 for (let i = startColIndex; i < scheduledDates.length; i++) {
                   const colDate = new Date(scheduledDates[i]);
                   colDate.setHours(0, 0, 0, 0);
-                  if (colDate <= taskEndDate) {
-                    endColIndex = i;
-                  }
+                  if (colDate <= taskEndDate) endColIndex = i;
                 }
                 
                 const colSpan = Math.max(1, endColIndex - startColIndex + 1);
