@@ -60,6 +60,21 @@ export const paginationSchema = z
     'Cannot use both cursor and page pagination simultaneously'
   );
 
+/**
+ * Analytics pagination schema with higher limit
+ * Used for analytics endpoints that aggregate data
+ */
+export const analyticsPaginationSchema = z.object({
+  page: z
+    .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+    .pipe(z.number().int().min(1))
+    .optional(),
+  limit: z
+    .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+    .pipe(z.number().int().min(1).max(1000))
+    .default(100),
+});
+
 // ============================================================================
 // DATE RANGE SCHEMAS
 // ============================================================================
