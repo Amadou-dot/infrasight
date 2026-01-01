@@ -13,6 +13,6 @@ jobs:
     steps:
       - name: Call simulation endpoint
         run: |
-          curl -X GET https://infrasight.aseck.dev/api/cron/simulate \
+          curl -X GET https://infrasight.aseck.dev/api/v2/cron/simulate \
             -H "Content-Type: application/json" \
             -f || echo "Request failed"

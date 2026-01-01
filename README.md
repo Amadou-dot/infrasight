@@ -84,8 +84,8 @@ NEXT_PUBLIC_PUSHER_CLUSTER=your_cluster
 # Create database indexes
 pnpm create-indexes-v2
 
-# Seed with test data (50 devices + readings)
-pnpm seed-v2
+# Seed with test data (500 devices + readings)
+pnpm seed
 
 # Start development server
 pnpm dev
