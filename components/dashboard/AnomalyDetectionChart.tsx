@@ -188,12 +188,12 @@ export default function AnomalyDetectionChart({
               dataKey="time"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+              tick={{ fill: '#a1a1aa', fontSize: 12 }}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+              tick={{ fill: '#a1a1aa', fontSize: 12 }}
             />
             <Tooltip
               contentStyle={{
