@@ -157,6 +157,21 @@ function generateDevice(index: number): unknown {
       error_count: status === 'active' ? randomInt(0, 5) : randomInt(5, 50),
       battery_level: Math.random() > 0.3 ? randomInt(10, 100) : undefined,
       signal_strength: randomInt(-90, -30),
+      // Add last_error for devices with error status or high error counts
+      ...(status === 'error' || (status !== 'active' && Math.random() > 0.5) ? {
+        last_error: {
+          timestamp: new Date(now.getTime() - randomInt(0, 48) * 60 * 60 * 1000),
+          code: randomChoice(['SENSOR_TIMEOUT', 'CALIBRATION_DRIFT', 'LOW_SIGNAL', 'BATTERY_CRITICAL', 'COMM_FAILURE', 'DATA_CORRUPTION']),
+          message: randomChoice([
+            'Sensor failed to respond within timeout period',
+            'Calibration values have drifted beyond acceptable range',
+            'Signal strength below minimum threshold',
+            'Battery level critically low, immediate replacement required',
+            'Communication failure with gateway device',
+            'Data integrity check failed, possible sensor malfunction',
+          ]),
+        },
+      } : {}),
     },
     status,
     status_reason: status !== 'active' ? `${status} since ${new Date().toISOString()}` : undefined,
