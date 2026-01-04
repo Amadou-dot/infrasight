@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { v2Api } from '@/lib/api/v2-client';
-import type { DeviceV2Response } from '@/types/v2';
+import type { DeviceV2Response, ReadingV2Response } from '@/types/v2';
 import {
   Dialog,
   DialogContent,
@@ -46,6 +46,14 @@ interface DeviceDetailModalProps {
   onClose: () => void;
 }
 
+/** Local type matching AuditLogViewer's expected entry shape */
+interface AuditLogEntry {
+  timestamp: string;
+  action: string;
+  user: string;
+  changes?: Record<string, unknown>;
+}
+
 type TabType = 'overview' | 'readings' | 'config' | 'audit';
 
 export default function DeviceDetailModal({
@@ -57,8 +65,8 @@ export default function DeviceDetailModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [auditLog, setAuditLog] = useState<any[]>([]);
-  const [recentReadings, setRecentReadings] = useState<any[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [recentReadings, setRecentReadings] = useState<ReadingV2Response[]>([]);
 
   useEffect(() => {
     if (!deviceId || !isOpen) {
@@ -94,9 +102,19 @@ export default function DeviceDetailModal({
         // Fetch audit log
         try {
           const auditResponse = await v2Api.devices.getHistory(deviceId);
-          if (auditResponse.success && auditResponse.data) 
-            setAuditLog(Array.isArray(auditResponse.data) ? auditResponse.data : []);
-          
+          if (auditResponse.success && auditResponse.data?.history) {
+            // Map DeviceHistoryEntry to AuditLogEntry format expected by AuditLogViewer
+            const mappedEntries: AuditLogEntry[] = auditResponse.data.history.map((entry) => ({
+              timestamp: new Date(entry.timestamp).toISOString(),
+              action: entry.action,
+              user: entry.user,
+              changes: entry.changes?.reduce((acc, change) => {
+                acc[change.field] = { old: change.old_value, new: change.new_value };
+                return acc;
+              }, {} as Record<string, unknown>),
+            }));
+            setAuditLog(mappedEntries);
+          }
         } catch (err) {
           console.warn('Audit log not available:', err);
         }
@@ -159,7 +177,7 @@ export default function DeviceDetailModal({
   const formatReadingsForChart = () => {
     if (!recentReadings || recentReadings.length === 0) return [];
     
-    return recentReadings.map((reading: any) => ({
+    return recentReadings.map((reading: ReadingV2Response) => ({
       time: new Date(reading.timestamp).toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
@@ -351,6 +369,26 @@ export default function DeviceDetailModal({
                       )}
                     </div>
                   </div>
+
+                  {/* Last Error Details */}
+                  {device.health?.last_error && (
+                    <div className="md:col-span-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                        <div className="space-y-1 text-sm min-w-0">
+                          <p className="font-medium text-red-700 dark:text-red-400">
+                            Error: {device.health.last_error.code}
+                          </p>
+                          <p className="text-red-600 dark:text-red-300 break-words">
+                            {device.health.last_error.message}
+                          </p>
+                          <p className="text-red-500 dark:text-red-400 text-xs">
+                            {formatDate(device.health.last_error.timestamp)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Maintenance */}
                   {(device.metadata?.last_maintenance || device.metadata?.next_maintenance) && (
