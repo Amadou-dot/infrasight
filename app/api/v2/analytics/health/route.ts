@@ -83,16 +83,16 @@ export async function GET(request: NextRequest) {
           count: 1,
         },
       },
-    ]);
+    ]).option({ maxTimeMS: 5000 });
 
     // Get total device count
-    const totalDevices = await DeviceV2.countDocuments(baseFilter);
+    const totalDevices = await DeviceV2.countDocuments(baseFilter).maxTimeMS(5000);
 
     // Get active devices count
     const activeDevices = await DeviceV2.countDocuments({
       ...baseFilter,
       status: 'active',
-    });
+    }).maxTimeMS(5000);
 
     // Get offline devices (based on last_seen)
     const offlineDevices = await DeviceV2.find(
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
         'health.last_seen': 1,
         status: 1,
       }
-    ).lean();
+    ).maxTimeMS(5000).lean();
 
     // Get devices with low battery
     const lowBatteryDevices = await DeviceV2.find(
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
         'location.room_name': 1,
         'health.battery_level': 1,
       }
-    ).lean();
+    ).maxTimeMS(5000).lean();
 
     // Get devices with errors
     const errorDevices = await DeviceV2.find(
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
         'health.last_error': 1,
         'health.error_count': 1,
       }
-    ).lean();
+    ).maxTimeMS(5000).lean();
 
     // Get devices needing maintenance (next_maintenance within 7 days)
     const maintenanceDueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
         'metadata.next_maintenance': 1,
         'metadata.last_maintenance': 1,
       }
-    ).lean();
+    ).maxTimeMS(5000).lean();
 
     // Calculate average uptime
     const uptimeStats = await DeviceV2.aggregate([
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
           total_errors: { $sum: '$health.error_count' },
         },
       },
-    ]);
+    ]).option({ maxTimeMS: 5000 });
 
     // Calculate health score (percentage of active devices)
     const healthScore = totalDevices > 0 
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
         'health.error_count': 1,
         'metadata.next_maintenance': 1,
       }
-    ).lean();
+    ).maxTimeMS(5000).lean();
 
     // Categorize predictive maintenance issues
     const predictiveMaintenanceItems = predictiveMaintenanceDevices.map((device) => {

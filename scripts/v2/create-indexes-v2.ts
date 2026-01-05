@@ -92,6 +92,24 @@ const DEVICE_V2_INDEXES: IndexDefinition[] = [
     options: { background: true },
     description: 'Index for filtering devices by manufacturer',
   },
+  {
+    name: 'status_type_compound',
+    spec: { status: 1, type: 1 } as IndexSpec,
+    options: { background: true },
+    description: 'Compound index for combined status+type filtering',
+  },
+  {
+    name: 'battery_floor_compound',
+    spec: { 'health.battery_level': -1, 'location.floor': 1 } as IndexSpec,
+    options: { background: true },
+    description: 'Compound index for low battery analytics by floor',
+  },
+  {
+    name: 'deleted_last_seen_compound',
+    spec: { 'audit.deleted_at': 1, 'health.last_seen': 1 } as IndexSpec,
+    options: { background: true },
+    description: 'Compound index for offline device detection with soft-delete filtering',
+  },
 ];
 
 /**
@@ -177,12 +195,13 @@ async function createCollectionIndexes(
 
       // Create the index
       const startTime = Date.now();
-      await collection.createIndex(index.spec, {
-        unique: index.options.unique,
-        sparse: index.options.sparse,
-        background: index.options.background,
-        name: index.name,
-      });
+      // Only include options that are explicitly set
+      const indexOptions: Record<string, unknown> = { name: index.name };
+      if (index.options.unique !== undefined) indexOptions.unique = index.options.unique;
+      if (index.options.sparse !== undefined) indexOptions.sparse = index.options.sparse;
+      if (index.options.background !== undefined) indexOptions.background = index.options.background;
+
+      await collection.createIndex(index.spec, indexOptions);
       const duration = Date.now() - startTime;
 
       console.log(`   ✅ [CREATE] ${index.name} (${duration}ms)`);

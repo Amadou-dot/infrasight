@@ -3,6 +3,13 @@
  *
  * GET /api/v2/devices - List devices with pagination, filtering, and sorting
  * POST /api/v2/devices - Create a new device with full validation
+ *
+ * Phase 5 Features:
+ * - Rate limiting for POST
+ * - Request validation
+ * - Optional authentication for audit trails
+ * - Cache invalidation on create
+ * - Metrics and logging
  */
 
 import type { NextRequest } from 'next/server';
@@ -23,6 +30,13 @@ import {
   getOffsetPaginationParams,
   calculateOffsetPagination,
 } from '@/lib/api/pagination';
+
+// Phase 5 imports
+import { withRateLimit } from '@/lib/ratelimit';
+import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
+import { withOptionalAuth, getAuditUser, type RequestContext } from '@/lib/auth';
+import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
+import { invalidateOnDeviceCreate } from '@/lib/cache';
 
 // ============================================================================
 // GET /api/v2/devices - List Devices
@@ -191,62 +205,73 @@ export async function GET(request: NextRequest) {
 // POST /api/v2/devices - Create Device
 // ============================================================================
 
-export async function POST(request: NextRequest) {
+async function handleCreateDevice(
+  authContext: RequestContext,
+  request: NextRequest
+) {
+  const timer = createRequestTimer();
+
   return withErrorHandler(async () => {
     await dbConnect();
 
     // Parse and validate request body
     const body = await request.json();
     const validationResult = validateInput(body, createDeviceSchema);
-    
-    if (!validationResult.success) 
+
+    if (!validationResult.success) {
+      logger.validationFailure('/api/v2/devices', validationResult.errors);
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
+    }
 
     const deviceData = validationResult.data;
 
     // Check for duplicate serial number
-    const existingDevice = await DeviceV2.findOne({ 
-      serial_number: deviceData.serial_number 
+    const existingDevice = await DeviceV2.findOne({
+      serial_number: deviceData.serial_number,
     }).lean();
-    
-    if (existingDevice) 
+
+    if (existingDevice) {
       throw new ApiError(
         ErrorCodes.SERIAL_NUMBER_EXISTS,
         409,
         `Device with serial number '${deviceData.serial_number}' already exists`,
         { field: 'serial_number', value: deviceData.serial_number }
       );
-    
+    }
 
     // Check for duplicate ID
     const existingId = await DeviceV2.findById(deviceData._id).lean();
-    if (existingId) 
+    if (existingId) {
       throw new ApiError(
         ErrorCodes.DEVICE_ID_EXISTS,
         409,
         `Device with ID '${deviceData._id}' already exists`,
         { field: '_id', value: deviceData._id }
       );
-    
+    }
+
+    // Get audit user from auth context (uses API key name if authenticated)
+    const auditUser = getAuditUser(authContext);
 
     // Create device with audit metadata
     const deviceDoc: Partial<IDeviceV2> = {
       ...deviceData,
-      configuration: deviceData.configuration ? {
-        ...deviceData.configuration,
-        calibration_date: deviceData.configuration.calibration_date || null,
-      } : undefined,
+      configuration: deviceData.configuration
+        ? {
+            ...deviceData.configuration,
+            calibration_date: deviceData.configuration.calibration_date || null,
+          }
+        : undefined,
       audit: {
         created_at: new Date(),
-        created_by: 'sys-migration-agent',
+        created_by: auditUser,
         updated_at: new Date(),
-        updated_by: 'sys-migration-agent',
+        updated_by: auditUser,
       },
       health: {
         last_seen: new Date(),
@@ -259,6 +284,30 @@ export async function POST(request: NextRequest) {
     // Create the device
     const device = await DeviceV2.create(deviceDoc);
 
+    // Invalidate device caches (non-blocking)
+    invalidateOnDeviceCreate().catch(() => {
+      // Error already logged
+    });
+
+    // Record metrics
+    const duration = timer.elapsed();
+    recordRequest('POST', '/api/v2/devices', 201, duration);
+
+    logger.info('Device created', {
+      deviceId: device._id,
+      serialNumber: device.serial_number,
+      createdBy: auditUser,
+      duration,
+    });
+
     return jsonSuccess(device.toObject(), 'Device created successfully', 201);
   })();
 }
+
+// Export with middleware: Rate Limiting -> Request Validation -> Optional Auth -> Handler
+export const POST = withRateLimit(
+  withRequestValidation(
+    withOptionalAuth(handleCreateDevice),
+    ValidationPresets.jsonApi
+  )
+);

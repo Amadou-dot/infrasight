@@ -138,8 +138,9 @@ export async function GET(request: NextRequest) {
         .sort(sort)
         .skip(pagination.skip)
         .limit(pagination.limit)
+        .maxTimeMS(5000)
         .lean(),
-      ReadingV2.countDocuments(filter),
+      ReadingV2.countDocuments(filter).maxTimeMS(5000),
     ]);
 
     // Calculate pagination info

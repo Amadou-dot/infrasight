@@ -2,6 +2,10 @@
  * V2 Metadata API Route
  *
  * GET /api/v2/metadata - Aggregated system metadata (manufacturers, departments, buildings, etc.)
+ *
+ * Phase 5 Features:
+ * - Redis caching with 10-minute TTL
+ * - Metrics and logging
  */
 
 import type { NextRequest } from 'next/server';
@@ -11,11 +15,17 @@ import ReadingV2 from '@/models/v2/ReadingV2';
 import { withErrorHandler } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 
+// Phase 5 imports
+import { getOrSet, CACHE_TTL, metadataKey } from '@/lib/cache';
+import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
+
 // ============================================================================
 // GET /api/v2/metadata - System Metadata
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  const timer = createRequestTimer();
+
   return withErrorHandler(async () => {
     await dbConnect();
 
@@ -24,11 +34,44 @@ export async function GET(request: NextRequest) {
     const _includeInactive = searchParams.get('include_inactive') === 'true';
     const includeDeleted = searchParams.get('include_deleted') === 'true';
 
-    // Base match for devices (exclude soft-deleted by default, unless include_deleted is true)
-    const deviceMatch: Record<string, unknown> =
-      includeDeleted
-        ? {}
-        : { 'audit.deleted_at': null };
+    // Generate cache key based on query params
+    const cacheKey = metadataKey({
+      include_stats: includeStats,
+      include_deleted: includeDeleted,
+    });
+
+    // Use cache-aside pattern for expensive aggregations
+    const response = await getOrSet(
+      cacheKey,
+      async () => {
+        // Base match for devices (exclude soft-deleted by default)
+        const deviceMatch: Record<string, unknown> = includeDeleted
+          ? {}
+          : { 'audit.deleted_at': null };
+
+        return await fetchMetadata(deviceMatch, includeStats);
+      },
+      { ttl: CACHE_TTL.METADATA }
+    );
+
+    // Record metrics
+    const duration = timer.elapsed();
+    recordRequest('GET', '/api/v2/metadata', 200, duration);
+
+    logger.debug('Metadata request', { duration, cached: duration < 50 });
+
+    return jsonSuccess(response);
+  })();
+}
+
+// ============================================================================
+// Fetch Metadata (extracted for caching)
+// ============================================================================
+
+async function fetchMetadata(
+  deviceMatch: Record<string, unknown>,
+  includeStats: boolean
+): Promise<Record<string, unknown>> {
 
     // Get unique manufacturers with device counts
     const manufacturers = await DeviceV2.aggregate([
@@ -245,14 +288,13 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Include schema version info
-    response.schema_info = {
-      version: 'v2',
-      device_collection: 'devices_v2',
-      readings_collection: 'readings_v2',
-      api_version: '2.0.0',
-    };
+  // Include schema version info
+  response.schema_info = {
+    version: 'v2',
+    device_collection: 'devices_v2',
+    readings_collection: 'readings_v2',
+    api_version: '2.0.0',
+  };
 
-    return jsonSuccess(response);
-  })();
+  return response;
 }

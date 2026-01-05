@@ -1,24 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { v2Api, type HealthMetrics, type AnomalyResponse } from '@/lib/api/v2-client';
-import type { MaintenanceForecastResponse } from '@/types/v2';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import {
+  AnomalyDetectionChart,
+  CriticalIssuesPanel,
+  MaintenanceWidget,
   StatCard,
   SystemHealthWidget,
-  CriticalIssuesPanel,
-  AnomalyDetectionChart,
-  MaintenanceWidget,
 } from '@/components/dashboard';
+import { v2Api, type AnomalyResponse, type HealthMetrics } from '@/lib/api/v2-client';
+import type { MaintenanceForecastResponse } from '@/types/v2';
 import {
-  Monitor,
   AlertTriangle,
-  Gauge,
-  Zap,
   FileText,
-  Clock,
+  Gauge,
+  Monitor,
+  Zap
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -28,7 +27,6 @@ export default function Home() {
   const [forecast, setForecast] = useState<MaintenanceForecastResponse | null>(null);
   const [_anomalies, setAnomalies] = useState<AnomalyResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timePeriod, setTimePeriod] = useState<'24h' | '7d' | '30d'>('24h');
 
   // Modal state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -91,7 +89,6 @@ export default function Home() {
     if (hour < 18) return 'Good Afternoon';
     return 'Good Evening';
   };
-
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <ToastContainer
@@ -125,44 +122,10 @@ export default function Home() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3">
-            {/* Time period selector */}
-            <div className="flex items-center bg-muted rounded-lg p-1">
-              <button
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
-                  timePeriod === '24h'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => setTimePeriod('24h')}
-              >
-                <Clock className="h-4 w-4" />
-                Last 24 Hours
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                  timePeriod === '7d'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => setTimePeriod('7d')}
-              >
-                7 Days
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                  timePeriod === '30d'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => setTimePeriod('30d')}
-              >
-                30 Days
-              </button>
-            </div>
+          <div className="flex items-center justify-end gap-3">
 
             {/* Generate Report button */}
-            <button className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors">
+            <button className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors">
               <FileText className="h-4 w-4" />
               Generate Report
             </button>
