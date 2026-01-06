@@ -79,9 +79,9 @@ export function addRateLimitHeaders(
   headers.set('X-RateLimit-Remaining', String(result.remaining));
   headers.set('X-RateLimit-Reset', String(result.resetIn));
 
-  if (result.retryAfter !== undefined) {
+  if (result.retryAfter !== undefined) 
     headers.set('Retry-After', String(result.retryAfter));
-  }
+  
 
   return new Response(response.body, {
     status: response.status,
@@ -105,9 +105,9 @@ export function withRateLimit<T extends [NextRequest, ...unknown[]]>(
 ): (...args: T) => Promise<Response> {
   return async (...args: T): Promise<Response> => {
     // Check if rate limiting is enabled
-    if (!isRateLimitEnabled()) {
+    if (!isRateLimitEnabled()) 
       return handler(...args);
-    }
+    
 
     const request = args[0];
     const path = request.nextUrl.pathname;
@@ -115,10 +115,10 @@ export function withRateLimit<T extends [NextRequest, ...unknown[]]>(
 
     // Get rate limit config for this endpoint
     const config = getRateLimitConfig(path, method);
-    if (!config) {
+    if (!config) 
       // No config means exempt from rate limiting
       return handler(...args);
-    }
+    
 
     const clientIp = getClientIp(request);
 
@@ -130,9 +130,9 @@ export function withRateLimit<T extends [NextRequest, ...unknown[]]>(
     // For ingestion endpoint, also check per-device limit
     if (config.perDevice && path.includes('/readings/ingest')) {
       const deviceId = await extractDeviceId(request);
-      if (deviceId) {
+      if (deviceId) 
         limitsToCheck.push({ identifier: deviceId, config: config.perDevice });
-      }
+      
     }
 
     // Check rate limits
@@ -177,9 +177,9 @@ export function createRateLimitMiddleware(
     handler: (...args: T) => Promise<Response>
   ): (...args: T) => Promise<Response> {
     return async (...args: T): Promise<Response> => {
-      if (!isRateLimitEnabled()) {
+      if (!isRateLimitEnabled()) 
         return handler(...args);
-      }
+      
 
       const request = args[0];
       const identifier = customConfig.getIdentifier

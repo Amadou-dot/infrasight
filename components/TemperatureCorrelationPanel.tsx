@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
   const [error, setError] = useState<string | null>(null);
 
   // Fetch correlation data
-  const fetchCorrelation = async () => {
+  const fetchCorrelation = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -48,12 +48,12 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
     } finally {
       setLoading(false);
     }
-  };
+  }, [deviceId]);
 
   // Fetch on mount
   useEffect(() => {
     fetchCorrelation();
-  }, [deviceId]);
+  }, [fetchCorrelation]);
 
   // Get diagnosis icon and color
   const getDiagnosisStyle = (diagnosis: string) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getPusherClient } from '@/lib/pusher-client';
 import { v2Api } from '@/lib/api/v2-client';
 import {
@@ -40,7 +40,7 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSpiking, setIsSpiking] = useState(false);
 
-  const fetchEnergyData = async (showLoading = false) => {
+  const fetchEnergyData = useCallback(async (showLoading = false) => {
     try {
       if (showLoading) 
         setLoading(true);
@@ -108,22 +108,22 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
       console.error('Error fetching energy data:', err);
       setError('Failed to load energy data');
     } finally {
-      if (showLoading) 
+      if (showLoading)
         setLoading(false);
-      
+
     }
-  };
+  }, [selectedFloor]);
 
   // Initial fetch
   useEffect(() => {
     fetchEnergyData(true);
-  }, [selectedFloor]);
+  }, [fetchEnergyData]);
 
   // Auto-refresh every 60 seconds
   useEffect(() => {
     const interval = setInterval(() => fetchEnergyData(false), 60000);
     return () => clearInterval(interval);
-  }, [selectedFloor]);
+  }, [fetchEnergyData]);
 
   // Real-time updates
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
     return () => {
       pusher.unsubscribe('InfraSight');
     };
-  }, [selectedFloor]);
+  }, [fetchEnergyData]);
 
   const primaryColor = isSpiking ? '#f97316' : '#6366f1'; // Orange-500 vs Indigo-500
   const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400

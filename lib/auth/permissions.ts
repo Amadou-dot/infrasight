@@ -109,24 +109,24 @@ export function getRequiredPermission(path: string, method: string): Permission 
   const action = getActionFromMethod(method);
 
   // Match path to resource
-  if (path.includes('/devices')) {
+  if (path.includes('/devices')) 
     return buildPermission('devices', action);
-  }
-  if (path.includes('/readings')) {
+  
+  if (path.includes('/readings')) 
     return buildPermission('readings', action === 'create' ? 'create' : 'read');
-  }
-  if (path.includes('/analytics')) {
+  
+  if (path.includes('/analytics')) 
     return 'analytics:read';
-  }
-  if (path.includes('/audit')) {
+  
+  if (path.includes('/audit')) 
     return 'audit:read';
-  }
-  if (path.includes('/admin')) {
+  
+  if (path.includes('/admin')) 
     return 'admin:settings';
-  }
-  if (path.includes('/metadata')) {
+  
+  if (path.includes('/metadata')) 
     return 'devices:read'; // Metadata is derived from devices
-  }
+  
 
   return null;
 }

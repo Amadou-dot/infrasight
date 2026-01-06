@@ -170,9 +170,9 @@ export function recordIngestion(batchSize: number, errorCount: number): void {
 export function recordDatabaseQuery(duration: number, isSlow = false): void {
   metrics.database.queryCount++;
   metrics.database.totalQueryTime += duration;
-  if (isSlow) {
+  if (isSlow) 
     metrics.database.slowQueries++;
-  }
+  
 }
 
 // ============================================================================
@@ -185,29 +185,29 @@ export function recordDatabaseQuery(duration: number, isSlow = false): void {
 export function getMetricsSnapshot(): Record<string, unknown> {
   const requestStats: Record<string, unknown> = {};
 
-  for (const [key, entry] of metrics.requestLatency) {
+  for (const [key, entry] of metrics.requestLatency) 
     requestStats[key] = {
       count: entry.count,
       avgDuration: entry.count > 0 ? Math.round(entry.sum / entry.count) : 0,
       minDuration: entry.min === Infinity ? 0 : Math.round(entry.min),
       maxDuration: entry.max === -Infinity ? 0 : Math.round(entry.max),
     };
-  }
+  
 
   const requestCounts: Record<string, number> = {};
-  for (const [key, entry] of metrics.requestCount) {
+  for (const [key, entry] of metrics.requestCount) 
     requestCounts[key] = entry.value;
-  }
+  
 
   const errorCounts: Record<string, number> = {};
-  for (const [key, entry] of metrics.errors) {
+  for (const [key, entry] of metrics.errors) 
     errorCounts[key] = entry.value;
-  }
+  
 
   const rateLimitCounts: Record<string, number> = {};
-  for (const [key, entry] of metrics.rateLimitHits) {
+  for (const [key, entry] of metrics.rateLimitHits) 
     rateLimitCounts[key] = entry.value;
-  }
+  
 
   const cacheHitRate =
     metrics.cache.hits + metrics.cache.misses > 0
@@ -277,16 +277,16 @@ export function getPrometheusMetrics(): string {
   // Error counts
   lines.push('# HELP api_errors_total Total number of API errors by code');
   lines.push('# TYPE api_errors_total counter');
-  for (const [code, entry] of metrics.errors) {
+  for (const [code, entry] of metrics.errors) 
     lines.push(`api_errors_total{code="${code}"} ${entry.value}`);
-  }
+  
 
   // Rate limit hits
   lines.push('# HELP rate_limit_hits_total Total number of rate limit hits');
   lines.push('# TYPE rate_limit_hits_total counter');
-  for (const [type, entry] of metrics.rateLimitHits) {
+  for (const [type, entry] of metrics.rateLimitHits) 
     lines.push(`rate_limit_hits_total{type="${type}"} ${entry.value}`);
-  }
+  
 
   // Cache metrics
   lines.push('# HELP cache_hits_total Total cache hits');

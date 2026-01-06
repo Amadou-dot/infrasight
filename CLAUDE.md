@@ -25,7 +25,7 @@ Readings use MongoDB timeseries with **critical constraints**:
 - Cannot modify schema fields after creation without recreating collection
 - TTL: 90 days (`expireAfterSeconds`)
 
-**Example** (see [ReadingV2.ts](../models/v2/ReadingV2.ts)):
+**Example** (see [ReadingV2.ts](models/v2/ReadingV2.ts)):
 
 ```typescript
 metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }
@@ -39,7 +39,7 @@ Device `_id` is a **custom string** (`device_001`, not ObjectId). Must be set ex
 await DeviceV2.create({ _id: 'device_050', serial_number: 'SN-12345', ... });
 ```
 
-See [scripts/v2/seed-v2.ts](../scripts/v2/seed-v2.ts) for examples.
+See [scripts/v2/seed-v2.ts](scripts/v2/seed-v2.ts) for examples.
 
 ## Development Workflows
 
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 ```
 
 - **Validation**: `lib/validations/v2/` contains Zod schemas for all v2 operations
-- **Error handling**: `withErrorHandler` wrapper (see [lib/errors/errorHandler.ts](../lib/errors/errorHandler.ts)) normalizes all errors to `ApiError` with consistent format
+- **Error handling**: `withErrorHandler` wrapper (see [lib/errors/errorHandler.ts](lib/errors/errorHandler.ts)) normalizes all errors to `ApiError` with consistent format
 - **Responses**: Use `jsonSuccess()`, `jsonPaginated()` from `lib/api/response.ts` (NOT raw `NextResponse.json`)
 
 ### Model Anti-Patterns (Critical!)
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
 
 ### Frontend Real-Time Subscriptions
 
-Components use Pusher client singleton ([lib/pusher-client.ts](../lib/pusher-client.ts)):
+Components use Pusher client singleton ([lib/pusher-client.ts](lib/pusher-client.ts)):
 
 ```typescript
 const pusher = getPusherClient();
@@ -125,7 +125,7 @@ channel.bind('new-reading', (data: PusherReading) => {
 
 ### V2 API Client Pattern
 
-Dashboard uses typed client wrapper ([lib/api/v2-client.ts](../lib/api/v2-client.ts)):
+Dashboard uses typed client wrapper ([lib/api/v2-client.ts](lib/api/v2-client.ts)):
 
 ```typescript
 import { v2Api } from '@/lib/api/v2-client';
@@ -177,9 +177,9 @@ types/v2/                          # TypeScript types for v2 API contracts
 ### Adding a New Device Type
 
 1. Update `deviceTypeSchema` in both:
-   - [models/v2/DeviceV2.ts](../models/v2/DeviceV2.ts) (enum array)
-   - [lib/validations/v2/device.validation.ts](../lib/validations/v2/device.validation.ts) (Zod enum)
-2. Update `ReadingType` in [models/v2/ReadingV2.ts](../models/v2/ReadingV2.ts) if needed
+   - [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts) (enum array)
+   - [lib/validations/v2/device.validation.ts](lib/validations/v2/device.validation.ts) (Zod enum)
+2. Update `ReadingType` in [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts) if needed
 3. Add appropriate `ReadingUnit` enum values (e.g., for new measurement types)
 
 ### Debugging Connection Issues
@@ -198,8 +198,8 @@ types/v2/                          # TypeScript types for v2 API contracts
 
 ## Key Files to Reference
 
-- V2 models: [models/v2/DeviceV2.ts](../models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](../models/v2/ReadingV2.ts)
-- Error handling: [lib/errors/errorHandler.ts](../lib/errors/errorHandler.ts), [lib/errors/errorCodes.ts](../lib/errors/errorCodes.ts)
-- Validation schemas: [lib/validations/v2/](../lib/validations/v2/)
-- API client: [lib/api/v2-client.ts](../lib/api/v2-client.ts)
-- Quick start: [QUICK_START_V2.md](../plans/QUICK_START_V2.md)
+- V2 models: [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts)
+- Error handling: [lib/errors/errorHandler.ts](lib/errors/errorHandler.ts), [lib/errors/errorCodes.ts](lib/errors/errorCodes.ts)
+- Validation schemas: [lib/validations/v2/](lib/validations/v2/)
+- API client: [lib/api/v2-client.ts](lib/api/v2-client.ts)
+- Quick start: [QUICK_START_V2.md](plans/QUICK_START_V2.md)

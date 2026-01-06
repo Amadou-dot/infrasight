@@ -406,11 +406,11 @@ export interface AnomalyResponse {
       avg_score: number;
     }>;
   };
-  trends: any;
+  trends: Record<string, unknown>;
   filters_applied: {
     device_id: string | null;
     type: string | null;
-    time_range: Record<string, any>;
+    time_range: Record<string, unknown>;
   };
 }
 

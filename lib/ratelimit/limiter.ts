@@ -78,9 +78,9 @@ export async function checkRateLimit(
 
     const results = await pipeline.exec();
 
-    if (!results) {
+    if (!results) 
       throw new Error('Pipeline returned null');
-    }
+    
 
     // Get current count from zcard (index 1 in pipeline)
     const currentCount = (results[1]?.[1] as number) || 0;
@@ -131,7 +131,7 @@ export async function checkRateLimit(
 export async function checkMultipleRateLimits(
   limits: Array<{ identifier: string; config: RateLimitConfig }>
 ): Promise<RateLimitResult> {
-  if (limits.length === 0) {
+  if (limits.length === 0) 
     return {
       allowed: true,
       current: 0,
@@ -139,7 +139,7 @@ export async function checkMultipleRateLimits(
       resetIn: 0,
       remaining: Infinity,
     };
-  }
+  
 
   // Check all limits in parallel
   const results = await Promise.all(
@@ -148,9 +148,9 @@ export async function checkMultipleRateLimits(
 
   // Find the first denied result
   const denied = results.find(r => !r.allowed);
-  if (denied) {
+  if (denied) 
     return denied;
-  }
+  
 
   // All allowed - return the one with highest usage ratio
   return results.reduce((prev, curr) => {
@@ -168,9 +168,9 @@ export async function resetRateLimit(
   configName: string
 ): Promise<boolean> {
   const redis = getRedisClient();
-  if (!redis || !isRedisAvailable()) {
+  if (!redis || !isRedisAvailable()) 
     return false;
-  }
+  
 
   try {
     const key = `ratelimit:${configName}:${identifier}`;
@@ -195,7 +195,7 @@ export async function getRateLimitStatus(
 ): Promise<RateLimitResult> {
   const redis = getRedisClient();
 
-  if (!redis || !isRedisAvailable()) {
+  if (!redis || !isRedisAvailable()) 
     return {
       allowed: true,
       current: 0,
@@ -203,7 +203,7 @@ export async function getRateLimitStatus(
       resetIn: 0,
       remaining: config.max,
     };
-  }
+  
 
   const key = `ratelimit:${config.name}:${identifier}`;
   const now = Date.now();

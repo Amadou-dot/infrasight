@@ -18,9 +18,9 @@ export const CACHE_PREFIXES = {
  * Generate a deterministic key from an object of parameters
  */
 function serializeParams(params: Record<string, unknown>): string {
-  if (!params || Object.keys(params).length === 0) {
+  if (!params || Object.keys(params).length === 0) 
     return 'default';
-  }
+  
 
   return Object.keys(params)
     .filter(key => params[key] !== undefined && params[key] !== null)

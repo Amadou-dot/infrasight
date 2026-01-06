@@ -14,9 +14,9 @@ import type { AuthContext, RequestContext } from './middleware';
  * the system identifier for unauthenticated operations.
  */
 export function getAuditUser(context: RequestContext | null): string {
-  if (context && context.isAuthenticated) {
+  if (context && context.isAuthenticated) 
     return context.keyName;
-  }
+  
   return 'sys-migration-agent';
 }
 

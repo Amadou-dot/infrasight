@@ -17,15 +17,15 @@ interface RedisCache {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var redis: RedisCache | undefined;
 }
 
 let cached = global.redis;
 
-if (!cached) {
+if (!cached) 
   cached = global.redis = { client: null, isConnected: false, connectionPromise: null };
-}
+
 
 /**
  * Get or create Redis client singleton
@@ -34,19 +34,19 @@ if (!cached) {
 export function getRedisClient(): Redis | null {
   const redisUrl = process.env.REDIS_URL;
 
-  if (!redisUrl) {
+  if (!redisUrl) 
     // Silent in production - logged once at startup
     return null;
-  }
+  
 
-  if (cached!.client && cached!.isConnected) {
+  if (cached!.client && cached!.isConnected) 
     return cached!.client;
-  }
+  
 
   // Return existing client even if reconnecting
-  if (cached!.client) {
+  if (cached!.client) 
     return cached!.client;
-  }
+  
 
   try {
     // Upstash-compatible configuration
@@ -81,9 +81,9 @@ export function getRedisClient(): Redis | null {
 
     client.on('error', (error) => {
       // Only log non-connection errors or first connection error
-      if (!error.message.includes('ECONNREFUSED')) {
+      if (!error.message.includes('ECONNREFUSED')) 
         console.error('[Redis] Error:', error.message);
-      }
+      
       cached!.isConnected = false;
     });
 
@@ -133,11 +133,11 @@ export async function waitForRedis(timeoutMs = 5000): Promise<boolean> {
   });
 
   const connected = new Promise<boolean>((resolve) => {
-    if (cached!.connectionPromise) {
+    if (cached!.connectionPromise) 
       cached!.connectionPromise.then(() => resolve(cached!.isConnected));
-    } else {
+     else 
       resolve(false);
-    }
+    
   });
 
   return Promise.race([connected, timeout]);
@@ -169,9 +169,9 @@ export async function safeRedisCommand<T>(
   command: (client: Redis) => Promise<T>
 ): Promise<T | null> {
   const client = getRedisClient();
-  if (!client || !isRedisAvailable()) {
+  if (!client || !isRedisAvailable()) 
     return null;
-  }
+  
 
   try {
     return await command(client);

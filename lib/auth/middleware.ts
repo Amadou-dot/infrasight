@@ -6,12 +6,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import {
-  extractApiKey,
-  validateApiKey,
-  isAuthRequired,
-  type ValidatedApiKey,
-} from './apiKeys';
+import { extractApiKey, validateApiKey, isAuthRequired } from './apiKeys';
 import {
   hasPermission,
   getRequiredPermission,
@@ -82,15 +77,15 @@ export function withAuth<T extends [NextRequest, ...unknown[]]>(
 
     // Extract API key
     const apiKey = extractApiKey(request);
-    if (!apiKey) {
+    if (!apiKey) 
       return ApiError.unauthorized('API key required').toResponse();
-    }
+    
 
     // Validate API key
     const validatedKey = validateApiKey(apiKey);
-    if (!validatedKey) {
+    if (!validatedKey) 
       return ApiError.unauthorized('Invalid API key').toResponse();
-    }
+    
 
     // Determine required permission
     const permission = options?.permission ??

@@ -20,12 +20,12 @@ export async function GET(request: Request) {
   const format = url.searchParams.get('format');
 
   // Check if metrics are enabled
-  if (process.env.ENABLE_METRICS !== 'true') {
+  if (process.env.ENABLE_METRICS !== 'true') 
     return NextResponse.json(
       { error: 'Metrics are disabled. Set ENABLE_METRICS=true to enable.' },
       { status: 404 }
     );
-  }
+  
 
   // Return JSON format if requested
   if (format === 'json') {
