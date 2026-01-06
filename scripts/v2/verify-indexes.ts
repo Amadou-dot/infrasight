@@ -128,11 +128,11 @@ async function main() {
       }
     }
 
-    if (allDeviceIndexesPresent) {
+    if (allDeviceIndexesPresent) 
       console.log('\n  \x1b[32m✓ All expected indexes present\x1b[0m');
-    } else {
+     else 
       console.log('\n  \x1b[33m⚠ Some indexes are missing - run create-indexes-v2.ts\x1b[0m');
-    }
+    
   } catch (error) {
     console.error('Error checking DeviceV2 indexes:', error);
   }
@@ -150,24 +150,24 @@ async function main() {
     ];
 
     let readingIndexes: IndexInfo[] = [];
-    for (const collName of readingCollectionNames) {
+    for (const collName of readingCollectionNames) 
       try {
         const indexes = await getCollectionIndexes(collName);
         readingIndexes = [...readingIndexes, ...indexes];
       } catch {
         // Collection may not exist
       }
-    }
+    
 
     console.log('\nCurrent indexes:');
-    if (readingIndexes.length === 0) {
+    if (readingIndexes.length === 0) 
       console.log('  No indexes found (collection may not exist yet)');
-    } else {
+     else 
       for (const idx of readingIndexes) {
         console.log(`  • ${idx.name}`);
         console.log(`    Fields: { ${formatIndexKey(idx.key)} }`);
       }
-    }
+    
 
     console.log('\nExpected indexes:');
     let allReadingIndexesPresent = true;
@@ -183,11 +183,11 @@ async function main() {
       }
     }
 
-    if (allReadingIndexesPresent) {
+    if (allReadingIndexesPresent) 
       console.log('\n  \x1b[32m✓ All expected indexes present\x1b[0m');
-    } else {
+     else 
       console.log('\n  \x1b[33m⚠ Some indexes are missing - run create-indexes-v2.ts\x1b[0m');
-    }
+    
   } catch (error) {
     console.error('Error checking ReadingV2 indexes:', error);
   }

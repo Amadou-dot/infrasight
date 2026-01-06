@@ -40,12 +40,12 @@ export function getMaxBodySize(
  * Format bytes to human-readable string
  */
 function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) {
+  if (bytes >= 1024 * 1024) 
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-  }
-  if (bytes >= 1024) {
+  
+  if (bytes >= 1024) 
     return `${(bytes / 1024).toFixed(1)}KB`;
-  }
+  
   return `${bytes}B`;
 }
 
@@ -61,26 +61,26 @@ export async function validateBodySize(
 ): Promise<void> {
   const contentLength = request.headers.get('content-length');
 
-  if (!contentLength) {
+  if (!contentLength) 
     // Allow requests without content-length for streaming
     // Body size will be checked during parsing if needed
     return;
-  }
+  
 
   const size = parseInt(contentLength, 10);
 
-  if (isNaN(size)) {
+  if (isNaN(size)) 
     throw new ApiError(
       ErrorCodes.BAD_REQUEST,
       400,
       'Invalid Content-Length header',
       { received: contentLength }
     );
-  }
+  
 
   const maxSize = getMaxBodySize(pathname, config);
 
-  if (size > maxSize) {
+  if (size > maxSize) 
     throw new ApiError(
       ErrorCodes.BAD_REQUEST,
       413, // Payload Too Large
@@ -92,5 +92,5 @@ export async function validateBodySize(
         maximumBytes: maxSize,
       }
     );
-  }
+  
 }

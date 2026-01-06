@@ -101,25 +101,25 @@ export function getRateLimitConfig(
   method: string
 ): EndpointLimits | null {
   // Check if rate limiting is enabled
-  if (!isRateLimitEnabled()) {
+  if (!isRateLimitEnabled()) 
     return null;
-  }
+  
 
   // Check if path is exempt
-  if (isRateLimitExempt(path)) {
+  if (isRateLimitExempt(path)) 
     return null;
-  }
+  
 
   // Check for exact path match first
-  if (RATE_LIMIT_CONFIGS[path]) {
+  if (RATE_LIMIT_CONFIGS[path]) 
     return RATE_LIMIT_CONFIGS[path];
-  }
+  
 
   // Fall back to method-based defaults
   const methodUpper = method.toUpperCase();
-  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(methodUpper)) {
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(methodUpper)) 
     return RATE_LIMIT_CONFIGS['MUTATION_DEFAULT'];
-  }
+  
 
   return RATE_LIMIT_CONFIGS['READ_DEFAULT'];
 }

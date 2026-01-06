@@ -18,6 +18,10 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Deprecated v1 code - not maintained
+      "**/v1 (deprecated)/**",
+      "**/_v1-deprecated/**",
+      "**/deprecated/**",
     ],
   },
   {
@@ -44,7 +48,7 @@ const eslintConfig = [
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/consistent-type-imports": [
         "error",
         { prefer: "type-imports", fixStyle: "inline-type-imports" },
@@ -67,6 +71,20 @@ const eslintConfig = [
   {
     // Allow console.log in scripts (CLI tools)
     files: ["scripts/**/*.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
+    // Allow console.log in test setup files
+    files: ["__tests__/setup/**/*.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
+    // Allow console.log in monitoring and logging utilities
+    files: ["lib/monitoring/**/*.ts", "lib/redis/**/*.ts"],
     rules: {
       "no-console": "off",
     },

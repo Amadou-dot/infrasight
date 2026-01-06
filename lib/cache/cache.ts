@@ -125,9 +125,9 @@ export async function del(...keys: string[]): Promise<number> {
   try {
     const deleted = await redis.del(...keys);
 
-    if (deleted > 0) {
+    if (deleted > 0) 
       recordCacheEvent('invalidate');
-    }
+    
 
     return deleted;
   } catch (error) {
@@ -162,9 +162,9 @@ export async function delPattern(pattern: string): Promise<number> {
       );
       cursor = newCursor;
 
-      if (keys.length > 0) {
+      if (keys.length > 0) 
         totalDeleted += await redis.del(...keys);
-      }
+      
     } while (cursor !== '0');
 
     if (totalDeleted > 0) {
@@ -198,9 +198,9 @@ export async function getOrSet<T>(
 ): Promise<T> {
   // Try cache first
   const cached = await get<T>(key);
-  if (cached !== null) {
+  if (cached !== null) 
     return cached;
-  }
+  
 
   // Fetch fresh data
   const fresh = await fetchFn();
@@ -260,9 +260,9 @@ export async function mset(
   try {
     const pipeline = redis.pipeline();
 
-    for (const entry of entries) {
+    for (const entry of entries) 
       pipeline.setex(entry.key, entry.ttl, JSON.stringify(entry.value));
-    }
+    
 
     await pipeline.exec();
     return entries.length;

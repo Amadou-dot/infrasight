@@ -42,13 +42,13 @@ export async function validateRequest(
 
   // 2. Validate body size for mutation requests
   const method = request.method.toUpperCase();
-  if (['POST', 'PUT', 'PATCH'].includes(method)) {
+  if (['POST', 'PUT', 'PATCH'].includes(method)) 
     await validateBodySize(
       request,
       pathname,
       options.bodySize ?? DEFAULT_BODY_SIZE_CONFIG
     );
-  }
+  
 
   // 3. Validate query parameters (if whitelist provided)
   if (options.allowedQueryParams) {
@@ -59,7 +59,7 @@ export async function validateRequest(
       (param) => !options.allowedQueryParams!.includes(param)
     );
 
-    if (unknownParams.length > 0) {
+    if (unknownParams.length > 0) 
       throw new ApiError(
         ErrorCodes.INVALID_QUERY_PARAM,
         400,
@@ -69,7 +69,7 @@ export async function validateRequest(
           allowed: options.allowedQueryParams,
         }
       );
-    }
+    
   }
 }
 
@@ -97,9 +97,9 @@ export function withRequestValidation<T extends [NextRequest, ...unknown[]]>(
       await validateRequest(request, options);
       return await handler(...args);
     } catch (error) {
-      if (ApiError.isApiError(error)) {
+      if (ApiError.isApiError(error)) 
         return error.toResponse();
-      }
+      
       throw error;
     }
   };

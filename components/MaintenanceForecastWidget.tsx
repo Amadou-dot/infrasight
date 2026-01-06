@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export default function MaintenanceForecastWidget({
   );
 
   // Fetch forecast data
-  const fetchForecast = async (showLoading = false) => {
+  const fetchForecast = useCallback(async (showLoading = false) => {
     try {
       if (showLoading) 
         setLoading(true);
@@ -54,22 +54,22 @@ export default function MaintenanceForecastWidget({
       setError(err instanceof Error ? err.message : 'Failed to load forecast');
       console.error('Maintenance forecast error:', err);
     } finally {
-      if (showLoading) 
+      if (showLoading)
         setLoading(false);
-      
+
     }
-  };
+  }, [daysAhead]);
 
   // Initial fetch with loading indicator
   useEffect(() => {
     fetchForecast(true);
-  }, [daysAhead]);
+  }, [fetchForecast]);
 
   // Auto-refresh every 60 seconds without loading indicator
   useEffect(() => {
     const interval = setInterval(() => fetchForecast(false), 60000);
     return () => clearInterval(interval);
-  }, [daysAhead]);
+  }, [fetchForecast]);
 
   // Toggle section expansion
   const toggleSection = (section: Section) => {

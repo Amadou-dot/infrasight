@@ -235,25 +235,25 @@ async function handleCreateDevice(
       serial_number: deviceData.serial_number,
     }).lean();
 
-    if (existingDevice) {
+    if (existingDevice) 
       throw new ApiError(
         ErrorCodes.SERIAL_NUMBER_EXISTS,
         409,
         `Device with serial number '${deviceData.serial_number}' already exists`,
         { field: 'serial_number', value: deviceData.serial_number }
       );
-    }
+    
 
     // Check for duplicate ID
     const existingId = await DeviceV2.findById(deviceData._id).lean();
-    if (existingId) {
+    if (existingId) 
       throw new ApiError(
         ErrorCodes.DEVICE_ID_EXISTS,
         409,
         `Device with ID '${deviceData._id}' already exists`,
         { field: '_id', value: deviceData._id }
       );
-    }
+    
 
     // Get audit user from auth context (uses API key name if authenticated)
     const auditUser = getAuditUser(authContext);

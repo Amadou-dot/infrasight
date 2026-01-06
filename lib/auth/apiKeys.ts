@@ -9,8 +9,7 @@
  */
 
 import { createHash } from 'crypto';
-import type { Role } from './permissions';
-import { isValidRole } from './permissions';
+import { isValidRole, type Role } from './permissions';
 import { logger } from '../monitoring/logger';
 
 // ============================================================================
@@ -46,9 +45,9 @@ export interface ValidatedApiKey {
 function parseApiKeys(): ApiKeyConfig[] {
   const keysEnv = process.env.API_KEYS || '';
 
-  if (!keysEnv.trim()) {
+  if (!keysEnv.trim()) 
     return [];
-  }
+  
 
   const keys: ApiKeyConfig[] = [];
 
@@ -81,9 +80,9 @@ let cachedKeys: ApiKeyConfig[] | null = null;
 function getApiKeys(): ApiKeyConfig[] {
   if (cachedKeys === null) {
     cachedKeys = parseApiKeys();
-    if (cachedKeys.length > 0) {
+    if (cachedKeys.length > 0) 
       logger.info('API keys loaded', { count: cachedKeys.length });
-    }
+    
   }
   return cachedKeys;
 }
@@ -103,9 +102,9 @@ export function clearApiKeyCache(): void {
  * Mask an API key for safe logging
  */
 function maskKey(key: string): string {
-  if (key.length <= 8) {
+  if (key.length <= 8) 
     return '****';
-  }
+  
   return `${key.slice(0, 4)}...${key.slice(-4)}`;
 }
 
@@ -126,9 +125,9 @@ export function hashApiKey(key: string): string {
  * @returns Validated key info or null if invalid
  */
 export function validateApiKey(providedKey: string): ValidatedApiKey | null {
-  if (!providedKey) {
+  if (!providedKey) 
     return null;
-  }
+  
 
   const keys = getApiKeys();
 
@@ -160,15 +159,15 @@ export function validateApiKey(providedKey: string): ValidatedApiKey | null {
 export function extractApiKey(request: Request): string | null {
   // Check Authorization header first (preferred)
   const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
+  if (authHeader?.startsWith('Bearer ')) 
     return authHeader.slice(7);
-  }
+  
 
   // Check X-API-Key header
   const apiKeyHeader = request.headers.get('x-api-key');
-  if (apiKeyHeader) {
+  if (apiKeyHeader) 
     return apiKeyHeader;
-  }
+  
 
   return null;
 }

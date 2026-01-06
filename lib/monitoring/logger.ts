@@ -72,9 +72,9 @@ function shouldLog(level: LogLevel): boolean {
  */
 function formatLog(entry: LogEntry): string {
   // In production, output JSON for log aggregation
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production') 
     return JSON.stringify(entry);
-  }
+  
 
   // In development, use readable format
   const timestamp = new Date(entry.timestamp).toLocaleTimeString();
@@ -88,15 +88,15 @@ function formatLog(entry: LogEntry): string {
 
   let output = `${levelColor}[${timestamp}] ${entry.level.toUpperCase()}${reset}: ${entry.message}`;
 
-  if (entry.context && Object.keys(entry.context).length > 0) {
+  if (entry.context && Object.keys(entry.context).length > 0) 
     output += ` ${JSON.stringify(entry.context)}`;
-  }
+  
 
   if (entry.error) {
     output += `\n  Error: ${entry.error.message}`;
-    if (entry.error.stack && process.env.LOG_LEVEL === 'debug') {
+    if (entry.error.stack && process.env.LOG_LEVEL === 'debug') 
       output += `\n  Stack: ${entry.error.stack}`;
-    }
+    
   }
 
   return output;
@@ -120,14 +120,14 @@ function log(
     context: context && Object.keys(context).length > 0 ? context : undefined,
   };
 
-  if (error) {
+  if (error) 
     entry.error = {
       name: error.name,
       message: error.message,
       stack: error.stack,
       code: (error as Error & { code?: string }).code,
     };
-  }
+  
 
   const formatted = formatLog(entry);
 
