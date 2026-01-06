@@ -309,7 +309,13 @@ export const listReadingsQuerySchema = z.object({
     .string()
     .transform((val) => val.split(','))
     .optional(),
-});
+}).refine(
+  (data) => data.device_id || data.startDate,
+  {
+    message: 'Either device_id or startDate must be provided to prevent full collection scans',
+    path: ['device_id', 'startDate'],
+  }
+);
 
 /**
  * Schema for latest readings query (GET /api/v2/readings/latest)

@@ -132,8 +132,9 @@ export async function GET(request: NextRequest) {
         .sort(sort)
         .skip(pagination.skip)
         .limit(pagination.limit)
+        .maxTimeMS(5000)
         .lean(),
-      ReadingV2.countDocuments(matchStage),
+      ReadingV2.countDocuments(matchStage).maxTimeMS(5000),
     ]);
 
     // Calculate pagination info
@@ -174,7 +175,7 @@ export async function GET(request: NextRequest) {
         { $sort: { time_bucket: 1 as const } },
       ];
 
-      trends = await ReadingV2.aggregate(trendPipeline);
+      trends = await ReadingV2.aggregate(trendPipeline).option({ maxTimeMS: 5000 });
     }
 
     // Get anomaly breakdown by device
@@ -199,7 +200,7 @@ export async function GET(request: NextRequest) {
       },
       { $sort: { count: -1 } },
       { $limit: 10 },
-    ]);
+    ]).option({ maxTimeMS: 5000 });
 
     // Get anomaly breakdown by type
     const typeBreakdown = await ReadingV2.aggregate([
@@ -221,7 +222,7 @@ export async function GET(request: NextRequest) {
       },
       { $sort: { count: -1 } },
       { $limit: 10 },
-    ]);
+    ]).option({ maxTimeMS: 5000 });
 
     return jsonSuccess({
       anomalies,

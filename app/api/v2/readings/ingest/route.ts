@@ -2,6 +2,13 @@
  * V2 Readings Ingest API Route
  *
  * POST /api/v2/readings/ingest - Bulk insert readings with validation
+ *
+ * Phase 5 Features:
+ * - Rate limiting by IP and Device ID
+ * - Request body size validation (10MB max)
+ * - Metrics recording for ingestion
+ * - Structured logging
+ * - Cache invalidation for readings
  */
 
 import type { NextRequest } from 'next/server';
@@ -16,6 +23,12 @@ import {
 import { validateInput } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
+
+// Phase 5 imports
+import { withRateLimit } from '@/lib/ratelimit';
+import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
+import { logger, recordIngestion, recordRequest, createRequestTimer } from '@/lib/monitoring';
+import { invalidateReadings } from '@/lib/cache';
 
 // ============================================================================
 // Constants
@@ -85,22 +98,25 @@ function transformToReadingDoc(item: BulkReadingItem): Partial<IReadingV2> {
 // POST /api/v2/readings/ingest - Bulk Insert Readings
 // ============================================================================
 
-export async function POST(request: NextRequest) {
+async function handleIngest(request: NextRequest) {
+  const timer = createRequestTimer();
+
   return withErrorHandler(async () => {
     await dbConnect();
 
     // Parse and validate request body
     const body = await request.json();
     const validationResult = validateInput(body, bulkIngestReadingsSchema);
-    
-    if (!validationResult.success) 
+
+    if (!validationResult.success) {
+      logger.validationFailure('/api/v2/readings/ingest', validationResult.errors);
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
+    }
 
     const data = validationResult.data as BulkIngestReadingsInput;
 
@@ -210,17 +226,34 @@ export async function POST(request: NextRequest) {
     
 
     // Update device health.last_seen for all ingested devices
-    if (results.inserted > 0) 
+    if (results.inserted > 0) {
       await DeviceV2.updateMany(
         { _id: { $in: [...existingDeviceIds] } },
-        { 
-          $set: { 
+        {
+          $set: {
             'health.last_seen': new Date(),
             'audit.updated_at': new Date(),
-          } 
+          },
         }
       );
-    
+
+      // Invalidate readings cache (non-blocking)
+      invalidateReadings().catch(() => {
+        // Error already logged in invalidateReadings
+      });
+    }
+
+    // Record metrics
+    const duration = timer.elapsed();
+    recordIngestion(results.inserted, results.rejected);
+    recordRequest('POST', '/api/v2/readings/ingest', 201, duration);
+
+    logger.info('Readings ingested', {
+      inserted: results.inserted,
+      rejected: results.rejected,
+      duration,
+      deviceCount: existingDeviceIds.size,
+    });
 
     return jsonSuccess(
       {
@@ -234,3 +267,8 @@ export async function POST(request: NextRequest) {
     );
   })();
 }
+
+// Export with middleware: Rate Limiting -> Request Validation -> Handler
+export const POST = withRateLimit(
+  withRequestValidation(handleIngest, ValidationPresets.bulkIngestion)
+);
