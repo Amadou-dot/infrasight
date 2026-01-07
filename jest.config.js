@@ -65,7 +65,7 @@ const config = {
   coverageDirectory: '<rootDir>/coverage',
 
   // Coverage reporters
-  coverageReporters: ['text', 'lcov', 'html'],
+  coverageReporters: ['text', 'lcov', 'html', 'json-summary'],
 
   // TypeScript configuration
   transform: {
