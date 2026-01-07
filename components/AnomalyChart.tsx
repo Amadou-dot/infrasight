@@ -38,7 +38,7 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
   const [isSpiking, setIsSpiking] = useState(false);
 
   // Fetch energy data with React Query
-  const { data: energyData, isLoading, error: fetchError } = useEnergyAnalytics({
+  const { data: energyData, isLoading, error: fetchError, refetch } = useEnergyAnalytics({
     period: '24h',
     granularity: 'hour',
     aggregationType: 'avg',
@@ -100,6 +100,27 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
       setIsSpiking(current > avg * 1.2);
     }
   }, [data]);
+
+  // Real-time updates via Pusher
+  useEffect(() => {
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe('InfraSight');
+
+    channel.bind('new-readings', (newReadings: PusherReading[]) => {
+      // Only proceed if there's a power reading in the batch
+      const hasPowerReadings = newReadings.some(
+        r => r.metadata.type === 'power'
+      );
+      if (hasPowerReadings) {
+        // Re-fetch data to keep it consistent with the aggregation logic
+        refetch();
+      }
+    });
+
+    return () => {
+      pusher.unsubscribe('InfraSight');
+    };
+  }, [refetch]);
 
   const primaryColor = isSpiking ? '#f97316' : '#6366f1'; // Orange-500 vs Indigo-500
   const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400
