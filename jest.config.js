@@ -54,10 +54,10 @@ const config = {
   // Coverage thresholds
   coverageThreshold: {
     global: {
-      branches: 20,   // TODO: Incrementally increase to 70
-      functions: 25,  // TODO: Incrementally increase to 75
-      lines: 45,      // TODO: Incrementally increase to 80
-      statements: 45, // TODO: Incrementally increase to 80
+      branches: 48,   // Phase 2: 50% → Target: 70%
+      functions: 50,  // Phase 2: 51% → Target: 75%
+      lines: 65,      // Phase 2: 67% → Target: 80%
+      statements: 65, // Phase 2: 66% → Target: 80%
     },
   },
 

@@ -88,10 +88,10 @@ jobs:
 
             | Metric | Coverage | Threshold | Status |
             |--------|----------|-----------|--------|
-            | 📝 **Statements** | ${{ steps.coverage-summary.outputs.statements }}% | 45% | ${{ steps.coverage-summary.outputs.statements >= 45 && '✅ Pass' || '❌ Fail' }} |
-            | 🌿 **Branches** | ${{ steps.coverage-summary.outputs.branches }}% | 20% | ${{ steps.coverage-summary.outputs.branches >= 20 && '✅ Pass' || '❌ Fail' }} |
-            | 🔧 **Functions** | ${{ steps.coverage-summary.outputs.functions }}% | 25% | ${{ steps.coverage-summary.outputs.functions >= 25 && '✅ Pass' || '❌ Fail' }} |
-            | 📏 **Lines** | ${{ steps.coverage-summary.outputs.lines }}% | 45% | ${{ steps.coverage-summary.outputs.lines >= 45 && '✅ Pass' || '❌ Fail' }} |
+            | 📝 **Statements** | ${{ steps.coverage-summary.outputs.statements }}% | 65% | ${{ steps.coverage-summary.outputs.statements >= 65 && '✅ Pass' || '❌ Fail' }} |
+            | 🌿 **Branches** | ${{ steps.coverage-summary.outputs.branches }}% | 48% | ${{ steps.coverage-summary.outputs.branches >= 48 && '✅ Pass' || '❌ Fail' }} |
+            | 🔧 **Functions** | ${{ steps.coverage-summary.outputs.functions }}% | 50% | ${{ steps.coverage-summary.outputs.functions >= 50 && '✅ Pass' || '❌ Fail' }} |
+            | 📏 **Lines** | ${{ steps.coverage-summary.outputs.lines }}% | 65% | ${{ steps.coverage-summary.outputs.lines >= 65 && '✅ Pass' || '❌ Fail' }} |
 
             <details>
             <summary>📈 View detailed coverage report</summary>
@@ -109,10 +109,10 @@ jobs:
         run: |
           echo "✅ Coverage thresholds check complete"
           echo "Jest enforces the following thresholds:"
-          echo "  - Statements: 45%"
-          echo "  - Branches: 20%"
-          echo "  - Functions: 25%"
-          echo "  - Lines: 45%"
+          echo "  - Statements: 65%"
+          echo "  - Branches: 48%"
+          echo "  - Functions: 50%"
+          echo "  - Lines: 65%"
 
       - name: Fail workflow if tests failed
         if: steps.test.outcome == 'failure'
