@@ -15,6 +15,7 @@ import type { IDeviceV2, DeviceType, DeviceStatus } from '@/models/v2/DeviceV2';
  */
 let deviceCounter = 0;
 let _readingCounter = 0;
+let readingV2Counter = 0;
 
 /**
  * Reset counters (for test isolation)
@@ -22,6 +23,7 @@ let _readingCounter = 0;
 export function resetCounters(): void {
   deviceCounter = 0;
   _readingCounter = 0;
+  readingV2Counter = 0;
 }
 
 /**
@@ -428,3 +430,263 @@ export const INVALID_READING_INPUTS = {
   invalidSource: (): ReadingInput =>
     createReadingInput('device_001', { source: 'invalid' as ReadingSource }),
 };
+
+// ============================================================================
+// READING V2 FACTORIES (Matches ReadingV2 Model)
+// ============================================================================
+
+import type {
+  IReadingV2,
+  ReadingType as ReadingTypeV2,
+  ReadingUnit,
+  ReadingSource as ReadingSourceV2,
+  IReadingMetadata,
+  IReadingQuality,
+  IReadingContext,
+  IReadingProcessing,
+} from '@/models/v2/ReadingV2';
+
+/**
+ * Valid reading types for V2 testing (matches ReadingV2 model)
+ */
+export const VALID_READING_TYPES_V2: ReadingTypeV2[] = [
+  'temperature',
+  'humidity',
+  'occupancy',
+  'power',
+  'co2',
+  'pressure',
+  'light',
+  'motion',
+  'air_quality',
+  'water_flow',
+  'gas',
+  'vibration',
+  'voltage',
+  'current',
+  'energy',
+];
+
+/**
+ * Valid reading units for V2 testing
+ */
+export const VALID_READING_UNITS: ReadingUnit[] = [
+  'celsius',
+  'fahrenheit',
+  'kelvin',
+  'percent',
+  'ppm',
+  'ppb',
+  'ug_m3',
+  'pascal',
+  'hpa',
+  'bar',
+  'psi',
+  'watts',
+  'kilowatts',
+  'watt_hours',
+  'kilowatt_hours',
+  'volts',
+  'millivolts',
+  'amperes',
+  'milliamperes',
+  'lux',
+  'lumens',
+  'liters_per_minute',
+  'gallons_per_minute',
+  'cubic_meters_per_hour',
+  'count',
+  'boolean',
+  'raw',
+  'unknown',
+];
+
+/**
+ * Valid reading sources for V2 testing
+ */
+export const VALID_READING_SOURCES_V2: ReadingSourceV2[] = [
+  'sensor',
+  'simulation',
+  'manual',
+  'calibration',
+];
+
+/**
+ * ReadingV2 input type for factories
+ */
+export interface ReadingV2Input {
+  metadata: IReadingMetadata;
+  timestamp: Date;
+  value: number;
+  quality?: IReadingQuality;
+  context?: IReadingContext;
+  processing?: IReadingProcessing;
+}
+
+/**
+ * Create a valid ReadingV2 input for testing
+ */
+export function createReadingV2Input(
+  deviceId: string,
+  overrides: Partial<ReadingV2Input> = {}
+): ReadingV2Input {
+  readingV2Counter += 1;
+
+  return {
+    metadata: {
+      device_id: deviceId,
+      type: 'temperature',
+      unit: 'celsius',
+      source: 'sensor',
+      ...overrides.metadata,
+    },
+    timestamp: overrides.timestamp || new Date(),
+    value: overrides.value ?? 22.5 + Math.random() * 5,
+    quality: {
+      is_valid: true,
+      confidence_score: 0.95,
+      is_anomaly: false,
+      ...overrides.quality,
+    },
+    context: overrides.context,
+    processing: {
+      ingested_at: new Date(),
+      ...overrides.processing,
+    },
+  };
+}
+
+/**
+ * Create multiple ReadingV2 inputs for a device
+ */
+export function createReadingV2Inputs(
+  deviceId: string,
+  count: number,
+  overrides: Partial<ReadingV2Input> = {}
+): ReadingV2Input[] {
+  const readings: ReadingV2Input[] = [];
+  const baseTime = Date.now();
+
+  for (let i = 0; i < count; i++) {
+    readings.push(
+      createReadingV2Input(deviceId, {
+        ...overrides,
+        timestamp: new Date(baseTime - i * 60000), // 1 minute apart
+        value: overrides.value ?? 22 + i * 0.5,
+      })
+    );
+  }
+
+  return readings;
+}
+
+/**
+ * Create a ReadingV2 of a specific type
+ */
+export function createReadingV2OfType(
+  type: ReadingTypeV2,
+  deviceId: string,
+  overrides: Partial<ReadingV2Input> = {}
+): ReadingV2Input {
+  const unitMap: Record<ReadingTypeV2, ReadingUnit> = {
+    temperature: 'celsius',
+    humidity: 'percent',
+    occupancy: 'count',
+    power: 'watts',
+    co2: 'ppm',
+    pressure: 'hpa',
+    light: 'lux',
+    motion: 'boolean',
+    air_quality: 'ppm',
+    water_flow: 'liters_per_minute',
+    gas: 'ppm',
+    vibration: 'raw',
+    voltage: 'volts',
+    current: 'amperes',
+    energy: 'kilowatt_hours',
+  };
+
+  return createReadingV2Input(deviceId, {
+    ...overrides,
+    metadata: {
+      device_id: deviceId,
+      type,
+      unit: unitMap[type],
+      source: 'sensor',
+      ...overrides.metadata,
+    },
+  });
+}
+
+/**
+ * Create an anomaly ReadingV2
+ */
+export function createAnomalyReadingV2(
+  deviceId: string,
+  anomalyScore: number = 0.85,
+  overrides: Partial<ReadingV2Input> = {}
+): ReadingV2Input {
+  return createReadingV2Input(deviceId, {
+    ...overrides,
+    value: 50, // Abnormally high for temperature
+    quality: {
+      is_valid: true,
+      is_anomaly: true,
+      anomaly_score: anomalyScore,
+      validation_flags: ['out_of_range'],
+      ...overrides.quality,
+    },
+  });
+}
+
+/**
+ * Create readings for time series testing
+ */
+export function createTimeSeriesReadingsV2(
+  deviceId: string,
+  hoursBack: number = 24,
+  intervalMinutes: number = 5
+): ReadingV2Input[] {
+  const readings: ReadingV2Input[] = [];
+  const endTime = Date.now();
+  const startTime = endTime - hoursBack * 60 * 60 * 1000;
+  const intervalMs = intervalMinutes * 60 * 1000;
+
+  for (let time = startTime; time <= endTime; time += intervalMs) {
+    // Generate realistic temperature pattern (cooler at night)
+    const hour = new Date(time).getHours();
+    const baseTemp = hour >= 6 && hour <= 18 ? 23 : 20;
+    const variation = Math.random() * 2 - 1;
+
+    readings.push(
+      createReadingV2Input(deviceId, {
+        timestamp: new Date(time),
+        value: baseTemp + variation,
+      })
+    );
+  }
+
+  return readings;
+}
+
+/**
+ * Create bulk ingest payload for V2
+ */
+export function createBulkIngestPayloadV2(deviceId: string, count: number = 10) {
+  const readings = [];
+  const baseTime = Date.now();
+
+  for (let i = 0; i < count; i++) {
+    readings.push({
+      device_id: deviceId,
+      type: 'temperature' as const,
+      unit: 'celsius' as const,
+      source: 'sensor' as const,
+      timestamp: new Date(baseTime - i * 60000),
+      value: 22 + Math.random() * 5,
+    });
+  }
+
+  return { readings };
+}
+
