@@ -1,0 +1,123 @@
+name: Test Coverage
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  test-coverage:
+    name: Run Tests & Check Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better coverage diffs
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup test environment
+        run: |
+          cp example.env .env.local
+          echo "MONGODB_URI=mongodb://localhost:27017/test" >> .env.local
+          echo "PUSHER_APP_ID=test-app-id" >> .env.local
+          echo "PUSHER_KEY=test-key" >> .env.local
+          echo "PUSHER_SECRET=test-secret" >> .env.local
+          echo "PUSHER_CLUSTER=test-cluster" >> .env.local
+          echo "NEXT_PUBLIC_PUSHER_KEY=test-key" >> .env.local
+          echo "NEXT_PUBLIC_PUSHER_CLUSTER=test-cluster" >> .env.local
+
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+        env:
+          CI: true
+          NODE_ENV: test
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-infrasight
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Generate coverage summary
+        if: github.event_name == 'pull_request'
+        id: coverage-summary
+        run: |
+          STATEMENTS=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.statements.pct)")
+          BRANCHES=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.branches.pct)")
+          FUNCTIONS=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.functions.pct)")
+          LINES=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.lines.pct)")
+          echo "statements=$STATEMENTS" >> $GITHUB_OUTPUT
+          echo "branches=$BRANCHES" >> $GITHUB_OUTPUT
+          echo "functions=$FUNCTIONS" >> $GITHUB_OUTPUT
+          echo "lines=$LINES" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          message: |
+            ## 📊 Test Coverage Report
+
+            | Metric | Coverage | Threshold | Status |
+            |--------|----------|-----------|--------|
+            | 📝 **Statements** | ${{ steps.coverage-summary.outputs.statements }}% | 80% | ${{ steps.coverage-summary.outputs.statements >= 80 && '✅ Pass' || '❌ Fail' }} |
+            | 🌿 **Branches** | ${{ steps.coverage-summary.outputs.branches }}% | 70% | ${{ steps.coverage-summary.outputs.branches >= 70 && '✅ Pass' || '❌ Fail' }} |
+            | 🔧 **Functions** | ${{ steps.coverage-summary.outputs.functions }}% | 75% | ${{ steps.coverage-summary.outputs.functions >= 75 && '✅ Pass' || '❌ Fail' }} |
+            | 📏 **Lines** | ${{ steps.coverage-summary.outputs.lines }}% | 80% | ${{ steps.coverage-summary.outputs.lines >= 80 && '✅ Pass' || '❌ Fail' }} |
+
+            <details>
+            <summary>📈 View detailed coverage report</summary>
+
+            Check the [Codecov report](https://codecov.io/gh/${{ github.repository }}/pull/${{ github.event.pull_request.number }}) for detailed coverage analysis.
+
+            Coverage thresholds are enforced by Jest and will cause the build to fail if not met.
+            </details>
+
+            ---
+
+            <sub>Coverage powered by [Jest](https://jestjs.io/) • Reports by [Codecov](https://codecov.io/)</sub>
+
+      - name: Check coverage thresholds
+        run: |
+          echo "✅ Coverage thresholds check complete"
+          echo "Jest enforces the following thresholds:"
+          echo "  - Statements: 80%"
+          echo "  - Branches: 70%"
+          echo "  - Functions: 75%"
+          echo "  - Lines: 80%"

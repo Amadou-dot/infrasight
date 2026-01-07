@@ -13,6 +13,9 @@
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
   <img src="https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white">
   <img src="https://img.shields.io/badge/Pusher-300D4F?style=for-the-badge&logo=pusher&logoColor=white">
+  <a href="https://codecov.io/gh/YOUR_USERNAME/infrasight">
+    <img src="https://codecov.io/gh/YOUR_USERNAME/infrasight/branch/main/graph/badge.svg?token=YOUR_TOKEN" alt="Coverage">
+  </a>
 </p>
 
 <p>
@@ -69,6 +72,7 @@
 | [Data Models](./docs/models-v2.md) | MongoDB schemas, indexes, and constraints |
 | [Environment Setup](./docs/environment.md) | Configuration and environment variables |
 | [Testing Guide](./docs/testing-v2.md) | Testing strategy and implementation |
+| [Test Coverage Setup](./docs/TEST_COVERAGE_SETUP.md) | Coverage reporting and branch protection |
 | [Operational Runbook](./docs/runbook.md) | Monitoring, debugging, and incident response |
 
 ---
@@ -146,7 +150,11 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 | `pnpm simulate` | Generate real-time simulated readings |
 | `pnpm create-indexes-v2` | Create MongoDB indexes |
 | `pnpm verify-indexes` | Verify index configuration |
-| `pnpm test` | Run API tests |
+| `pnpm test` | Run all tests |
+| `pnpm test:coverage` | Run tests with coverage report |
+| `pnpm test:unit` | Run unit tests only |
+| `pnpm test:integration` | Run integration tests only |
+| `pnpm test:e2e` | Run end-to-end tests with Playwright |
 | `pnpm lint` | Run ESLint |
 
 ---
@@ -261,9 +269,10 @@ See [Operational Runbook](./docs/runbook.md) for complete procedures.
 - Validate all inputs with Zod
 - Follow the error handling patterns
 - Add tests for new features
+- Maintain test coverage above thresholds (80% statements, 70% branches, 75% functions, 80% lines)
 - Update documentation as needed
 
-See [Testing Guide](./docs/testing-v2.md) for testing requirements.
+See [Testing Guide](./docs/testing-v2.md) for testing requirements and [Test Coverage Setup](./docs/TEST_COVERAGE_SETUP.md) for coverage enforcement.
 
 ---
 
