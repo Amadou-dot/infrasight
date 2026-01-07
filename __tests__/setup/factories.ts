@@ -124,7 +124,6 @@ export function createDeviceInput(
       threshold_warning: 25,
       threshold_critical: 30,
       sampling_interval: 60,
-      calibration_date: null,
       calibration_offset: 0,
     },
     location: {
