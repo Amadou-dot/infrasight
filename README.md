@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
   <img src="https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white">
   <img src="https://img.shields.io/badge/Pusher-300D4F?style=for-the-badge&logo=pusher&logoColor=white">
+  <!-- NOTE: After setting up Codecov for this repository, replace YOUR_USERNAME and YOUR_TOKEN in the badge URLs below with the actual GitHub username/organization and Codecov token. -->
   <a href="https://codecov.io/gh/YOUR_USERNAME/infrasight">
     <img src="https://codecov.io/gh/YOUR_USERNAME/infrasight/branch/main/graph/badge.svg?token=YOUR_TOKEN" alt="Coverage">
   </a>
