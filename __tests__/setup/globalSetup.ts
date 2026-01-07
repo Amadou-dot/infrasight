@@ -18,6 +18,12 @@ export default async function globalSetup(): Promise<void> {
     instance: {
       dbName: 'infrasight-test',
     },
+    binary: {
+      // Use MongoDB 6.0.x which has wide platform support
+      version: '6.0.12',
+      // Skip checksum verification which can fail on some platforms
+      checkMD5: false,
+    },
   });
 
   const uri = mongod.getUri();
