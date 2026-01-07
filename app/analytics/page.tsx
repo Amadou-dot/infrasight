@@ -1,30 +1,20 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import DeviceHealthWidget from '@/components/DeviceHealthWidget';
 import EnergyUsageChart from '@/components/AnomalyChart';
 import { Select } from '@/components/ui/select';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BarChart3 } from 'lucide-react';
-import { v2Api, type MetadataBuilding } from '@/lib/api/v2-client';
+import { useMetadata } from '@/lib/query/hooks';
 
 export default function AnalyticsPage() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
-  const [buildings, setBuildings] = useState<MetadataBuilding[]>([]);
 
-  // Fetch available floors from metadata API
-  useEffect(() => {
-    const fetchMetadata = async () => {
-      try {
-        const response = await v2Api.metadata.get();
-        if (response.success && response.data.buildings) setBuildings(response.data.buildings);
-      } catch (error) {
-        console.error('Error fetching metadata:', error);
-      }
-    };
-    fetchMetadata();
-  }, []);
+  // Fetch metadata with React Query
+  const { data: metadata } = useMetadata();
+  const buildings = metadata?.buildings || [];
 
   // Extract all unique floors from all buildings
   const availableFloors = useMemo(() => {

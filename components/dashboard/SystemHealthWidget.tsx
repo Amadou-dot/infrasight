@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { v2Api, type HealthMetrics } from '@/lib/api/v2-client';
+import { useHealthAnalytics } from '@/lib/query/hooks';
 import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface SystemHealthWidgetProps {
@@ -11,29 +10,8 @@ interface SystemHealthWidgetProps {
 export default function SystemHealthWidget({
   onFilterClick,
 }: SystemHealthWidgetProps) {
-  const [health, setHealth] = useState<HealthMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchHealth = async (showLoading = false) => {
-      try {
-        if (showLoading) setLoading(true);
-        const response = await v2Api.analytics.health();
-        if (response.success) setHealth(response.data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching health:', err);
-        setError('Failed to load health data');
-      } finally {
-        if (showLoading) setLoading(false);
-      }
-    };
-
-    fetchHealth(true);
-    const interval = setInterval(() => fetchHealth(false), 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: health, isLoading, error: fetchError } = useHealthAnalytics();
+  const error = fetchError ? 'Failed to load health data' : null;
 
   const healthScore = health?.summary?.health_score ?? 0;
   const _totalDevices = health?.summary?.total_devices ?? 0;
@@ -63,7 +41,7 @@ export default function SystemHealthWidget({
     return 'POOR';
   };
 
-  if (loading) 
+  if (isLoading)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <h3 className="text-lg font-semibold text-foreground mb-4">System Health</h3>
@@ -72,7 +50,7 @@ export default function SystemHealthWidget({
         </div>
       </div>
     );
-  
+
 
   if (error) 
     return (

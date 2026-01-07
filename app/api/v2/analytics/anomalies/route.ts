@@ -2,6 +2,10 @@
  * V2 Anomalies Analytics API Route
  *
  * GET /api/v2/analytics/anomalies - Anomaly detection and trends
+ *
+ * Phase 5 Features:
+ * - Redis caching with 1-minute TTL
+ * - Metrics and logging
  */
 
 import {
@@ -19,6 +23,10 @@ import {
 import { validateQuery } from '@/lib/validations/validator';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import type { NextRequest } from 'next/server';
+
+// Phase 5 imports
+import { getOrSet, CACHE_TTL, analyticsKey } from '@/lib/cache';
+import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 
 // ============================================================================
 // Helper: Get date format for bucketing
@@ -46,6 +54,8 @@ function getDateFormat(granularity: string): string {
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  const timer = createRequestTimer();
+
   return withErrorHandler(async () => {
     await dbConnect();
 
@@ -65,6 +75,25 @@ export async function GET(request: NextRequest) {
       );
 
     const query = validationResult.data as AnomalyAnalyticsQuery;
+
+    // Generate cache key based on query parameters
+    const cacheKey = analyticsKey('anomalies', {
+      device_id: query.device_id,
+      type: query.type,
+      startDate: query.startDate,
+      endDate: query.endDate,
+      min_score: query.min_score,
+      page: query.page,
+      limit: query.limit,
+      sortBy: query.sortBy,
+      sortDirection: query.sortDirection,
+      bucket_granularity: query.bucket_granularity,
+    });
+
+    // Use cache-aside pattern
+    const response = await getOrSet(
+      cacheKey,
+      async () => {
 
     // Extract pagination (analytics endpoints allow higher limits)
     const pagination = getOffsetPaginationParams(
@@ -224,24 +253,39 @@ export async function GET(request: NextRequest) {
       { $limit: 10 },
     ]).option({ maxTimeMS: 5000 });
 
-    return jsonSuccess({
-      anomalies,
-      pagination: paginationInfo,
-      summary: {
-        total_anomalies: total,
-        by_device: deviceBreakdown,
-        by_type: typeBreakdown,
+        return {
+          anomalies,
+          pagination: paginationInfo,
+          summary: {
+            total_anomalies: total,
+            by_device: deviceBreakdown,
+            by_type: typeBreakdown,
+          },
+          trends: trends,
+          filters_applied: {
+            device_id: query.device_id || null,
+            type: query.type || null,
+            min_score: query.min_score,
+            time_range: {
+              start: query.startDate,
+              end: query.endDate,
+            },
+          },
+        };
       },
-      trends: trends,
-      filters_applied: {
-        device_id: query.device_id || null,
-        type: query.type || null,
-        min_score: query.min_score,
-        time_range: {
-          start: query.startDate,
-          end: query.endDate,
-        },
-      },
+      { ttl: CACHE_TTL.ANOMALIES }
+    );
+
+    // Record metrics
+    const duration = timer.elapsed();
+    recordRequest('GET', '/api/v2/analytics/anomalies', 200, duration);
+
+    logger.debug('Anomalies analytics request', {
+      duration,
+      cached: duration < 50,
+      cacheKey,
     });
+
+    return jsonSuccess(response);
   })();
 }

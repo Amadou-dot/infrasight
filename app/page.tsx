@@ -8,8 +8,11 @@ import {
   StatCard,
   SystemHealthWidget,
 } from '@/components/dashboard';
-import { v2Api, type AnomalyResponse, type HealthMetrics } from '@/lib/api/v2-client';
-import type { MaintenanceForecastResponse } from '@/types/v2';
+import {
+  useHealthAnalytics,
+  useMaintenanceForecast,
+  useAnomalies,
+} from '@/lib/query/hooks';
 import {
   AlertTriangle,
   FileText,
@@ -17,47 +20,19 @@ import {
   Monitor,
   Zap
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function Home() {
-  // Data state
-  const [health, setHealth] = useState<HealthMetrics | null>(null);
-  const [forecast, setForecast] = useState<MaintenanceForecastResponse | null>(null);
-  const [_anomalies, setAnomalies] = useState<AnomalyResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Data fetching with React Query (automatic caching, deduplication)
+  const { data: health, isLoading } = useHealthAnalytics();
+  const { data: forecast } = useMaintenanceForecast({ days_ahead: 7 });
+  const { data: _anomalies } = useAnomalies({ limit: 100 });
 
   // Modal state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-
-  // Fetch all dashboard data
-  useEffect(() => {
-    const fetchData = async (showLoading = false) => {
-      try {
-        if (showLoading) setLoading(true);
-
-        const [healthRes, forecastRes, anomaliesRes] = await Promise.all([
-          v2Api.analytics.health(),
-          v2Api.analytics.maintenanceForecast({ days_ahead: 7 }),
-          v2Api.analytics.anomalies({ limit: 100 }),
-        ]);
-
-        setHealth(healthRes.data);
-        setForecast(forecastRes.data);
-        setAnomalies(anomaliesRes.data);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        if (showLoading) setLoading(false);
-      }
-    };
-
-    fetchData(true);
-    const interval = setInterval(() => fetchData(false), 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Calculate metrics
   const totalDevices = health?.summary?.total_devices ?? 0;
@@ -137,7 +112,7 @@ export default function Home() {
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Total Devices"
-          value={loading ? '—' : totalDevices.toLocaleString()}
+          value={isLoading ? '—' : totalDevices.toLocaleString()}
           icon={Monitor}
           iconColor="text-cyan-400"
           iconBgColor="bg-cyan-500/20"
@@ -145,7 +120,7 @@ export default function Home() {
         />
         <StatCard
           title="Active Alerts"
-          value={loading ? '—' : activeAlerts.toString()}
+          value={isLoading ? '—' : activeAlerts.toString()}
           icon={AlertTriangle}
           iconColor="text-red-400"
           iconBgColor="bg-red-500/20"
@@ -153,7 +128,7 @@ export default function Home() {
         />
         <StatCard
           title="Efficiency Score"
-          value={loading ? '—' : `${healthScore}%`}
+          value={isLoading ? '—' : `${healthScore}%`}
           icon={Gauge}
           iconColor="text-green-400"
           iconBgColor="bg-green-500/20"

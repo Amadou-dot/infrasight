@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { v2Api, type HealthMetrics } from '@/lib/api/v2-client';
+import { useHealthAnalytics } from '@/lib/query/hooks';
 import {
   Activity,
   AlertTriangle,
@@ -21,38 +20,12 @@ interface DeviceHealthWidgetProps {
 export default function DeviceHealthWidget({
   onFilterDevices,
 }: DeviceHealthWidgetProps) {
-  const [healthData, setHealthData] = useState<HealthMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Data fetching with React Query (shared with Dashboard and other components)
+  const { data: healthData, isLoading, error: fetchError } = useHealthAnalytics();
 
-  useEffect(() => {
-    const fetchHealthData = async (showLoading = false) => {
-      try {
-        if (showLoading) 
-          setLoading(true);
-        
-        setError(null);
-        const response = await v2Api.analytics.health();
-        setHealthData(response.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load health data');
-        console.error('Error fetching health metrics:', err);
-      } finally {
-        if (showLoading) 
-          setLoading(false);
-        
-      }
-    };
+  const error = fetchError ? (fetchError instanceof Error ? fetchError.message : 'Failed to load health data') : null;
 
-    // Show loading only on initial fetch
-    fetchHealthData(true);
-
-    // Refresh every 30 seconds without loading spinner
-    const interval = setInterval(() => fetchHealthData(false), 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (loading) 
+  if (isLoading) 
     return (
       <Card className="w-full">
         <CardHeader>

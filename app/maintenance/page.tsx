@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Wrench, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MaintenanceStatusCards from '@/components/MaintenanceStatusCards';
@@ -9,8 +9,7 @@ import MaintenanceTable from '@/components/MaintenanceTable';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { v2Api } from '@/lib/api/v2-client';
-import type { MaintenanceForecastResponse, DeviceV2Response } from '@/types/v2';
+import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
 
 // ============================================================================
 // CONSTANTS
@@ -28,54 +27,20 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export default function MaintenancePage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-  const [forecast, setForecast] = useState<MaintenanceForecastResponse | null>(
-    null
-  );
-  const [allDevices, setAllDevices] = useState<DeviceV2Response[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // Data fetching with React Query
+  const { data: forecast, isLoading: forecastLoading, error: forecastError } = useMaintenanceForecast({ days_ahead: 30 });
+  const { data: allDevices = [], isLoading: devicesLoading, error: devicesError } = useDevicesList();
+
+  const loading = forecastLoading || devicesLoading;
+  const error = forecastError ? (forecastError instanceof Error ? forecastError.message : 'Failed to load forecast')
+    : devicesError ? (devicesError instanceof Error ? devicesError.message : 'Failed to load devices')
+    : null;
 
   const handleDeviceClick = (deviceId: string) => {
     setSelectedDeviceId(deviceId);
     setDeviceModalOpen(true);
   };
-
-  // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch forecast
-        const forecastRes = await v2Api.analytics.maintenanceForecast({ days_ahead: 30 });
-        setForecast(forecastRes.data);
-
-        // Fetch all devices with pagination (API max limit is 100)
-        const allDevicesList: DeviceV2Response[] = [];
-        let page = 1;
-        let hasMore = true;
-
-        while (hasMore) {
-          const devicesRes = await v2Api.devices.list({ limit: 100, page });
-          allDevicesList.push(...devicesRes.data);
-          hasMore = devicesRes.pagination?.hasNext ?? false;
-          page++;
-          // Safety limit to prevent infinite loops (max 2000 devices)
-          if (page > MAX_PAGINATION_PAGES) break;
-        }
-
-        setAllDevices(allDevicesList);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-        console.error('Maintenance page error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   // Calculate status counts
   const { criticalCount, dueForServiceCount, healthyCount } = useMemo(() => {

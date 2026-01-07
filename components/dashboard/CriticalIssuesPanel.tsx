@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { v2Api, type HealthMetrics } from '@/lib/api/v2-client';
+import { useMemo } from 'react';
+import { useHealthAnalytics, useMaintenanceForecast } from '@/lib/query/hooks';
+import type { HealthMetrics } from '@/lib/api/v2-client';
 import type { MaintenanceForecastResponse } from '@/types/v2';
 import {
   AlertTriangle,
@@ -33,24 +34,17 @@ export default function CriticalIssuesPanel({
   onIssueClick,
   maxItems = 5,
 }: CriticalIssuesPanelProps) {
-  const [issues, setIssues] = useState<CriticalIssue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: health, isLoading: healthLoading, error: healthError } = useHealthAnalytics();
+  const { data: forecast, isLoading: forecastLoading, error: forecastError } = useMaintenanceForecast({ days_ahead: 7 });
 
-  useEffect(() => {
-    const fetchIssues = async (showLoading = false) => {
-      try {
-        if (showLoading) setLoading(true);
+  const isLoading = healthLoading || forecastLoading;
+  const error = healthError || forecastError ? 'Failed to load issues' : null;
 
-        const [healthRes, forecastRes] = await Promise.all([
-          v2Api.analytics.health(),
-          v2Api.analytics.maintenanceForecast({ days_ahead: 7 }),
-        ]);
+  // Calculate issues using useMemo (only recalculate when data changes)
+  const issues = useMemo(() => {
+    if (!health || !forecast) return [];
 
-        const health: HealthMetrics = healthRes.data;
-        const forecast: MaintenanceForecastResponse = forecastRes.data;
-
-        const collectedIssues: CriticalIssue[] = [];
+    const collectedIssues: CriticalIssue[] = [];
 
         // Offline devices - Critical
         health.alerts?.offline_devices?.devices?.forEach((d) => {
@@ -114,26 +108,14 @@ export default function CriticalIssuesPanel({
           
         });
 
-        // Sort by severity (critical first) then by timestamp
-        collectedIssues.sort((a, b) => {
-          if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1;
-          return b.timestamp.getTime() - a.timestamp.getTime();
-        });
+    // Sort by severity (critical first) then by timestamp
+    collectedIssues.sort((a, b) => {
+      if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1;
+      return b.timestamp.getTime() - a.timestamp.getTime();
+    });
 
-        setIssues(collectedIssues.slice(0, maxItems));
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching issues:', err);
-        setError('Failed to load issues');
-      } finally {
-        if (showLoading) setLoading(false);
-      }
-    };
-
-    fetchIssues(true);
-    const interval = setInterval(() => fetchIssues(false), 30000);
-    return () => clearInterval(interval);
-  }, [maxItems]);
+    return collectedIssues.slice(0, maxItems);
+  }, [health, forecast, maxItems]);
 
   const getIssueIcon = (type: CriticalIssue['type']) => {
     switch (type) {
@@ -182,7 +164,7 @@ export default function CriticalIssuesPanel({
     return `${diffDays}d ago`;
   };
 
-  if (loading) 
+  if (isLoading)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -193,7 +175,7 @@ export default function CriticalIssuesPanel({
         </div>
       </div>
     );
-  
+
 
   if (error) 
     return (

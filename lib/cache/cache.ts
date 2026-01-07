@@ -29,8 +29,8 @@ export interface CacheOptions {
 export const CACHE_TTL = {
   /** Metadata endpoint - 10 minutes (device counts, manufacturers, etc.) */
   METADATA: parseInt(process.env.CACHE_METADATA_TTL || '600', 10),
-  /** Health analytics - 30 seconds (frequently updated) */
-  HEALTH: parseInt(process.env.CACHE_HEALTH_TTL || '30', 10),
+  /** Health analytics - 60 seconds (needs to be fairly fresh) */
+  HEALTH: parseInt(process.env.CACHE_HEALTH_TTL || '60', 10),
   /** Individual device config - 5 minutes */
   DEVICE: 300,
   /** Latest readings - 10 seconds (very dynamic) */
@@ -39,6 +39,10 @@ export const CACHE_TTL = {
   ANALYTICS: 60,
   /** Device lists - 30 seconds */
   DEVICES_LIST: 30,
+  /** Maintenance forecast - 2 minutes */
+  MAINTENANCE_FORECAST: parseInt(process.env.CACHE_MAINTENANCE_FORECAST_TTL || '120', 10),
+  /** Anomalies - 1 minute */
+  ANOMALIES: parseInt(process.env.CACHE_ANOMALIES_TTL || '60', 10),
 } as const;
 
 // ============================================================================
