@@ -2,15 +2,23 @@
  * V2 Maintenance Forecast API Route
  *
  * GET /api/v2/analytics/maintenance-forecast - Predictive maintenance analytics
+ *
+ * Phase 5 Features:
+ * - Redis caching with 2-minute TTL
+ * - Metrics and logging
  */
 
 import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
-import { handleError, ApiError, ErrorCodes } from '@/lib/errors';
+import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 import { z } from 'zod';
 import { validateQuery } from '@/lib/validations/validator';
+
+// Phase 5 imports
+import { getOrSet, CACHE_TTL, analyticsKey } from '@/lib/cache';
+import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 
 // ============================================================================
 // Query Schema
@@ -36,7 +44,9 @@ type MaintenanceForecastQuery = z.infer<typeof maintenanceForecastQuerySchema>;
 // ============================================================================
 
 export async function GET(request: NextRequest) {
-  try {
+  const timer = createRequestTimer();
+
+  return withErrorHandler(async () => {
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
@@ -46,16 +56,29 @@ export async function GET(request: NextRequest) {
       searchParams,
       maintenanceForecastQuerySchema
     );
-    if (!validationResult.success) 
+    if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map((e) => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
+
 
     const query = validationResult.data as MaintenanceForecastQuery;
+
+    // Generate cache key based on filters
+    const cacheKey = analyticsKey('maintenance-forecast', {
+      days_ahead: query.days_ahead,
+      severity_threshold: query.severity_threshold,
+      building_id: query.building_id,
+      floor: query.floor,
+    });
+
+    // Use cache-aside pattern
+    const response = await getOrSet(
+      cacheKey,
+      async () => {
 
     // Build base filter (exclude deleted devices)
     const baseFilter: Record<string, unknown> = {
@@ -194,32 +217,44 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Apply severity threshold filter if requested
-    if (query.severity_threshold === 'critical') 
-      return jsonSuccess({
-        ...response,
-        warning: [],
-        watch: [],
-        summary: {
-          ...response.summary,
-          warning_count: 0,
-          watch_count: 0,
-        },
-      });
-     else if (query.severity_threshold === 'warning') 
-      return jsonSuccess({
-        ...response,
-        watch: [],
-        summary: {
-          ...response.summary,
-          watch_count: 0,
-        },
-      });
-    
+        // Apply severity threshold filter if requested
+        if (query.severity_threshold === 'critical') {
+          return {
+            ...response,
+            warning: [],
+            watch: [],
+            summary: {
+              ...response.summary,
+              warning_count: 0,
+              watch_count: 0,
+            },
+          };
+        } else if (query.severity_threshold === 'warning') {
+          return {
+            ...response,
+            watch: [],
+            summary: {
+              ...response.summary,
+              watch_count: 0,
+            },
+          };
+        }
+
+        return response;
+      },
+      { ttl: CACHE_TTL.MAINTENANCE_FORECAST }
+    );
+
+    // Record metrics
+    const duration = timer.elapsed();
+    recordRequest('GET', '/api/v2/analytics/maintenance-forecast', 200, duration);
+
+    logger.debug('Maintenance forecast request', {
+      duration,
+      cached: duration < 50,
+      cacheKey,
+    });
 
     return jsonSuccess(response);
-  } catch (error) {
-    const { error: apiError } = handleError(error);
-    return apiError.toResponse();
-  }
+  })();
 }

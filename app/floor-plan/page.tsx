@@ -1,39 +1,30 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import FloorPlan from '@/components/FloorPlan';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { Select } from '@/components/ui/select';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Map } from 'lucide-react';
-import { v2Api, type MetadataBuilding } from '@/lib/api/v2-client';
+import { useMetadata } from '@/lib/query/hooks';
 
 export default function FloorPlanPage() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
   const [selectedBuilding, setSelectedBuilding] = useState<string | 'all'>('all');
-  const [buildings, setBuildings] = useState<MetadataBuilding[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
 
-  // Fetch available buildings with their floors
+  // Fetch metadata with React Query
+  const { data: metadata } = useMetadata();
+  const buildings = metadata?.buildings || [];
+
+  // Auto-select first building if available
   useEffect(() => {
-    const fetchMetadata = async () => {
-      try {
-        const response = await v2Api.metadata.get();
-        if (response.success && response.data.buildings) {
-          setBuildings(response.data.buildings);
-          // Auto-select first building if available
-          if (response.data.buildings.length > 0) 
-            setSelectedBuilding(response.data.buildings[0].building);
-          
-        }
-      } catch (error) {
-        console.error('Error fetching metadata:', error);
-      }
-    };
-    fetchMetadata();
-  }, []);
+    if (buildings.length > 0 && selectedBuilding === 'all') {
+      setSelectedBuilding(buildings[0].building);
+    }
+  }, [buildings, selectedBuilding]);
 
   // Get floors for the selected building
   const availableFloors = useMemo(() => {

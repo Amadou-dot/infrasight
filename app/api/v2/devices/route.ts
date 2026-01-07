@@ -36,13 +36,15 @@ import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { withOptionalAuth, getAuditUser, type RequestContext } from '@/lib/auth';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
-import { invalidateOnDeviceCreate } from '@/lib/cache';
+import { invalidateOnDeviceCreate, getOrSet, CACHE_TTL, devicesListKey } from '@/lib/cache';
 
 // ============================================================================
 // GET /api/v2/devices - List Devices
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  const timer = createRequestTimer();
+
   return withErrorHandler(async () => {
     await dbConnect();
 
@@ -50,16 +52,24 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, listDevicesQuerySchema);
-    if (!validationResult.success) 
+    if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
+
 
     const query = validationResult.data as ListDevicesQuery;
+
+    // Generate cache key based on all query parameters
+    const cacheKey = devicesListKey(query as Record<string, unknown>);
+
+    // Use cache-aside pattern
+    const result = await getOrSet(
+      cacheKey,
+      async () => {
 
     // Extract pagination
     const pagination = getOffsetPaginationParams({
@@ -190,14 +200,30 @@ export async function GET(request: NextRequest) {
       DeviceV2.countDocuments(filter),
     ]);
 
-    // Calculate pagination info
-    const paginationInfo = calculateOffsetPagination(
-      total,
-      pagination.page,
-      pagination.limit
+        // Calculate pagination info
+        const paginationInfo = calculateOffsetPagination(
+          total,
+          pagination.page,
+          pagination.limit
+        );
+
+        return { devices, paginationInfo };
+      },
+      { ttl: CACHE_TTL.DEVICES_LIST }
     );
 
-    return jsonPaginated(devices, paginationInfo);
+    // Record metrics
+    const duration = timer.elapsed();
+    recordRequest('GET', '/api/v2/devices', 200, duration);
+
+    logger.debug('Devices list request', {
+      duration,
+      cached: duration < 50,
+      cacheKey,
+      total: result.paginationInfo.total,
+    });
+
+    return jsonPaginated(result.devices, result.paginationInfo);
   })();
 }
 

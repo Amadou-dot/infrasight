@@ -8,8 +8,7 @@ import DeviceInventoryCard from '@/components/DeviceInventoryCard';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { v2Api } from '@/lib/api/v2-client';
-import type { DeviceV2Response } from '@/types/v2';
+import { useDevicesList } from '@/lib/query/hooks';
 
 import {
   DeviceStatusCards,
@@ -25,8 +24,6 @@ import {
 // ============================================================================
 
 const DEVICES_PER_PAGE = 16;
-/** Maximum pages to fetch when loading all devices (100 per page = 2000 max devices) */
-const MAX_PAGINATION_PAGES = 20;
 
 // ============================================================================
 // COMPONENT
@@ -36,62 +33,22 @@ export default function DevicesPage() {
   // Device selection state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-  
-  // Data state
-  const [devices, setDevices] = useState<DeviceV2Response[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
+
+  // Fetch all devices with React Query (cached, shared across components)
+  const { data: devices = [], isLoading, error: fetchError } = useDevicesList();
+  const error = fetchError ? (fetchError instanceof Error ? fetchError.message : 'Failed to load devices') : null;
+
   // Search and floor filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
-  
+
   // Filter modal state
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [filters, setFilters] = useState<DeviceFilters>(INITIAL_FILTERS);
   const [pendingFilters, setPendingFilters] = useState<DeviceFilters>(INITIAL_FILTERS);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-
-  // ============================================================================
-  // DATA FETCHING
-  // ============================================================================
-
-  useEffect(() => {
-    const fetchAllDevices = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch all devices by paginating through all pages
-        const allDevices: DeviceV2Response[] = [];
-        let page = 1;
-        let hasMore = true;
-        
-        while (hasMore) {
-          const response = await v2Api.devices.list({ limit: 100, page });
-          allDevices.push(...response.data);
-          
-          // Check if there are more pages
-          hasMore = response.pagination?.hasNext ?? false;
-          page++;
-          
-          // Safety limit to prevent infinite loops (max 2000 devices)
-          if (page > MAX_PAGINATION_PAGES) break;
-        }
-        
-        setDevices(allDevices);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load devices');
-        console.error('Devices fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAllDevices();
-  }, []);
 
   // ============================================================================
   // COMPUTED VALUES
@@ -262,7 +219,7 @@ export default function DevicesPage() {
       </header>
 
       {/* Status Cards */}
-      <DeviceStatusCards loading={loading} {...statusCounts} />
+      <DeviceStatusCards loading={isLoading} {...statusCounts} />
 
       {/* Search & Filters */}
       <DeviceSearchBar
@@ -290,10 +247,10 @@ export default function DevicesPage() {
       )}
 
       {/* Loading State */}
-      {loading && <DeviceCardSkeleton count={8} />}
+      {isLoading && <DeviceCardSkeleton count={8} />}
 
       {/* Device Grid */}
-      {!loading && (
+      {!isLoading && (
         <>
           {filteredDevices.length === 0 ? (
             <div className='text-center py-12 text-muted-foreground'>
@@ -314,7 +271,7 @@ export default function DevicesPage() {
       )}
 
       {/* Pagination */}
-      {!loading && filteredDevices.length > 0 && (
+      {!isLoading && filteredDevices.length > 0 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

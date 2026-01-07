@@ -1,8 +1,9 @@
 'use client';
 
 import { v2Api } from '@/lib/api/v2-client';
+import { useAnomalies } from '@/lib/query/hooks';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -26,32 +27,43 @@ interface AnomalyDetectionChartProps {
 export default function AnomalyDetectionChart({
   hours = 6,
 }: AnomalyDetectionChartProps) {
-  const [data, setData] = useState<ChartDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Calculate time range
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - hours * 60 * 60 * 1000);
+
+  // Fetch anomalies with React Query
+  const { data: anomaliesData, isLoading, error: fetchError } = useAnomalies({
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    limit: 1000,
+  });
+
+  const error = fetchError ? 'Failed to load data' : null;
+
+  // Fetch readings total for normal count calculation (still need this one call)
+  const [totalReadings, setTotalReadings] = useState(0);
 
   useEffect(() => {
-    const fetchData = async (showLoading = false) => {
+    const fetchReadingsTotal = async () => {
       try {
-        if (showLoading) setLoading(true);
+        const readingsRes = await v2Api.readings.list({
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          limit: 1,
+        });
+        setTotalReadings(readingsRes.pagination?.total || 0);
+      } catch {
+        // Ignore errors, will default to 0
+      }
+    };
+    fetchReadingsTotal();
+  }, [startDate, endDate]);
 
-        // Calculate time range
-        const endDate = new Date();
-        const startDate = new Date(endDate.getTime() - hours * 60 * 60 * 1000);
+  // Process chart data
+  const data = useMemo(() => {
+    if (!anomaliesData) return [];
 
-        // Fetch readings to get total counts and anomaly data
-        const [readingsRes, anomaliesRes] = await Promise.all([
-          v2Api.readings.list({
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-            limit: 1, // We only need the total count
-          }),
-          v2Api.analytics.anomalies({
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-            limit: 1000, // Fetch more anomalies to get accurate counts
-          }),
-        ]);
+    const anomalies = anomaliesData.anomalies || [];
 
         // Create hourly buckets using epoch hour as key for reliable matching
         const hourlyBuckets: Map<number, { time: string; normal: number; anomaly: number }> = new Map();
@@ -68,53 +80,39 @@ export default function AnomalyDetectionChart({
           hourlyBuckets.set(epochHour, { time: timeLabel, normal: 0, anomaly: 0 });
         }
 
-        // Count anomalies per hour
-        const anomalies = anomaliesRes.data?.anomalies || [];
-        anomalies.forEach((a) => {
-          const timestamp = new Date(a.timestamp);
-          const epochHour = Math.floor(timestamp.getTime() / (60 * 60 * 1000));
+    // Count anomalies per hour
+    anomalies.forEach((a) => {
+      const timestamp = new Date(a.timestamp);
+      const epochHour = Math.floor(timestamp.getTime() / (60 * 60 * 1000));
 
-          const bucket = hourlyBuckets.get(epochHour);
-          if (bucket) bucket.anomaly += 1;
-        });
+      const bucket = hourlyBuckets.get(epochHour);
+      if (bucket) bucket.anomaly += 1;
+    });
 
-        // Calculate normal readings per bucket (distribute evenly)
-        const totalReadings = readingsRes.pagination?.total || 0;
-        const totalAnomalies = anomaliesRes.data?.pagination?.total || anomalies.length;
-        const totalNormal = Math.max(0, totalReadings - totalAnomalies);
-        const bucketCount = hourlyBuckets.size;
-        const avgNormalPerHour = Math.floor(totalNormal / bucketCount);
+    // Calculate normal readings per bucket (distribute evenly)
+    const totalAnomalies = anomaliesData.pagination?.total || anomalies.length;
+    const totalNormal = Math.max(0, totalReadings - totalAnomalies);
+    const bucketCount = hourlyBuckets.size;
+    const avgNormalPerHour = Math.floor(totalNormal / bucketCount);
 
-        hourlyBuckets.forEach((bucket) => {
-          bucket.normal = avgNormalPerHour;
-        });
+    hourlyBuckets.forEach((bucket) => {
+      bucket.normal = avgNormalPerHour;
+    });
 
-        // Convert to chart data (sorted by time, take last 'hours' buckets)
-        const chartData: ChartDataPoint[] = Array.from(hourlyBuckets.entries())
-          .sort(([a], [b]) => a - b)
-          .slice(-hours) // Take only the last N hours
-          .map(([, bucket]) => ({
-            time: bucket.time,
-            normal: bucket.normal,
-            anomaly: bucket.anomaly,
-          }));
+    // Convert to chart data (sorted by time, take last 'hours' buckets)
+    const chartData: ChartDataPoint[] = Array.from(hourlyBuckets.entries())
+      .sort(([a], [b]) => a - b)
+      .slice(-hours) // Take only the last N hours
+      .map(([, bucket]) => ({
+        time: bucket.time,
+        normal: bucket.normal,
+        anomaly: bucket.anomaly,
+      }));
 
-        setData(chartData);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching anomaly data:', err);
-        setError('Failed to load data');
-      } finally {
-        setLoading(false);
-      }
-    };
+    return chartData;
+  }, [anomaliesData, totalReadings, hours]);
 
-    fetchData(true);
-    const interval = setInterval(() => fetchData(false), 60000);
-    return () => clearInterval(interval);
-  }, [hours]);
-
-  if (loading) 
+  if (isLoading) 
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">

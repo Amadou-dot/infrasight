@@ -1,8 +1,12 @@
-import type { Metadata } from "next";
+'use client';
+
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from '@/components/theme-provider';
 import TopNav from '@/components/TopNav';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { queryClient } from '@/lib/query/queryClient';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -14,11 +18,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-export const metadata: Metadata = {
-  title: 'InfraSight',
-  description: 'Real-time sensor data and analytics for Denver HQ',
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,16 +25,26 @@ export default function RootLayout({
 }>) {
   return (
     <html lang='en' suppressHydrationWarning>
+      <head>
+        <title>InfraSight</title>
+        <meta name="description" content="Real-time sensor data and analytics for infrastructure monitoring." />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider
-          attribute='class'
-          defaultTheme='system'
-          enableSystem
-          disableTransitionOnChange>
-          <TopNav />
-          <main className='min-h-screen'>{children}</main>
-        </ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider
+            attribute='class'
+            defaultTheme='system'
+            enableSystem
+            disableTransitionOnChange>
+            <TopNav />
+            <main className='min-h-screen'>{children}</main>
+          </ThemeProvider>
+          {/* Dev tools only in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <ReactQueryDevtools initialIsOpen={false} />
+          )}
+        </QueryClientProvider>
       </body>
     </html>
   );

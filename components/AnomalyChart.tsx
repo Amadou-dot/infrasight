@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { getPusherClient } from '@/lib/pusher-client';
-import { v2Api } from '@/lib/api/v2-client';
+import { useEnergyAnalytics } from '@/lib/query/hooks';
 import {
   AreaChart,
   Area,
@@ -35,116 +35,71 @@ interface ChartDataPoint {
 }
 
 export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
-  const [data, setData] = useState<ChartDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isSpiking, setIsSpiking] = useState(false);
 
-  const fetchEnergyData = useCallback(async (showLoading = false) => {
-    try {
-      if (showLoading) 
-        setLoading(true);
-      
-      setError(null);
+  // Fetch energy data with React Query
+  const { data: energyData, isLoading, error: fetchError } = useEnergyAnalytics({
+    period: '24h',
+    granularity: 'hour',
+    aggregationType: 'avg',
+    deviceType: 'power',
+    floor: selectedFloor !== 'all' ? selectedFloor : undefined,
+  });
 
-      // Calculate date range for last 24 hours
-      const endDate = new Date();
-      const _startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+  const error = fetchError ? 'Failed to load energy data' : null;
 
-      const response = await v2Api.analytics.energy({
-        period: '24h',
-        granularity: 'hour',
-        aggregationType: 'avg',
-        deviceType: 'power',
-        floor: selectedFloor !== 'all' ? selectedFloor : undefined,
-      });
+  // Process chart data
+  const data = useMemo(() => {
+    if (!energyData) return [];
 
-      if (response.success && response.data) {
-        // Handle the v2 API response structure - can have either timestamp or time_bucket
-        interface RawDataPoint {
-          time_bucket?: string;
-          timestamp?: string;
-          value?: number;
-        }
-
-        let rawResults: RawDataPoint[];
-
-        if (Array.isArray(response.data)) 
-          // Direct array of data points
-          rawResults = response.data.map(d => ({
-            timestamp: d.timestamp,
-            value: d.value,
-          }));
-         else {
-          // Nested structure with results array
-          const nestedData = response.data as { results?: RawDataPoint[] };
-          rawResults = nestedData.results || [];
-        }
-
-        const formatted: ChartDataPoint[] = rawResults.map(d => ({
-          timestamp: d.time_bucket || d.timestamp || '',
-          value: d.value || 0,
-          time: new Date(d.time_bucket || d.timestamp || '').toLocaleTimeString(
-            [],
-            {
-              hour: '2-digit',
-              minute: '2-digit',
-            }
-          ),
-        }));
-        setData(formatted);
-
-        // Check for spike (current > 1.2 * average)
-        if (formatted.length > 0) {
-          const values = formatted.map(d => d.value);
-          const avg = values.reduce((a, b) => a + b, 0) / values.length;
-          const current = values[values.length - 1];
-          setIsSpiking(current > avg * 1.2);
-        }
-      } else 
-        setData([]);
-      
-    } catch (err) {
-      console.error('Error fetching energy data:', err);
-      setError('Failed to load energy data');
-    } finally {
-      if (showLoading)
-        setLoading(false);
-
+    // Handle the v2 API response structure - can have either timestamp or time_bucket
+    interface RawDataPoint {
+      time_bucket?: string;
+      timestamp?: string;
+      value?: number;
     }
-  }, [selectedFloor]);
 
-  // Initial fetch
+    let rawResults: RawDataPoint[];
+
+    if (Array.isArray(energyData)) {
+      // Direct array of data points
+      rawResults = energyData.map((d: unknown) => {
+        const dataPoint = d as RawDataPoint;
+        return {
+          timestamp: dataPoint.timestamp,
+          value: dataPoint.value,
+        };
+      });
+    } else {
+      // Nested structure with results array
+      const nestedData = energyData as { results?: RawDataPoint[] };
+      rawResults = nestedData.results || [];
+    }
+
+    const formatted: ChartDataPoint[] = rawResults.map(d => ({
+      timestamp: d.time_bucket || d.timestamp || '',
+      value: d.value || 0,
+      time: new Date(d.time_bucket || d.timestamp || '').toLocaleTimeString(
+        [],
+        {
+          hour: '2-digit',
+          minute: '2-digit',
+        }
+      ),
+    }));
+
+    return formatted;
+  }, [energyData]);
+
+  // Check for spike (current > 1.2 * average)
   useEffect(() => {
-    fetchEnergyData(true);
-  }, [fetchEnergyData]);
-
-  // Auto-refresh every 60 seconds
-  useEffect(() => {
-    const interval = setInterval(() => fetchEnergyData(false), 60000);
-    return () => clearInterval(interval);
-  }, [fetchEnergyData]);
-
-  // Real-time updates
-  useEffect(() => {
-    const pusher = getPusherClient();
-    const channel = pusher.subscribe('InfraSight');
-
-    channel.bind('new-readings', (newReadings: PusherReading[]) => {
-      // Only proceed if there's a power reading in the batch
-      const hasPowerReadings = newReadings.some(
-        r => r.metadata.type === 'power'
-      );
-      if (hasPowerReadings) 
-        // Re-fetch data to keep it consistent with the aggregation logic
-        fetchEnergyData(false);
-      
-    });
-
-    return () => {
-      pusher.unsubscribe('InfraSight');
-    };
-  }, [fetchEnergyData]);
+    if (data.length > 0) {
+      const values = data.map(d => d.value);
+      const avg = values.reduce((a, b) => a + b, 0) / values.length;
+      const current = values[values.length - 1];
+      setIsSpiking(current > avg * 1.2);
+    }
+  }, [data]);
 
   const primaryColor = isSpiking ? '#f97316' : '#6366f1'; // Orange-500 vs Indigo-500
   const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400
@@ -165,7 +120,7 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
       <p className='text-sm text-gray-500 mb-6'>Last 24 Hours</p>
 
       <div className='flex-1 min-h-0'>
-        {loading ? (
+        {isLoading ? (
           <div className='flex items-center justify-center h-full'>
             <Loader2 className='h-8 w-8 animate-spin text-gray-400' />
           </div>

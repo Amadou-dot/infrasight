@@ -2,6 +2,10 @@
  * V2 Health Analytics API Route
  *
  * GET /api/v2/analytics/health - Device health dashboard analytics
+ *
+ * Phase 5 Features:
+ * - Redis caching with 60-second TTL
+ * - Metrics and logging
  */
 
 import type { NextRequest } from 'next/server';
@@ -11,6 +15,10 @@ import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 import { z } from 'zod';
 import { validateQuery } from '@/lib/validations/validator';
+
+// Phase 5 imports
+import { getOrSet, CACHE_TTL, healthKey } from '@/lib/cache';
+import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 
 // ============================================================================
 // Query Schema
@@ -31,6 +39,8 @@ type HealthAnalyticsQuery = z.infer<typeof healthAnalyticsQuerySchema>;
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  const timer = createRequestTimer();
+
   return withErrorHandler(async () => {
     await dbConnect();
 
@@ -38,21 +48,32 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, healthAnalyticsQuerySchema);
-    if (!validationResult.success) 
+    if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
+
 
     const query = validationResult.data as HealthAnalyticsQuery;
 
-    // Build base filter
-    const baseFilter: Record<string, unknown> = {
-      'audit.deleted_at': { $exists: false },
-    };
+    // Generate cache key based on filters
+    const cacheKey = healthKey({
+      building_id: query.building_id,
+      floor: query.floor,
+      department: query.department,
+    });
+
+    // Use cache-aside pattern
+    const response = await getOrSet(
+      cacheKey,
+      async () => {
+        // Build base filter
+        const baseFilter: Record<string, unknown> = {
+          'audit.deleted_at': { $exists: false },
+        };
 
     if (query.building_id) 
       baseFilter['location.building_id'] = query.building_id;
@@ -240,48 +261,63 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return jsonSuccess({
-      summary: {
-        total_devices: totalDevices,
-        active_devices: activeDevices,
-        health_score: healthScore,
-        uptime_stats: uptimeStats[0] || {
-          avg_uptime: 100,
-          min_uptime: 100,
-          max_uptime: 100,
-          total_errors: 0,
-        },
+        return {
+          summary: {
+            total_devices: totalDevices,
+            active_devices: activeDevices,
+            health_score: healthScore,
+            uptime_stats: uptimeStats[0] || {
+              avg_uptime: 100,
+              min_uptime: 100,
+              max_uptime: 100,
+              total_errors: 0,
+            },
+          },
+          status_breakdown: statusBreakdown,
+          alerts: {
+            offline_devices: {
+              count: offlineDevices.length,
+              devices: offlineDevices.slice(0, 10),
+              threshold_minutes: query.offline_threshold_minutes,
+            },
+            low_battery_devices: {
+              count: lowBatteryDevices.length,
+              devices: lowBatteryDevices.slice(0, 10),
+              threshold_percent: query.battery_warning_threshold,
+            },
+            error_devices: {
+              count: errorDevices.length,
+              devices: errorDevices.slice(0, 10),
+            },
+            maintenance_due: {
+              count: maintenanceDue.length,
+              devices: maintenanceDue.slice(0, 10),
+            },
+            predictive_maintenance: {
+              count: predictiveMaintenanceDevices.length,
+              devices: predictiveMaintenanceItems.slice(0, 10),
+            },
+          },
+          filters_applied: {
+            building_id: query.building_id || null,
+            floor: query.floor || null,
+            department: query.department || null,
+          },
+        };
       },
-      status_breakdown: statusBreakdown,
-      alerts: {
-        offline_devices: {
-          count: offlineDevices.length,
-          devices: offlineDevices.slice(0, 10),
-          threshold_minutes: query.offline_threshold_minutes,
-        },
-        low_battery_devices: {
-          count: lowBatteryDevices.length,
-          devices: lowBatteryDevices.slice(0, 10),
-          threshold_percent: query.battery_warning_threshold,
-        },
-        error_devices: {
-          count: errorDevices.length,
-          devices: errorDevices.slice(0, 10),
-        },
-        maintenance_due: {
-          count: maintenanceDue.length,
-          devices: maintenanceDue.slice(0, 10),
-        },
-        predictive_maintenance: {
-          count: predictiveMaintenanceDevices.length,
-          devices: predictiveMaintenanceItems.slice(0, 10),
-        },
-      },
-      filters_applied: {
-        building_id: query.building_id || null,
-        floor: query.floor || null,
-        department: query.department || null,
-      },
+      { ttl: CACHE_TTL.HEALTH }
+    );
+
+    // Record metrics
+    const duration = timer.elapsed();
+    recordRequest('GET', '/api/v2/analytics/health', 200, duration);
+
+    logger.debug('Health analytics request', {
+      duration,
+      cached: duration < 50,
+      cacheKey,
     });
+
+    return jsonSuccess(response);
   })();
 }
