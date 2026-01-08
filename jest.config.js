@@ -54,10 +54,10 @@ const config = {
   // Coverage thresholds
   coverageThreshold: {
     global: {
-      branches: 48,   // Phase 2: 50% → Target: 70%
-      functions: 50,  // Phase 2: 51% → Target: 75%
-      lines: 65,      // Phase 2: 67% → Target: 80%
-      statements: 65, // Phase 2: 66% → Target: 80%
+      branches: 55,   // Current: 59% → Target: 70%
+      functions: 55,  // Current: 58% → Target: 75%
+      lines: 75,      // Current: 78% → Target: 80%
+      statements: 75, // Current: 78% → Target: 80%
     },
   },
 
