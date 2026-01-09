@@ -46,7 +46,7 @@ test.describe('Dashboard', () => {
   test.describe('Device Grid', () => {
     test('should display device cards', async ({ page }) => {
       // Wait for devices to load
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Check for device cards or grid
       const deviceGrid = page.locator('[data-testid="device-grid"], .device-grid, [class*="grid"]').first();
@@ -54,7 +54,7 @@ test.describe('Dashboard', () => {
     });
 
     test('should show device status indicators', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Look for status indicators (active, offline, etc.)
       const statusIndicators = page.locator('[data-testid="device-status"], [class*="status"]');
@@ -72,7 +72,7 @@ test.describe('Dashboard', () => {
 
   test.describe('Floor Plan', () => {
     test('should display floor selector if available', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Look for floor selector or floor plan component
       const floorSelector = page.locator('[data-testid="floor-selector"], [class*="floor"]');
@@ -84,7 +84,7 @@ test.describe('Dashboard', () => {
     });
 
     test('should allow floor navigation', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Look for floor navigation buttons
       const floorButtons = page.locator('button').filter({ hasText: /floor|level/i });
@@ -94,7 +94,7 @@ test.describe('Dashboard', () => {
         await floorButtons.first().click();
 
         // Wait for any loading or transition
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
       }
     });
   });
@@ -105,7 +105,7 @@ test.describe('Dashboard', () => {
 
   test.describe('Filtering', () => {
     test('should have filter controls', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Look for filter buttons, dropdowns, or search
       const filterControls = page.locator(
@@ -118,7 +118,7 @@ test.describe('Dashboard', () => {
     });
 
     test('should have search functionality', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Look for search input
       const searchInput = page.locator('input[type="search"], input[placeholder*="search" i]');
@@ -128,7 +128,7 @@ test.describe('Dashboard', () => {
         await searchInput.first().fill('temperature');
 
         // Wait for filtering to apply
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
       }
     });
   });
@@ -140,7 +140,7 @@ test.describe('Dashboard', () => {
   test.describe('Real-time Updates', () => {
     test('should establish real-time connection', async ({ page }) => {
       // Check for Pusher connection or WebSocket
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // This is a basic check - real-time connection happens in background
       // We can check if the page has loaded without errors
@@ -167,7 +167,7 @@ test.describe('Dashboard', () => {
 
   test.describe('Navigation', () => {
     test('should have navigation elements', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Look for navigation elements
       const nav = page.locator('nav, header, [role="navigation"]');
@@ -178,7 +178,7 @@ test.describe('Dashboard', () => {
     });
 
     test('should navigate to device details on click', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Look for clickable device elements
       const deviceCards = page.locator(
@@ -216,7 +216,7 @@ test.describe('Dashboard', () => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 });
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Check that main content is visible
       const mainContent = page.locator('main, [role="main"], .main-content');
@@ -229,7 +229,7 @@ test.describe('Dashboard', () => {
       // Set tablet viewport
       await page.setViewportSize({ width: 768, height: 1024 });
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Check that main content is visible
       const mainContent = page.locator('main, [role="main"], .main-content');
@@ -242,7 +242,7 @@ test.describe('Dashboard', () => {
       // Set desktop viewport
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Check that main content is visible
       const mainContent = page.locator('main, [role="main"], .main-content');
@@ -264,7 +264,7 @@ test.describe('Dashboard', () => {
       });
 
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Filter for critical errors (ignore warnings)
       const criticalErrors = errors.filter(
@@ -298,7 +298,7 @@ test.describe('Dashboard', () => {
       // Either error state, empty state, or page content should be visible
       // We check pageContent as a fallback - the error/empty states are defined
       // for documentation but may not be implemented yet
-      const pageContent = page.locator('main, body');
+      const pageContent = page.locator('main').or(page.locator('body')).first();
       await expect(pageContent).toBeVisible();
     });
   });
@@ -309,7 +309,7 @@ test.describe('Dashboard', () => {
 
   test.describe('Accessibility', () => {
     test('should have proper heading hierarchy', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Check for h1
       const h1 = page.locator('h1');
@@ -317,7 +317,7 @@ test.describe('Dashboard', () => {
     });
 
     test('should have interactive elements with proper labels', async ({ page }) => {
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Check buttons have accessible names
       const buttons = page.locator('button');
@@ -333,7 +333,7 @@ test.describe('Dashboard', () => {
 
     test('should be keyboard navigable', async ({ page }) => {
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Press Tab multiple times
       for (let i = 0; i < 5; i++) 
