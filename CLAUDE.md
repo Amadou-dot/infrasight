@@ -65,6 +65,12 @@ All checked at import time—app fails loudly if missing:
 - `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`: Server-side real-time
 - `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER`: Client-side (must have `NEXT_PUBLIC_` prefix)
 
+**Clerk Authentication (required):**
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key
+- `CLERK_SECRET_KEY`: Clerk secret key
+- `NEXT_PUBLIC_CLERK_SIGN_IN_URL`: Sign-in page URL (`/sign-in`)
+- `NEXT_PUBLIC_CLERK_SIGN_UP_URL`: Sign-up page URL (`/sign-up`)
+
 **Optional (Phase 5 Features):**
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`: Redis for caching and rate limiting
 - `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`: Error tracking with Sentry
@@ -200,21 +206,26 @@ lib/
     v2-client.ts                   # Typed client for v2 endpoints
     response.ts, pagination.ts     # Response helpers and pagination utilities
   deprecated/                      # Archived migration utilities
-  cache/                           # Redis caching with invalidation (Phase 5)
-  monitoring/                      # Sentry, Prometheus metrics, logging, tracing (Phase 5)
-  ratelimit/                       # Rate limiting config and middleware (Phase 5)
-  redis/                           # Redis client configuration (Phase 5)
-  auth/                            # Authentication, permissions, API keys (Phase 5)
-  middleware/                      # Request validation, body size, headers (Phase 5)
+  cache/                           # Redis caching with invalidation
+  monitoring/                      # Sentry, Prometheus metrics, logging, tracing
+  ratelimit/                       # Rate limiting config and middleware
+  redis/                           # Redis client configuration
+  middleware/                      # Request validation, body size, headers
   utils/                           # Correlation analysis, severity calculation
-app/api/
-  v2/                              # Production API routes (19 endpoints)
-    devices/                       # Device CRUD + history
-    readings/                      # Reading queries + ingest + latest
-    analytics/                     # 5 analytics endpoints
-    audit/, metadata/, metrics/    # System endpoints
-    cron/simulate/                 # Synthetic data generator
-  _v1-deprecated/                  # Archived v1 routes (ignored by Next.js)
+app/
+  layout.tsx                       # Root layout with ClerkProvider
+  page.tsx                         # Dashboard home page
+  sign-in/[[...sign-in]]/page.tsx  # Clerk sign-in page
+  sign-up/[[...sign-up]]/page.tsx  # Clerk sign-up page
+  api/
+    v2/                            # Production API routes (19 endpoints)
+      devices/                     # Device CRUD + history
+      readings/                    # Reading queries + ingest + latest
+      analytics/                   # 5 analytics endpoints
+      audit/, metadata/, metrics/  # System endpoints
+      cron/simulate/               # Synthetic data generator
+    _v1-deprecated/                # Archived v1 routes (ignored by Next.js)
+proxy.ts                           # Clerk middleware for route protection (Next.js 16 renamed middleware.ts to proxy.ts)
 scripts/v2/                        # seed-v2, simulate, test-api, create-indexes, verify-indexes
 components/                        # React components (all use 'use client')
 types/v2/                          # TypeScript types for v2 API contracts
@@ -237,12 +248,12 @@ The v2 API includes enterprise-grade features for production deployment:
 - **Keys**: Structured cache keys in `lib/cache/keys.ts`
 - **Endpoints**: Metadata, analytics aggregations
 
-### Authentication & Authorization
-- **Method**: API key-based authentication (optional)
-- **Middleware**: `requireAuth()`, `requirePermission()`
-- **Context**: Request-scoped auth context with user/role info
-- **Permissions**: Granular permission system (read, write, admin)
-- **Integration**: Audit trails track authenticated users
+### Authentication (Clerk)
+- **Provider**: [Clerk](https://clerk.com) for user authentication
+- **Middleware**: `proxy.ts` protects all dashboard routes (Next.js 16+ uses `proxy.ts` instead of `middleware.ts`)
+- **Components**: `UserButton` in TopNav, `useUser()` hook for user data
+- **Routes**: `/sign-in`, `/sign-up` for authentication pages
+- **Protected**: All dashboard routes require sign-in; API routes are public
 
 ### Monitoring & Observability
 - **Error Tracking**: Sentry integration for error capture and analysis
@@ -398,10 +409,10 @@ await ReadingV2.bulkInsertReadings([
 - Response helpers: [lib/api/response.ts](lib/api/response.ts), [lib/api/pagination.ts](lib/api/pagination.ts)
 - API routes: [app/api/v2/](app/api/v2/)
 
-### Phase 5: Security & Performance
+### Security & Performance
 - Rate limiting: [lib/ratelimit/](lib/ratelimit/)
 - Caching: [lib/cache/](lib/cache/)
-- Authentication: [lib/auth/](lib/auth/)
+- Authentication: [proxy.ts](proxy.ts) (Clerk)
 - Monitoring: [lib/monitoring/](lib/monitoring/)
 - Redis: [lib/redis/](lib/redis/)
 - Middleware: [lib/middleware/](lib/middleware/)

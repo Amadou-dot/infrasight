@@ -2,6 +2,7 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ClerkThemeProvider } from '@/components/clerk-theme-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import TopNav from '@/components/TopNav';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -37,8 +38,10 @@ export default function RootLayout({
             defaultTheme='system'
             enableSystem
             disableTransitionOnChange>
-            <TopNav />
-            <main className='min-h-screen'>{children}</main>
+            <ClerkThemeProvider>
+              <TopNav />
+              <main className='min-h-screen'>{children}</main>
+            </ClerkThemeProvider>
           </ThemeProvider>
           {/* Dev tools only in development */}
           {process.env.NODE_ENV === 'development' && (
