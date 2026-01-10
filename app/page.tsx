@@ -23,8 +23,12 @@ import {
 import { useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useUser } from '@clerk/nextjs';
 
 export default function Home() {
+  // User info from Clerk
+  const { user } = useUser();
+
   // Data fetching with React Query (automatic caching, deduplication)
   const { data: health, isLoading } = useHealthAnalytics();
   const { data: forecast } = useMaintenanceForecast({ days_ahead: 7 });
@@ -83,7 +87,7 @@ export default function Home() {
               System Overview
             </h1>
             <p className="text-muted-foreground">
-              {getGreeting()}, Admin.{' '}
+              {getGreeting()}{user?.firstName ? `, ${user.firstName}` : ''}.{' '}
               {activeAlerts > 0 && (
                 <span>
                   You have{' '}
