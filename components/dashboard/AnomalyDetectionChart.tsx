@@ -27,14 +27,25 @@ interface AnomalyDetectionChartProps {
 export default function AnomalyDetectionChart({
   hours = 6,
 }: AnomalyDetectionChartProps) {
-  // Calculate time range
-  const endDate = new Date();
-  const startDate = new Date(endDate.getTime() - hours * 60 * 60 * 1000);
+  // Calculate time range - memoize to prevent infinite re-renders
+  // Round to nearest minute to avoid constant changes
+  const { startDateISO, endDateISO, startDate } = useMemo(() => {
+    const now = new Date();
+    // Round down to nearest minute to stabilize the value
+    now.setSeconds(0, 0);
+    const end = now;
+    const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
+    return {
+      startDateISO: start.toISOString(),
+      endDateISO: end.toISOString(),
+      startDate: start,
+    };
+  }, [hours]);
 
   // Fetch anomalies with React Query
   const { data: anomaliesData, isLoading, error: fetchError } = useAnomalies({
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
+    startDate: startDateISO,
+    endDate: endDateISO,
     limit: 1000,
   });
 
@@ -47,8 +58,8 @@ export default function AnomalyDetectionChart({
     const fetchReadingsTotal = async () => {
       try {
         const readingsRes = await v2Api.readings.list({
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
+          startDate: startDateISO,
+          endDate: endDateISO,
           limit: 1,
         });
         setTotalReadings(readingsRes.pagination?.total || 0);
@@ -57,7 +68,7 @@ export default function AnomalyDetectionChart({
       }
     };
     fetchReadingsTotal();
-  }, [startDate, endDate]);
+  }, [startDateISO, endDateISO]);
 
   // Process chart data
   const data = useMemo(() => {
@@ -110,7 +121,7 @@ export default function AnomalyDetectionChart({
       }));
 
     return chartData;
-  }, [anomaliesData, totalReadings, hours]);
+  }, [anomaliesData, totalReadings, hours, startDate]);
 
   if (isLoading) 
     return (
