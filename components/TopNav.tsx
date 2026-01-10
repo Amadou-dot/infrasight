@@ -2,19 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Monitor, 
-  Wrench, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Monitor,
+  Wrench,
+  BarChart3,
   Map,
   Menu,
   X
 } from 'lucide-react';
 import { useState } from 'react';
 import { Logo } from '@/components/logo';
-import { ModeToggle } from '@/components/mode-toggle';
 import { cn } from '@/lib/utils';
+import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import { Button } from '@/components/ui/button';
+import { UserButtonWithTheme } from '@/components/user-button-with-theme';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -65,10 +67,17 @@ export default function TopNav() {
             })}
           </div>
 
-          {/* Right side: Theme Toggle */}
+          {/* Right side: User (with theme toggle inside) */}
           <div className="flex items-center gap-2">
-            <ModeToggle />
-            
+            <SignedIn>
+              <UserButtonWithTheme />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="outline" size="sm">Sign In</Button>
+              </SignInButton>
+            </SignedOut>
+
             {/* Mobile menu button */}
             <button
               type="button"
