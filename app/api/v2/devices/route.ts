@@ -4,10 +4,9 @@
  * GET /api/v2/devices - List devices with pagination, filtering, and sorting
  * POST /api/v2/devices - Create a new device with full validation
  *
- * Phase 5 Features:
+ * Features:
  * - Rate limiting for POST
  * - Request validation
- * - Optional authentication for audit trails
  * - Cache invalidation on create
  * - Metrics and logging
  */
@@ -34,7 +33,6 @@ import {
 // Phase 5 imports
 import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
-import { withOptionalAuth, getAuditUser, type RequestContext } from '@/lib/auth';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 import { invalidateOnDeviceCreate, getOrSet, CACHE_TTL, devicesListKey } from '@/lib/cache';
 
@@ -231,10 +229,7 @@ export async function GET(request: NextRequest) {
 // POST /api/v2/devices - Create Device
 // ============================================================================
 
-async function handleCreateDevice(
-  authContext: RequestContext,
-  request: NextRequest
-) {
+async function handleCreateDevice(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
@@ -281,8 +276,8 @@ async function handleCreateDevice(
       );
     
 
-    // Get audit user from auth context (uses API key name if authenticated)
-    const auditUser = getAuditUser(authContext);
+    // Audit user (will be replaced with Clerk user ID when auth is added)
+    const auditUser = 'system';
 
     // Create device with audit metadata
     const deviceDoc: Partial<IDeviceV2> = {
@@ -330,10 +325,10 @@ async function handleCreateDevice(
   })();
 }
 
-// Export with middleware: Rate Limiting -> Request Validation -> Optional Auth -> Handler
+// Export with middleware: Rate Limiting -> Request Validation -> Handler
 export const POST = withRateLimit(
   withRequestValidation(
-    withOptionalAuth(handleCreateDevice),
+    handleCreateDevice,
     ValidationPresets.jsonApi
   )
 );
