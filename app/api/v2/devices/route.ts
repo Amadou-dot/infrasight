@@ -47,6 +47,9 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    // Require authentication
+    await requireAuth();
+
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;

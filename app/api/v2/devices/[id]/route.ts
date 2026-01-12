@@ -30,6 +30,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandler(async () => {
+    // Require authentication
+    await requireAuth();
+
     await dbConnect();
 
     const { id } = await params;
