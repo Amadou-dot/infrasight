@@ -55,7 +55,7 @@ jobs:
           CI: true
           NODE_ENV: test
 
-      - name: Upload coverage reports to Codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -64,55 +64,6 @@ jobs:
           name: codecov-infrasight
           fail_ci_if_error: false
           verbose: true
-
-      - name: Generate coverage summary
-        if: github.event_name == 'pull_request'
-        id: coverage-summary
-        run: |
-          STATEMENTS=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.statements.pct)")
-          BRANCHES=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.branches.pct)")
-          FUNCTIONS=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.functions.pct)")
-          LINES=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.lines.pct)")
-          echo "statements=$STATEMENTS" >> $GITHUB_OUTPUT
-          echo "branches=$BRANCHES" >> $GITHUB_OUTPUT
-          echo "functions=$FUNCTIONS" >> $GITHUB_OUTPUT
-          echo "lines=$LINES" >> $GITHUB_OUTPUT
-
-      - name: Comment PR with coverage
-        if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: coverage
-          message: |
-            ## 📊 Test Coverage Report
-
-            | Metric | Coverage | Threshold | Status |
-            |--------|----------|-----------|--------|
-            | 📝 **Statements** | ${{ steps.coverage-summary.outputs.statements }}% | 80% | ${{ steps.coverage-summary.outputs.statements >= 80 && '✅ Pass' || '❌ Fail' }} |
-            | 🌿 **Branches** | ${{ steps.coverage-summary.outputs.branches }}% | 70% | ${{ steps.coverage-summary.outputs.branches >= 70 && '✅ Pass' || '❌ Fail' }} |
-            | 🔧 **Functions** | ${{ steps.coverage-summary.outputs.functions }}% | 75% | ${{ steps.coverage-summary.outputs.functions >= 75 && '✅ Pass' || '❌ Fail' }} |
-            | 📏 **Lines** | ${{ steps.coverage-summary.outputs.lines }}% | 80% | ${{ steps.coverage-summary.outputs.lines >= 80 && '✅ Pass' || '❌ Fail' }} |
-
-            <details>
-            <summary>📈 View detailed coverage report</summary>
-
-            Check the [Codecov report](https://codecov.io/gh/${{ github.repository }}/pull/${{ github.event.pull_request.number }}) for detailed coverage analysis.
-
-            Coverage thresholds are enforced by Jest and will cause the build to fail if not met.
-            </details>
-
-            ---
-
-            <sub>Coverage powered by [Jest](https://jestjs.io/) • Reports by [Codecov](https://codecov.io/)</sub>
-
-      - name: Check coverage thresholds
-        run: |
-          echo "✅ Coverage thresholds check complete"
-          echo "Jest enforces the following thresholds:"
-          echo "  - Statements: 80%"
-          echo "  - Branches: 70%"
-          echo "  - Functions: 75%"
-          echo "  - Lines: 80%"
 
       - name: Fail workflow if tests failed
         if: steps.test.outcome == 'failure'
