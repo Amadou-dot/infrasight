@@ -335,7 +335,7 @@ describe('Single Device API Integration Tests', () => {
         // Verify audit trail was updated
         const updatedDevice = await DeviceV2.findById('patch_device_audit');
         expect(updatedDevice?.audit.updated_at).toBeDefined();
-        expect(updatedDevice?.audit.updated_by).toBe('sys-migration-agent');
+        expect(updatedDevice?.audit.updated_by).toBe('test@example.com');
       });
     });
 
@@ -475,7 +475,7 @@ describe('Single Device API Integration Tests', () => {
         // Verify device is soft-deleted in database
         const device = await DeviceV2.findById('delete_device_db');
         expect(device?.audit.deleted_at).toBeDefined();
-        expect(device?.audit.deleted_by).toBe('sys-migration-agent');
+        expect(device?.audit.deleted_by).toBe('test@example.com');
       });
 
       it('should still find device with findById after soft delete', async () => {

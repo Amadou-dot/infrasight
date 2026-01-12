@@ -19,6 +19,7 @@ import {
 import { validateInput, validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
+import { requireAuth, getAuditUser } from '@/lib/auth';
 
 // ============================================================================
 // GET /api/v2/devices/[id] - Get Single Device
@@ -29,6 +30,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandler(async () => {
+    // Require authentication
+    await requireAuth();
+
     await dbConnect();
 
     const { id } = await params;
@@ -110,6 +114,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandler(async () => {
+    // Require authentication
+    const { userId, user } = await requireAuth();
+    const auditUser = getAuditUser(userId, user);
+
     await dbConnect();
 
     const { id } = await params;
@@ -226,7 +234,7 @@ export async function PATCH(
 
     // Update audit trail
     updateObj['audit.updated_at'] = new Date();
-    updateObj['audit.updated_by'] = 'sys-migration-agent';
+    updateObj['audit.updated_by'] = auditUser;
 
     // Perform update
     const updatedDevice = await DeviceV2.findByIdAndUpdate(
@@ -248,6 +256,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandler(async () => {
+    // Require authentication
+    const { userId, user } = await requireAuth();
+    const auditUser = getAuditUser(userId, user);
+
     await dbConnect();
 
     const { id } = await params;
@@ -280,7 +292,7 @@ export async function DELETE(
     
 
     // Perform soft delete
-    const deletedDevice = await DeviceV2.softDelete(id, 'sys-migration-agent');
+    const deletedDevice = await DeviceV2.softDelete(id, auditUser);
 
     return jsonSuccess(
       { 

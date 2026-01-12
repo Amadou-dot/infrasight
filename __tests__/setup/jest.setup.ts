@@ -13,6 +13,31 @@ import '@testing-library/jest-dom';
 // Set test timeout
 jest.setTimeout(30000);
 
+// ============================================================================
+// Global Clerk Auth Mock
+// ============================================================================
+// Mock Clerk auth by default for all tests (authenticated as test user)
+// Individual tests can override with jest.mock() if needed
+
+jest.mock('@clerk/nextjs/server', () => ({
+  auth: jest.fn().mockResolvedValue({ userId: 'user_test_default' }),
+  currentUser: jest.fn().mockResolvedValue({
+    id: 'user_test_default',
+    fullName: 'Test User',
+    firstName: 'Test',
+    lastName: 'User',
+    primaryEmailAddressId: 'email_1',
+    emailAddresses: [
+      {
+        id: 'email_1',
+        emailAddress: 'test@example.com',
+      },
+    ],
+  }),
+  clerkMiddleware: jest.fn(),
+  createRouteMatcher: jest.fn(() => () => false),
+}));
+
 // Connect to the test database before all tests in a file
 beforeAll(async () => {
   const uri = process.env.MONGODB_URI;

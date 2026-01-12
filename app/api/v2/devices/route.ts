@@ -36,6 +36,9 @@ import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 import { invalidateOnDeviceCreate, getOrSet, CACHE_TTL, devicesListKey } from '@/lib/cache';
 
+// Auth
+import { requireAuth, getAuditUser } from '@/lib/auth';
+
 // ============================================================================
 // GET /api/v2/devices - List Devices
 // ============================================================================
@@ -44,6 +47,9 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    // Require authentication
+    await requireAuth();
+
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
@@ -233,6 +239,10 @@ async function handleCreateDevice(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    // Require authentication
+    const { userId, user } = await requireAuth();
+    const auditUser = getAuditUser(userId, user);
+
     await dbConnect();
 
     // Parse and validate request body
@@ -256,28 +266,25 @@ async function handleCreateDevice(request: NextRequest) {
       serial_number: deviceData.serial_number,
     }).lean();
 
-    if (existingDevice) 
+    if (existingDevice)
       throw new ApiError(
         ErrorCodes.SERIAL_NUMBER_EXISTS,
         409,
         `Device with serial number '${deviceData.serial_number}' already exists`,
         { field: 'serial_number', value: deviceData.serial_number }
       );
-    
+
 
     // Check for duplicate ID
     const existingId = await DeviceV2.findById(deviceData._id).lean();
-    if (existingId) 
+    if (existingId)
       throw new ApiError(
         ErrorCodes.DEVICE_ID_EXISTS,
         409,
         `Device with ID '${deviceData._id}' already exists`,
         { field: '_id', value: deviceData._id }
       );
-    
 
-    // Audit user (will be replaced with Clerk user ID when auth is added)
-    const auditUser = 'system';
 
     // Create device with audit metadata
     const deviceDoc: Partial<IDeviceV2> = {

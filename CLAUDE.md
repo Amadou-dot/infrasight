@@ -250,10 +250,13 @@ The v2 API includes enterprise-grade features for production deployment:
 
 ### Authentication (Clerk)
 - **Provider**: [Clerk](https://clerk.com) for user authentication
-- **Middleware**: `proxy.ts` protects all dashboard routes (Next.js 16+ uses `proxy.ts` instead of `middleware.ts`)
+- **Middleware**: `proxy.ts` protects all routes (Next.js 16+ uses `proxy.ts` instead of `middleware.ts`)
 - **Components**: `UserButton` in TopNav, `useUser()` hook for user data
 - **Routes**: `/sign-in`, `/sign-up` for authentication pages
-- **Protected**: All dashboard routes require sign-in; API routes are public
+- **Protected Routes**: All dashboard and API routes require sign-in
+- **Public Routes**: Only `/api/v2/cron/simulate` is public (for GitHub Actions cron job)
+- **API Auth Utilities**: `lib/auth/` provides `requireAuth()` and `getAuditUser()` helpers for API routes
+- **Audit Tracking**: All mutation operations (create, update, delete) track the authenticated user's email in audit trails
 
 ### Monitoring & Observability
 - **Error Tracking**: Sentry integration for error capture and analysis
@@ -412,7 +415,8 @@ await ReadingV2.bulkInsertReadings([
 ### Security & Performance
 - Rate limiting: [lib/ratelimit/](lib/ratelimit/)
 - Caching: [lib/cache/](lib/cache/)
-- Authentication: [proxy.ts](proxy.ts) (Clerk)
+- Authentication middleware: [proxy.ts](proxy.ts) (Clerk)
+- API auth utilities: [lib/auth/](lib/auth/) (`requireAuth()`, `getAuditUser()`)
 - Monitoring: [lib/monitoring/](lib/monitoring/)
 - Redis: [lib/redis/](lib/redis/)
 - Middleware: [lib/middleware/](lib/middleware/)
