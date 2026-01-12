@@ -30,6 +30,9 @@ import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { logger, recordIngestion, recordRequest, createRequestTimer } from '@/lib/monitoring';
 import { invalidateReadings } from '@/lib/cache';
 
+// Auth
+import { requireAuth } from '@/lib/auth';
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -102,6 +105,9 @@ async function handleIngest(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    // Require authentication
+    await requireAuth();
+
     await dbConnect();
 
     // Parse and validate request body

@@ -3,7 +3,7 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/api/(.*)', // API routes remain public
+  '/api/v2/cron/simulate', // Keep simulate public for GitHub Actions cron job
 ]);
 
 // Check if E2E testing mode is enabled via environment variable
