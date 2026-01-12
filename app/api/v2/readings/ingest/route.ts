@@ -31,7 +31,7 @@ import { logger, recordIngestion, recordRequest, createRequestTimer } from '@/li
 import { invalidateReadings } from '@/lib/cache';
 
 // Auth
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, getAuditUser } from '@/lib/auth';
 
 // ============================================================================
 // Constants
@@ -105,8 +105,9 @@ async function handleIngest(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    // Require authentication
-    await requireAuth();
+    // Require authentication and get user info for audit
+    const { userId, user } = await requireAuth();
+    const auditUser = getAuditUser(userId, user);
 
     await dbConnect();
 
@@ -239,6 +240,7 @@ async function handleIngest(request: NextRequest) {
           $set: {
             'health.last_seen': new Date(),
             'audit.updated_at': new Date(),
+            'audit.updated_by': auditUser,
           },
         }
       );
@@ -259,6 +261,7 @@ async function handleIngest(request: NextRequest) {
       rejected: results.rejected,
       duration,
       deviceCount: existingDeviceIds.size,
+      submittedBy: auditUser,
     });
 
     return jsonSuccess(
@@ -267,6 +270,8 @@ async function handleIngest(request: NextRequest) {
         rejected: results.rejected,
         errors: results.errors.slice(0, 10), // Limit error details
         total_errors: results.errors.length,
+        submitted_by: auditUser,
+        submitted_at: new Date().toISOString(),
       },
       `Ingested ${results.inserted} readings`,
       201
