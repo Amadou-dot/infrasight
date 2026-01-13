@@ -67,10 +67,7 @@ export type ErrorResponse = ApiErrorJSON;
 /**
  * Generic API response union type
  */
-export type ApiResponse<T> =
-  | SuccessResponse<T>
-  | PaginatedResponse<T>
-  | ErrorResponse;
+export type ApiResponse<T> = SuccessResponse<T> | PaginatedResponse<T> | ErrorResponse;
 
 // ============================================================================
 // RESPONSE FORMATTERS
@@ -100,11 +97,7 @@ export function successResponse<T>(data: T, message?: string): SuccessResponse<T
 /**
  * Creates a success Response object for Next.js
  */
-export function jsonSuccess<T>(
-  data: T,
-  message?: string,
-  status = 200
-): Response {
+export function jsonSuccess<T>(data: T, message?: string, status = 200): Response {
   return Response.json(successResponse(data, message), { status });
 }
 
@@ -150,11 +143,7 @@ export function simpleErrorResponse(
 /**
  * Creates an error Response object from code, status, and message
  */
-export function jsonSimpleError(
-  code: string,
-  statusCode: number,
-  message: string
-): Response {
+export function jsonSimpleError(code: string, statusCode: number, message: string): Response {
   return Response.json(simpleErrorResponse(code, statusCode, message), {
     status: statusCode,
   });
@@ -175,10 +164,7 @@ export function jsonSimpleError(
  * });
  * ```
  */
-export function paginatedResponse<T>(
-  data: T[],
-  pagination: PaginationInfo
-): PaginatedResponse<T> {
+export function paginatedResponse<T>(data: T[], pagination: PaginationInfo): PaginatedResponse<T> {
   return {
     success: true,
     data,
@@ -190,11 +176,7 @@ export function paginatedResponse<T>(
 /**
  * Creates a paginated Response object for Next.js
  */
-export function jsonPaginated<T>(
-  data: T[],
-  pagination: PaginationInfo,
-  status = 200
-): Response {
+export function jsonPaginated<T>(data: T[], pagination: PaginationInfo, status = 200): Response {
   return Response.json(paginatedResponse(data, pagination), { status });
 }
 
@@ -274,18 +256,14 @@ export function isSuccessResponse<T>(
 /**
  * Type guard to check if a response is an error
  */
-export function isErrorResponse<T>(
-  response: ApiResponse<T>
-): response is ErrorResponse {
+export function isErrorResponse<T>(response: ApiResponse<T>): response is ErrorResponse {
   return response.success === false;
 }
 
 /**
  * Type guard to check if a response is paginated
  */
-export function isPaginatedResponse<T>(
-  response: ApiResponse<T>
-): response is PaginatedResponse<T> {
+export function isPaginatedResponse<T>(response: ApiResponse<T>): response is PaginatedResponse<T> {
   return response.success === true && 'pagination' in response;
 }
 

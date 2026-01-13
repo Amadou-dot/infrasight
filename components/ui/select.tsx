@@ -48,7 +48,8 @@ export function Select({
   // Close on outside click
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(event.target as Node))
+        setOpen(false);
     };
 
     if (open) {
@@ -75,10 +76,7 @@ export function Select({
   };
 
   return (
-    <div
-      ref={containerRef}
-      className={cn('relative inline-block', className)}
-    >
+    <div ref={containerRef} className={cn('relative inline-block', className)}>
       {/* Trigger Button */}
       <button
         type="button"
@@ -95,15 +93,11 @@ export function Select({
           'focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           sizeClasses[size],
-          'min-w-[120px]'
+          'min-w-30'
         )}
       >
         <span className="flex items-center gap-2">
-          {label && (
-            <span className="text-gray-500 dark:text-gray-400 font-medium">
-              {label}:
-            </span>
-          )}
+          {label && <span className="text-gray-500 dark:text-gray-400 font-medium">{label}:</span>}
           <span className={cn(!selectedOption && 'text-gray-400 dark:text-gray-500')}>
             {selectedOption?.label || placeholder}
           </span>
@@ -128,7 +122,7 @@ export function Select({
           )}
         >
           <div className="max-h-60 overflow-auto py-1">
-            {options.map((option) => {
+            {options.map(option => {
               const isSelected = option.value === value;
               return (
                 <button
@@ -150,9 +144,7 @@ export function Select({
                   )}
                 >
                   <span>{option.label}</span>
-                  {isSelected && (
-                    <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  )}
+                  {isSelected && <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
                 </button>
               );
             })}
@@ -173,13 +165,13 @@ export interface LabeledSelectProps extends Omit<SelectProps, 'label'> {
 
 export function LabeledSelect({ label, className, ...props }: LabeledSelectProps) {
   return (
-    <div className={cn(
-      'flex items-center gap-2 bg-white dark:bg-zinc-900 p-2 rounded-lg border border-gray-200 dark:border-zinc-700 shadow-sm',
-      className
-    )}>
-      <span className="text-sm font-medium text-gray-600 dark:text-gray-200 px-2">
-        {label}:
-      </span>
+    <div
+      className={cn(
+        'flex items-center gap-2 bg-white dark:bg-zinc-900 p-2 rounded-lg border border-gray-200 dark:border-zinc-700 shadow-sm',
+        className
+      )}
+    >
+      <span className="text-sm font-medium text-gray-600 dark:text-gray-200 px-2">{label}:</span>
       <Select {...props} />
     </div>
   );

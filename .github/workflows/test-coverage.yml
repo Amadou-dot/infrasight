@@ -19,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for better coverage diffs
+          fetch-depth: 0 # Full history for better coverage diffs
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

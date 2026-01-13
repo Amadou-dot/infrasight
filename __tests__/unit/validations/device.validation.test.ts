@@ -29,9 +29,7 @@ describe('Device Validation Schemas', () => {
       for (const status of validStatuses) {
         const result = deviceStatusSchema.safeParse(status);
         expect(result.success).toBe(true);
-        if (result.success) 
-          expect(result.data).toBe(status);
-        
+        if (result.success) expect(result.data).toBe(status);
       }
     });
 
@@ -107,9 +105,7 @@ describe('Device Validation Schemas', () => {
 
       const result = deviceConfigurationSchema.safeParse(configWithoutInterval);
       expect(result.success).toBe(true);
-      if (result.success) 
-        expect(result.data.sampling_interval).toBe(60);
-      
+      if (result.success) expect(result.data.sampling_interval).toBe(60);
     });
 
     it('should reject invalid sampling interval', () => {
@@ -342,9 +338,7 @@ describe('Device Validation Schemas', () => {
     it('should apply default status', () => {
       const result = createDeviceSchema.safeParse(validDevice);
       expect(result.success).toBe(true);
-      if (result.success) 
-        expect(result.data.status).toBe('active');
-      
+      if (result.success) expect(result.data.status).toBe('active');
     });
 
     it('should apply default metadata', () => {

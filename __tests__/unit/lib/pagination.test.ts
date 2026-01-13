@@ -392,13 +392,7 @@ describe('Pagination Utilities', () => {
 
   describe('calculateCursorPagination()', () => {
     it('should calculate cursor pagination with hasMore true', () => {
-      const result = calculateCursorPagination(
-        100,
-        20,
-        true,
-        'next_cursor',
-        'prev_cursor'
-      );
+      const result = calculateCursorPagination(100, 20, true, 'next_cursor', 'prev_cursor');
 
       expect(result).toEqual({
         total: 100,
@@ -431,13 +425,7 @@ describe('Pagination Utilities', () => {
     });
 
     it('should set hasPrevious based on prevCursor presence', () => {
-      const withPrev = calculateCursorPagination(
-        100,
-        20,
-        false,
-        undefined,
-        'prev'
-      );
+      const withPrev = calculateCursorPagination(100, 20, false, undefined, 'prev');
       const withoutPrev = calculateCursorPagination(100, 20, false);
 
       expect(withPrev.hasPrevious).toBe(true);
@@ -522,9 +510,7 @@ describe('Pagination Utilities', () => {
 
     it('should throw error for cursor missing required fields', () => {
       const invalidData = { field: 'test' }; // missing value and lastId
-      const cursor = Buffer.from(JSON.stringify(invalidData)).toString(
-        'base64url'
-      );
+      const cursor = Buffer.from(JSON.stringify(invalidData)).toString('base64url');
 
       expect(() => {
         decodeCursor(cursor);
@@ -538,9 +524,7 @@ describe('Pagination Utilities', () => {
         fail('Should have thrown error');
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
-        if (error instanceof ApiError) {
-          expect(error.metadata?.cursor).toBe(invalidCursor);
-        }
+        if (error instanceof ApiError) expect(error.metadata?.cursor).toBe(invalidCursor);
       }
     });
   });
@@ -747,8 +731,7 @@ describe('Pagination Utilities', () => {
       const query = buildCursorQuery(params);
 
       expect(query).toHaveProperty('$or');
-      const orConditions = (query as { $or: Array<Record<string, unknown>> })
-        .$or;
+      const orConditions = (query as { $or: Array<Record<string, unknown>> }).$or;
       expect(orConditions[0]).toHaveProperty('timestamp', { $lt: 100 });
     });
 

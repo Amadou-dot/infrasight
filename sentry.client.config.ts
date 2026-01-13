@@ -38,13 +38,11 @@ Sentry.init({
   beforeSend(event) {
     const errorMessage = event.exception?.values?.[0]?.value;
     // Don't send rate limit errors to Sentry (expected behavior)
-    if (errorMessage?.includes('RATE_LIMIT')) 
-      return null;
-    
+    if (errorMessage?.includes('RATE_LIMIT')) return null;
+
     // Don't send validation errors (user input issues)
-    if (errorMessage?.includes('VALIDATION_ERROR')) 
-      return null;
-    
+    if (errorMessage?.includes('VALIDATION_ERROR')) return null;
+
     return event;
   },
 });

@@ -15,10 +15,7 @@ import {
 import { validateInput, validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonPaginated } from '@/lib/api/response';
-import {
-  getOffsetPaginationParams,
-  calculateOffsetPagination,
-} from '@/lib/api/pagination';
+import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
 
 // ============================================================================
 // History Entry Type
@@ -35,10 +32,7 @@ interface HistoryEntry {
 // GET /api/v2/devices/[id]/history - Get Device History
 // ============================================================================
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     await dbConnect();
 
@@ -46,36 +40,32 @@ export async function GET(
 
     // Validate path param
     const paramValidation = validateInput({ id }, deviceIdParamSchema);
-    if (!paramValidation.success) 
+    if (!paramValidation.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         paramValidation.errors.map(e => e.message).join(', '),
         { errors: paramValidation.errors }
       );
-    
 
     // Validate query params
     const searchParams = request.nextUrl.searchParams;
     const queryValidation = validateQuery(searchParams, deviceHistoryQuerySchema);
-    
-    if (!queryValidation.success) 
+
+    if (!queryValidation.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         queryValidation.errors.map(e => e.message).join(', '),
         { errors: queryValidation.errors }
       );
-    
 
     const query = queryValidation.data as DeviceHistoryQuery;
 
     // Find device (include deleted for history)
     const device = await DeviceV2.findById(id).lean();
 
-    if (!device) 
-      throw ApiError.notFound('Device', id);
-    
+    if (!device) throw ApiError.notFound('Device', id);
 
     // Build history from audit trail
     // Note: In a production system, you might have a separate audit log collection
@@ -83,7 +73,7 @@ export async function GET(
     const history: HistoryEntry[] = [];
 
     // Created entry
-    if (device.audit?.created_at) 
+    if (device.audit?.created_at)
       history.push({
         action: 'created',
         timestamp: device.audit.created_at,
@@ -94,55 +84,47 @@ export async function GET(
           initial_location: device.location,
         },
       });
-    
 
     // Updated entry (if different from created)
     if (
       device.audit?.updated_at &&
       device.audit.created_at &&
       device.audit.updated_at.getTime() !== device.audit.created_at.getTime()
-    ) 
+    )
       history.push({
         action: 'updated',
         timestamp: device.audit.updated_at,
         user: device.audit.updated_by || 'unknown',
         changes: {
           current_status: device.status,
-
         },
       });
-    
 
     // Deleted entry
-    if (device.audit?.deleted_at) 
+    if (device.audit?.deleted_at)
       history.push({
         action: 'deleted',
         timestamp: device.audit.deleted_at,
         user: device.audit.deleted_by || 'unknown',
       });
-    
 
     // Apply filters
     let filteredHistory = history;
 
     // Filter by action
-    if (query.action) 
-      filteredHistory = filteredHistory.filter((h) => h.action === query.action);
-    
+    if (query.action) filteredHistory = filteredHistory.filter(h => h.action === query.action);
 
     // Filter by user
-    if (query.user) 
-      filteredHistory = filteredHistory.filter((h) => h.user === query.user);
-    
+    if (query.user) filteredHistory = filteredHistory.filter(h => h.user === query.user);
 
     // Filter by date range
     if (query.startDate) {
       const startDate = new Date(query.startDate);
-      filteredHistory = filteredHistory.filter((h) => h.timestamp >= startDate);
+      filteredHistory = filteredHistory.filter(h => h.timestamp >= startDate);
     }
     if (query.endDate) {
       const endDate = new Date(query.endDate);
-      filteredHistory = filteredHistory.filter((h) => h.timestamp <= endDate);
+      filteredHistory = filteredHistory.filter(h => h.timestamp <= endDate);
     }
 
     // Sort by timestamp descending (most recent first)
@@ -160,11 +142,7 @@ export async function GET(
       pagination.skip + pagination.limit
     );
 
-    const paginationInfo = calculateOffsetPagination(
-      total,
-      pagination.page,
-      pagination.limit
-    );
+    const paginationInfo = calculateOffsetPagination(total, pagination.page, pagination.limit);
 
     return jsonPaginated(paginatedHistory, paginationInfo);
   })();

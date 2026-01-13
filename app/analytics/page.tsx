@@ -14,7 +14,7 @@ export default function AnalyticsPage() {
 
   // Fetch metadata with React Query
   const { data: metadata } = useMetadata();
-  const buildings = metadata?.buildings || [];
+  const buildings = useMemo(() => metadata?.buildings || [], [metadata?.buildings]);
 
   // Extract all unique floors from all buildings
   const availableFloors = useMemo(() => {
@@ -26,11 +26,11 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black p-4 md:p-8">
       <ToastContainer
-        position='bottom-center'
+        position="bottom-center"
         autoClose={false}
         pauseOnFocusLoss
         pauseOnHover
-        theme='colored'
+        theme="colored"
       />
 
       {/* Header */}
@@ -47,14 +47,12 @@ export default function AnalyticsPage() {
               System health metrics, anomalies, and performance analytics
             </p>
           </div>
-          
+
           {/* Floor Filter */}
           <Select
-            label='Floor'
+            label="Floor"
             value={String(selectedFloor)}
-            onValueChange={(val) =>
-              setSelectedFloor(val === 'all' ? 'all' : parseInt(val))
-            }
+            onValueChange={val => setSelectedFloor(val === 'all' ? 'all' : parseInt(val))}
             options={[
               { value: 'all', label: 'All Floors' },
               ...availableFloors.map(f => ({

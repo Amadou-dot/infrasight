@@ -49,13 +49,14 @@ export default function StatCard({
         <div
           className={cn(
             'flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium',
-            trend.isPositive
-              ? 'bg-green-500/10 text-green-400'
-              : 'bg-red-500/10 text-red-400'
+            trend.isPositive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
           )}
         >
           <span>{trend.isPositive ? '↗' : '↘'}</span>
-          <span>{trend.isPositive ? '+' : ''}{trend.value}%</span>
+          <span>
+            {trend.isPositive ? '+' : ''}
+            {trend.value}%
+          </span>
         </div>
       )}
     </div>

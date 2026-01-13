@@ -21,12 +21,7 @@ interface CriticalDevice {
   room: string;
   floor: number;
   type: string;
-  issue:
-    | 'offline'
-    | 'error'
-    | 'low_battery'
-    | 'maintenance_overdue'
-    | 'maintenance_critical';
+  issue: 'offline' | 'error' | 'low_battery' | 'maintenance_overdue' | 'maintenance_critical';
   details?: string;
 }
 
@@ -46,9 +41,7 @@ export default function CriticalDevicesList({
   useEffect(() => {
     const fetchCriticalDevices = async (showLoading = false) => {
       try {
-        if (showLoading) 
-          setLoading(true);
-        
+        if (showLoading) setLoading(true);
 
         // Fetch health data and maintenance forecast in parallel
         const [healthRes, forecastRes, devicesRes] = await Promise.all([
@@ -68,7 +61,7 @@ export default function CriticalDevicesList({
         const criticalDevices: CriticalDevice[] = [];
 
         // 1. Offline devices (highest priority)
-        if (health.alerts?.offline_devices?.devices) 
+        if (health.alerts?.offline_devices?.devices)
           health.alerts.offline_devices.devices.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -80,10 +73,9 @@ export default function CriticalDevicesList({
               details: 'Device offline',
             });
           });
-        
 
         // 2. Error devices
-        if (health.alerts?.error_devices?.devices) 
+        if (health.alerts?.error_devices?.devices)
           health.alerts.error_devices.devices.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -95,10 +87,9 @@ export default function CriticalDevicesList({
               details: 'Device error',
             });
           });
-        
 
         // 3. Low battery devices
-        if (health.alerts?.low_battery_devices?.devices) 
+        if (health.alerts?.low_battery_devices?.devices)
           health.alerts.low_battery_devices.devices.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -112,10 +103,9 @@ export default function CriticalDevicesList({
                 : 'Low battery',
             });
           });
-        
 
         // 4. Maintenance overdue (from forecast summary)
-        if (forecast.summary?.maintenance_overdue) 
+        if (forecast.summary?.maintenance_overdue)
           forecast.summary.maintenance_overdue.forEach(d => {
             criticalDevices.push({
               id: d._id,
@@ -127,12 +117,11 @@ export default function CriticalDevicesList({
               details: 'Maintenance overdue',
             });
           });
-        
 
         // 5. Critical maintenance (from forecast critical list)
         forecast.critical?.forEach(d => {
           // Avoid duplicates
-          if (!criticalDevices.some(cd => cd.id === d._id)) 
+          if (!criticalDevices.some(cd => cd.id === d._id))
             criticalDevices.push({
               id: d._id,
               name: d.serial_number || 'Unknown Device',
@@ -142,7 +131,6 @@ export default function CriticalDevicesList({
               issue: 'maintenance_critical',
               details: 'Critical maintenance',
             });
-          
         });
 
         setDevices(criticalDevices.slice(0, maxItems));
@@ -151,9 +139,7 @@ export default function CriticalDevicesList({
         console.error('Failed to fetch critical devices:', err);
         setError('Failed to load critical devices');
       } finally {
-        if (showLoading) 
-          setLoading(false);
-        
+        if (showLoading) setLoading(false);
       }
     };
 
@@ -167,17 +153,17 @@ export default function CriticalDevicesList({
   const getIssueIcon = (issue: CriticalDevice['issue']) => {
     switch (issue) {
       case 'offline':
-        return <WifiOff className='h-4 w-4 text-gray-500' />;
+        return <WifiOff className="h-4 w-4 text-gray-500" />;
       case 'error':
-        return <AlertCircle className='h-4 w-4 text-red-500' />;
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
       case 'low_battery':
-        return <BatteryLow className='h-4 w-4 text-orange-500' />;
+        return <BatteryLow className="h-4 w-4 text-orange-500" />;
       case 'maintenance_overdue':
-        return <Clock className='h-4 w-4 text-red-500' />;
+        return <Clock className="h-4 w-4 text-red-500" />;
       case 'maintenance_critical':
-        return <Wrench className='h-4 w-4 text-amber-500' />;
+        return <Wrench className="h-4 w-4 text-amber-500" />;
       default:
-        return <AlertTriangle className='h-4 w-4 text-yellow-500' />;
+        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
     }
   };
 
@@ -215,25 +201,26 @@ export default function CriticalDevicesList({
     }
   };
 
-  if (loading) 
+  if (loading)
     return (
       <Card>
         <CardHeader>
-          <CardTitle className='flex items-center gap-2 text-lg'>
-            <AlertTriangle className='h-5 w-5 text-red-500' />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
             Devices Needing Attention
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className='space-y-3'>
+          <div className="space-y-3">
             {[1, 2, 3].map(i => (
               <div
                 key={i}
-                className='animate-pulse flex items-center gap-3 p-3 bg-muted rounded-lg'>
-                <div className='h-8 w-8 bg-muted-foreground/20 rounded' />
-                <div className='flex-1 space-y-2'>
-                  <div className='h-4 bg-muted-foreground/20 rounded w-1/3' />
-                  <div className='h-3 bg-muted-foreground/20 rounded w-1/2' />
+                className="animate-pulse flex items-center gap-3 p-3 bg-muted rounded-lg"
+              >
+                <div className="h-8 w-8 bg-muted-foreground/20 rounded" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted-foreground/20 rounded w-1/3" />
+                  <div className="h-3 bg-muted-foreground/20 rounded w-1/2" />
                 </div>
               </div>
             ))}
@@ -241,78 +228,72 @@ export default function CriticalDevicesList({
         </CardContent>
       </Card>
     );
-  
 
-  if (error) 
+  if (error)
     return (
-      <Card className='border-red-200 dark:border-red-900'>
-        <CardContent className='py-6'>
-          <p className='text-center text-red-500'>{error}</p>
+      <Card className="border-red-200 dark:border-red-900">
+        <CardContent className="py-6">
+          <p className="text-center text-red-500">{error}</p>
         </CardContent>
       </Card>
     );
-  
 
-  if (devices.length === 0) 
+  if (devices.length === 0)
     return (
-      <Card className='border-green-200 dark:border-green-900'>
+      <Card className="border-green-200 dark:border-green-900">
         <CardHeader>
-          <CardTitle className='flex items-center gap-2 text-lg text-green-600 dark:text-green-400'>
+          <CardTitle className="flex items-center gap-2 text-lg text-green-600 dark:text-green-400">
             ✓ All Systems Healthy
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className='text-muted-foreground'>
-            No devices require immediate attention.
-          </p>
+          <p className="text-muted-foreground">No devices require immediate attention.</p>
         </CardContent>
       </Card>
     );
-  
 
   return (
-    <Card className='border-red-200 dark:border-red-900/50 h-full flex flex-col'>
-      <CardHeader className='flex flex-row items-center justify-between pb-2'>
-        <CardTitle className='flex items-center gap-2 text-lg'>
-          <AlertTriangle className='h-5 w-5 text-red-500' />
+    <Card className="border-red-200 dark:border-red-900/50 h-full flex flex-col">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
           Devices Needing Attention
-          <span className='ml-2 text-sm font-normal text-muted-foreground'>
-            ({devices.length})
-          </span>
+          <span className="ml-2 text-sm font-normal text-muted-foreground">({devices.length})</span>
         </CardTitle>
         <Link
-          href='/devices?filter=critical'
-          className='text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1'>
-          View all <ChevronRight className='h-4 w-4' />
+          href="/devices?filter=critical"
+          className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+        >
+          View all <ChevronRight className="h-4 w-4" />
         </Link>
       </CardHeader>
-      <CardContent className='flex-1 flex flex-col min-h-0'>
-        <div className='space-y-2 overflow-y-auto flex-1'>
+      <CardContent className="flex-1 flex flex-col min-h-0">
+        <div className="space-y-2 overflow-y-auto flex-1">
           {devices.map(device => (
             <button
               key={`${device.id}-${device.issue}`}
               onClick={() => onDeviceClick?.(device.id)}
-              className='w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left'>
-              <div className='shrink-0 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm'>
+              className="w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left"
+            >
+              <div className="shrink-0 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
                 {getIssueIcon(device.issue)}
               </div>
-              <div className='flex-1 min-w-0'>
-                <p className='font-medium text-sm truncate'>{device.name}</p>
-                <p className='text-xs text-muted-foreground truncate'>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate">{device.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
                   Floor {device.floor} • {device.room}
                 </p>
               </div>
-              <div className='flex flex-col items-end gap-1'>
+              <div className="flex flex-col items-end gap-1">
                 <span
                   className={`text-xs px-2 py-1 rounded-full font-medium ${getIssueBadgeClass(
                     device.issue
-                  )}`}>
+                  )}`}
+                >
                   {getIssueLabel(device.issue)}
                 </span>
                 {device.details && (
-                  <span className='text-xs text-muted-foreground'>
-                    {device.details}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{device.details}</span>
                 )}
               </div>
             </button>

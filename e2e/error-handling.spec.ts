@@ -14,7 +14,7 @@ test.describe('Error Handling', () => {
   test.describe('Network Errors', () => {
     test('should handle API failures gracefully', async ({ page, context }) => {
       // Block API requests to simulate network failure
-      await context.route('**/api/v2/**', (route) => route.abort());
+      await context.route('**/api/v2/**', route => route.abort());
 
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
@@ -25,15 +25,14 @@ test.describe('Error Handling', () => {
 
       // Should not crash
       const errors: string[] = [];
-      page.on('pageerror', (error) => {
+      page.on('pageerror', error => {
         // Filter critical errors (not network-related)
         if (
           !error.message.includes('fetch') &&
           !error.message.includes('network') &&
           !error.message.includes('Failed to fetch')
-        ) {
+        )
           errors.push(error.message);
-        }
       });
 
       await page.waitForTimeout(2000);
@@ -43,7 +42,7 @@ test.describe('Error Handling', () => {
 
     test('should show error state when API returns 500', async ({ page, context }) => {
       // Mock API to return 500 error
-      await context.route('**/api/v2/devices**', (route) =>
+      await context.route('**/api/v2/devices**', route =>
         route.fulfill({
           status: 500,
           contentType: 'application/json',
@@ -67,9 +66,9 @@ test.describe('Error Handling', () => {
 
     test('should handle timeout errors', async ({ page, context }) => {
       // Simulate slow API response
-      await context.route('**/api/v2/**', async (route) => {
+      await context.route('**/api/v2/**', async route => {
         // Delay response significantly
-        await new Promise((resolve) => setTimeout(resolve, 30000));
+        await new Promise(resolve => setTimeout(resolve, 30000));
         await route.continue();
       });
 
@@ -86,7 +85,7 @@ test.describe('Error Handling', () => {
 
     test('should recover after network restoration', async ({ page, context }) => {
       // First, block API
-      await context.route('**/api/v2/devices**', (route) => route.abort());
+      await context.route('**/api/v2/devices**', route => route.abort());
 
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
@@ -124,7 +123,8 @@ test.describe('Error Handling', () => {
       await page.waitForLoadState('domcontentloaded');
 
       // Should show 404 or redirect to home
-      const is404 = page.url().includes('404') ||
+      const is404 =
+        page.url().includes('404') ||
         (await page.locator('text=/404|not found|page.*not.*exist/i').count()) > 0;
       const isHome = page.url() === '/' || page.url().endsWith(':3000/');
 
@@ -155,7 +155,7 @@ test.describe('Error Handling', () => {
   test.describe('Empty States', () => {
     test('should handle empty device list gracefully', async ({ page, context }) => {
       // Mock API to return empty list
-      await context.route('**/api/v2/devices**', (route) =>
+      await context.route('**/api/v2/devices**', route =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -176,7 +176,7 @@ test.describe('Error Handling', () => {
       await page.waitForLoadState('load');
 
       // Should show empty state or message
-      const emptyIndicators = page.locator(
+      const _emptyIndicators = page.locator(
         '[data-testid="empty-state"], text=/no device|no data|empty|no results/i'
       );
 
@@ -190,9 +190,7 @@ test.describe('Error Handling', () => {
       await page.waitForLoadState('load');
 
       // Look for search input
-      const searchInput = page.locator(
-        'input[type="search"], input[placeholder*="search" i]'
-      );
+      const searchInput = page.locator('input[type="search"], input[placeholder*="search" i]');
 
       if ((await searchInput.count()) > 0) {
         // Search for something that won't exist
@@ -253,21 +251,16 @@ test.describe('Error Handling', () => {
     test('should not show unhandled error to user', async ({ page }) => {
       const unhandledErrors: string[] = [];
 
-      page.on('pageerror', (error) => {
+      page.on('pageerror', error => {
         // Check for React error boundary messages
         if (
           error.message.includes('Unhandled') ||
           error.message.includes('uncaught') ||
           error.message.includes('INTERNAL_ERROR')
-        ) {
-          // Filter common dev-mode issues
-          if (
-            !error.message.includes('ResizeObserver') &&
-            !error.message.includes('hydration')
-          ) {
+        )
+          if (!error.message.includes('ResizeObserver') && !error.message.includes('hydration'))
+            // Filter common dev-mode issues
             unhandledErrors.push(error.message);
-          }
-        }
       });
 
       await page.goto('/');
@@ -280,9 +273,7 @@ test.describe('Error Handling', () => {
       }
 
       // Should not have unhandled errors visible to user
-      const errorUI = page.locator(
-        'text=/something went wrong|error occurred|unexpected error/i'
-      );
+      const _errorUI = page.locator('text=/something went wrong|error occurred|unexpected error/i');
 
       // Error UI may appear but shouldn't crash
       expect(unhandledErrors.length).toBe(0);
@@ -299,19 +290,16 @@ test.describe('Error Handling', () => {
 
       // No uncaught promise rejections
       const uncaughtRejections: string[] = [];
-      page.on('pageerror', (error) => {
-        if (error.message.includes('promise') || error.message.includes('rejection')) {
+      page.on('pageerror', error => {
+        if (error.message.includes('promise') || error.message.includes('rejection'))
           uncaughtRejections.push(error.message);
-        }
       });
 
       await page.waitForTimeout(2000);
 
       // Filter non-critical rejections
       const criticalRejections = uncaughtRejections.filter(
-        (r) =>
-          !r.includes('Non-Error promise rejection') &&
-          !r.includes('ResizeObserver')
+        r => !r.includes('Non-Error promise rejection') && !r.includes('ResizeObserver')
       );
 
       expect(criticalRejections.length).toBe(0);
@@ -325,7 +313,7 @@ test.describe('Error Handling', () => {
   test.describe('Authentication Errors', () => {
     test('should handle unauthorized API responses', async ({ page, context }) => {
       // Mock API to return 401
-      await context.route('**/api/v2/**', (route) =>
+      await context.route('**/api/v2/**', route =>
         route.fulfill({
           status: 401,
           contentType: 'application/json',
@@ -349,7 +337,7 @@ test.describe('Error Handling', () => {
 
     test('should handle forbidden API responses', async ({ page, context }) => {
       // Mock API to return 403
-      await context.route('**/api/v2/**', (route) =>
+      await context.route('**/api/v2/**', route =>
         route.fulfill({
           status: 403,
           contentType: 'application/json',
@@ -380,7 +368,7 @@ test.describe('Error Handling', () => {
     test('should not have critical console errors on dashboard', async ({ page }) => {
       const consoleErrors: string[] = [];
 
-      page.on('console', (msg) => {
+      page.on('console', msg => {
         if (msg.type() === 'error') {
           const text = msg.text();
           // Filter expected warnings and dev-mode issues
@@ -394,9 +382,8 @@ test.describe('Error Handling', () => {
             !text.includes('Loading chunk') &&
             !text.includes('ChunkLoadError') &&
             !text.includes('Pusher') // Pusher connection issues expected in test
-          ) {
+          )
             consoleErrors.push(text);
-          }
         }
       });
 
@@ -409,7 +396,7 @@ test.describe('Error Handling', () => {
     test('should not have critical console errors on devices page', async ({ page }) => {
       const consoleErrors: string[] = [];
 
-      page.on('console', (msg) => {
+      page.on('console', msg => {
         if (msg.type() === 'error') {
           const text = msg.text();
           if (
@@ -419,9 +406,8 @@ test.describe('Error Handling', () => {
             !text.includes('hydration') &&
             !text.includes('ResizeObserver') &&
             !text.includes('Pusher')
-          ) {
+          )
             consoleErrors.push(text);
-          }
         }
       });
 
@@ -434,7 +420,7 @@ test.describe('Error Handling', () => {
     test('should not have critical console errors on analytics page', async ({ page }) => {
       const consoleErrors: string[] = [];
 
-      page.on('console', (msg) => {
+      page.on('console', msg => {
         if (msg.type() === 'error') {
           const text = msg.text();
           if (
@@ -444,9 +430,8 @@ test.describe('Error Handling', () => {
             !text.includes('hydration') &&
             !text.includes('ResizeObserver') &&
             !text.includes('Pusher')
-          ) {
+          )
             consoleErrors.push(text);
-          }
         }
       });
 

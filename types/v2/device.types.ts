@@ -14,12 +14,7 @@
 /**
  * Device operational status
  */
-export type DeviceStatus =
-  | 'active'
-  | 'maintenance'
-  | 'offline'
-  | 'decommissioned'
-  | 'error';
+export type DeviceStatus = 'active' | 'maintenance' | 'offline' | 'decommissioned' | 'error';
 
 /**
  * Device/sensor type
@@ -44,11 +39,7 @@ export type DeviceType =
 /**
  * Data classification for compliance
  */
-export type DataClassification =
-  | 'public'
-  | 'internal'
-  | 'confidential'
-  | 'restricted';
+export type DataClassification = 'public' | 'internal' | 'confidential' | 'restricted';
 
 // ============================================================================
 // NESTED INTERFACES

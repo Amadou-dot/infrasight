@@ -1,21 +1,11 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Sentry Integration Tests
  *
  * Tests for optional Sentry error tracking and performance monitoring.
  */
 
-import {
-  isSentryConfigured,
-  initSentry,
-  captureException,
-  captureMessage,
-  addBreadcrumb,
-  setUser,
-  setTag,
-  setExtra,
-  startTransaction,
-  withSentryErrorHandling,
-} from '@/lib/monitoring/sentry';
+import { isSentryConfigured, initSentry, withSentryErrorHandling } from '@/lib/monitoring/sentry';
 
 // Mock Sentry
 jest.mock('@sentry/nextjs', () => ({
@@ -397,7 +387,10 @@ describe('Sentry Integration', () => {
       process.env.SENTRY_DSN = 'https://key@sentry.io/project';
 
       jest.resetModules();
-      const { initSentry: init, withSentryErrorHandling: wrap } = require('@/lib/monitoring/sentry');
+      const {
+        initSentry: init,
+        withSentryErrorHandling: wrap,
+      } = require('@/lib/monitoring/sentry');
 
       await init();
 

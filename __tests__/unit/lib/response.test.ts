@@ -24,7 +24,6 @@ import {
   type PaginationInfo,
   type SuccessResponse,
   type PaginatedResponse,
-  type ListResponse,
   type ErrorResponse,
 } from '@/lib/api/response';
 import { ApiError } from '@/lib/errors/ApiError';
@@ -133,9 +132,7 @@ describe('Response Utilities', () => {
     it('should set Content-Type to application/json', () => {
       const response = jsonSuccess(testDevice);
 
-      expect(response.headers.get('Content-Type')).toContain(
-        'application/json'
-      );
+      expect(response.headers.get('Content-Type')).toContain('application/json');
     });
   });
 
@@ -221,11 +218,7 @@ describe('Response Utilities', () => {
 
     it('should accept any valid HTTP status code', () => {
       const response404 = simpleErrorResponse('NOT_FOUND', 404, 'Not found');
-      const response503 = simpleErrorResponse(
-        'UNAVAILABLE',
-        503,
-        'Unavailable'
-      );
+      const response503 = simpleErrorResponse('UNAVAILABLE', 503, 'Unavailable');
 
       expect(response404.error.statusCode).toBe(404);
       expect(response503.error.statusCode).toBe(503);
@@ -556,35 +549,31 @@ describe('Response Utilities', () => {
       const response: SuccessResponse<typeof testDevice> | ErrorResponse =
         successResponse(testDevice);
 
-      if (isSuccessResponse(response)) {
+      if (isSuccessResponse(response))
         // TypeScript should know this is SuccessResponse
         expect(response.data).toBeDefined();
-      }
     });
 
     it('should narrow types correctly with isErrorResponse', () => {
       const error = ApiError.notFound('Device');
-      const response: SuccessResponse<unknown> | ErrorResponse =
-        errorResponse(error);
+      const response: SuccessResponse<unknown> | ErrorResponse = errorResponse(error);
 
-      if (isErrorResponse(response)) {
+      if (isErrorResponse(response))
         // TypeScript should know this is ErrorResponse
         expect(response.error).toBeDefined();
-      }
     });
 
     it('should narrow types correctly with isPaginatedResponse', () => {
       const response:
         | SuccessResponse<typeof testDevices>
-        | PaginatedResponse<typeof testDevices[number]> = paginatedResponse(
+        | PaginatedResponse<(typeof testDevices)[number]> = paginatedResponse(
         testDevices,
         testPagination
       );
 
-      if (isPaginatedResponse(response)) {
+      if (isPaginatedResponse(response))
         // TypeScript should know this is PaginatedResponse
         expect(response.pagination).toBeDefined();
-      }
     });
   });
 });

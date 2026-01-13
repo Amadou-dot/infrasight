@@ -351,9 +351,7 @@ describe('ApiError', () => {
         throw ApiError.badRequest('Test error');
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
-        if (error instanceof ApiError) {
-          expect(error.statusCode).toBe(400);
-        }
+        if (error instanceof ApiError) expect(error.statusCode).toBe(400);
       }
     });
   });
@@ -368,7 +366,7 @@ describe('ApiError', () => {
         ApiError.conflict('test'),
       ];
 
-      errors.forEach((error) => {
+      errors.forEach(error => {
         expect(error.isOperational).toBe(true);
       });
     });

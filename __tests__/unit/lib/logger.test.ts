@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Logger Tests
  *
@@ -93,9 +94,8 @@ describe('Logger', () => {
 
   describe('Specialized logging methods', () => {
     it('should have request method for logging requests', () => {
-      if (typeof logger.request === 'function') {
+      if (typeof logger.request === 'function')
         logger.request({ method: 'GET', path: '/api/v2/devices', statusCode: 200, duration: 50 });
-      }
     });
 
     it('should have error logging with Error object', () => {
@@ -104,9 +104,7 @@ describe('Logger', () => {
     });
 
     it('should handle cache logging if available', () => {
-      if (typeof logger.cache === 'function') {
-        logger.cache('hit', 'device:device_001');
-      }
+      if (typeof logger.cache === 'function') logger.cache('hit', 'device:device_001');
     });
   });
 

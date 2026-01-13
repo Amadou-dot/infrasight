@@ -13,14 +13,10 @@ describe('Header Validation Middleware', () => {
   // ==========================================================================
 
   describe('validateHeaders()', () => {
-    const createMockRequest = (
-      method: string,
-      headers: Record<string, string> = {}
-    ): Request => {
+    const createMockRequest = (method: string, headers: Record<string, string> = {}): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
-        h.set(key, value);
-      }
+      for (const [key, value] of Object.entries(headers)) h.set(key, value);
+
       return { method, headers: h } as Request;
     };
 
@@ -114,9 +110,7 @@ describe('Header Validation Middleware', () => {
       it('should skip Content-Type validation when disabled', () => {
         const request = createMockRequest('POST', {});
 
-        expect(() =>
-          validateHeaders(request, { requireContentType: false })
-        ).not.toThrow();
+        expect(() => validateHeaders(request, { requireContentType: false })).not.toThrow();
       });
 
       it('should handle case-insensitive Content-Type', () => {
@@ -216,9 +210,8 @@ describe('Header Validation Middleware', () => {
   describe('extractRequestMetadata()', () => {
     const createMockRequest = (headers: Record<string, string>): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
-        h.set(key, value);
-      }
+      for (const [key, value] of Object.entries(headers)) h.set(key, value);
+
       return { headers: h } as Request;
     };
 

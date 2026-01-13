@@ -1,9 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useHealthAnalytics, useMaintenanceForecast } from '@/lib/query/hooks';
-import type { HealthMetrics } from '@/lib/api/v2-client';
-import type { MaintenanceForecastResponse } from '@/types/v2';
 import {
   AlertTriangle,
   WifiOff,
@@ -35,78 +33,87 @@ export default function CriticalIssuesPanel({
   maxItems = 5,
 }: CriticalIssuesPanelProps) {
   const { data: health, isLoading: healthLoading, error: healthError } = useHealthAnalytics();
-  const { data: forecast, isLoading: forecastLoading, error: forecastError } = useMaintenanceForecast({ days_ahead: 7 });
+  const {
+    data: forecast,
+    isLoading: forecastLoading,
+    error: forecastError,
+  } = useMaintenanceForecast({ days_ahead: 7 });
 
   const isLoading = healthLoading || forecastLoading;
   const error = healthError || forecastError ? 'Failed to load issues' : null;
+
+  // Stable reference time for fallback timestamps - initialized lazily
+  const fallbackTimeRef = useRef<number | null>(null);
+  // eslint-disable-next-line react-hooks/purity -- Intentional: lazy initialization of fallback time
+  if (fallbackTimeRef.current === null) fallbackTimeRef.current = Date.now();
 
   // Calculate issues using useMemo (only recalculate when data changes)
   const issues = useMemo(() => {
     if (!health || !forecast) return [];
 
     const collectedIssues: CriticalIssue[] = [];
+    const fallbackTime = fallbackTimeRef.current ?? 0;
 
-        // Offline devices - Critical
-        health.alerts?.offline_devices?.devices?.forEach((d) => {
-          collectedIssues.push({
-            id: d._id,
-            title: `Sensor #${d.serial_number?.slice(-4) || d._id.slice(-4)} Offline`,
-            location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
-            severity: 'critical',
-            timestamp: new Date(d.health?.last_seen || Date.now()),
-            type: 'offline',
-          });
-        });
+    // Offline devices - Critical
+    health.alerts?.offline_devices?.devices?.forEach(d => {
+      collectedIssues.push({
+        id: d._id,
+        title: `Sensor #${d.serial_number?.slice(-4) || d._id.slice(-4)} Offline`,
+        location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
+        severity: 'critical',
+        timestamp: new Date(d.health?.last_seen || fallbackTime),
+        type: 'offline',
+      });
+    });
 
-        // Error devices - Critical
-        health.alerts?.error_devices?.devices?.forEach((d) => {
-          collectedIssues.push({
-            id: d._id,
-            title: `Sensor #${d.serial_number?.slice(-4) || d._id.slice(-4)} Error`,
-            location: d.location?.room_name || 'Unknown Location',
-            severity: 'critical',
-            timestamp: new Date(),
-            type: 'error',
-          });
-        });
+    // Error devices - Critical
+    health.alerts?.error_devices?.devices?.forEach(d => {
+      collectedIssues.push({
+        id: d._id,
+        title: `Sensor #${d.serial_number?.slice(-4) || d._id.slice(-4)} Error`,
+        location: d.location?.room_name || 'Unknown Location',
+        severity: 'critical',
+        timestamp: new Date(fallbackTime),
+        type: 'error',
+      });
+    });
 
-        // Low battery devices - Warning
-        health.alerts?.low_battery_devices?.devices?.forEach((d) => {
-          collectedIssues.push({
-            id: d._id,
-            title: `Low Battery (${d.health?.battery_level}%)`,
-            location: d.location?.room_name || 'Unknown Location',
-            severity: 'warning',
-            timestamp: new Date(),
-            type: 'battery',
-          });
-        });
+    // Low battery devices - Warning
+    health.alerts?.low_battery_devices?.devices?.forEach(d => {
+      collectedIssues.push({
+        id: d._id,
+        title: `Low Battery (${d.health?.battery_level}%)`,
+        location: d.location?.room_name || 'Unknown Location',
+        severity: 'warning',
+        timestamp: new Date(fallbackTime),
+        type: 'battery',
+      });
+    });
 
-        // Maintenance overdue - Critical
-        forecast.summary?.maintenance_overdue?.forEach((d) => {
-          collectedIssues.push({
-            id: d._id,
-            title: `Maintenance Overdue`,
-            location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
-            severity: 'critical',
-            timestamp: new Date(d.metadata?.next_maintenance || Date.now()),
-            type: 'maintenance',
-          });
-        });
+    // Maintenance overdue - Critical
+    forecast.summary?.maintenance_overdue?.forEach(d => {
+      collectedIssues.push({
+        id: d._id,
+        title: `Maintenance Overdue`,
+        location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
+        severity: 'critical',
+        timestamp: new Date(d.metadata?.next_maintenance || fallbackTime),
+        type: 'maintenance',
+      });
+    });
 
-        // Critical maintenance - Critical
-        forecast.critical?.forEach((d) => {
-          if (!collectedIssues.some((i) => i.id === d._id)) 
-            collectedIssues.push({
-              id: d._id,
-              title: `Critical Maintenance Needed`,
-              location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
-              severity: 'critical',
-              timestamp: new Date(d.metadata?.next_maintenance || Date.now()),
-              type: 'maintenance',
-            });
-          
+    // Critical maintenance - Critical
+    forecast.critical?.forEach(d => {
+      if (!collectedIssues.some(i => i.id === d._id))
+        collectedIssues.push({
+          id: d._id,
+          title: `Critical Maintenance Needed`,
+          location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
+          severity: 'critical',
+          timestamp: new Date(d.metadata?.next_maintenance || fallbackTime),
+          type: 'maintenance',
         });
+    });
 
     // Sort by severity (critical first) then by timestamp
     collectedIssues.sort((a, b) => {
@@ -176,8 +183,7 @@ export default function CriticalIssuesPanel({
       </div>
     );
 
-
-  if (error) 
+  if (error)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -188,7 +194,6 @@ export default function CriticalIssuesPanel({
         </div>
       </div>
     );
-  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">
@@ -211,27 +216,21 @@ export default function CriticalIssuesPanel({
             <p className="text-sm">No critical issues</p>
           </div>
         ) : (
-          issues.map((issue) => (
+          issues.map(issue => (
             <button
               key={issue.id}
               onClick={() => onIssueClick?.(issue.id)}
               className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left group"
             >
               {/* Icon */}
-              <div
-                className={`p-2 rounded-lg ${getIconBgColor(issue.type)}`}
-              >
+              <div className={`p-2 rounded-lg ${getIconBgColor(issue.type)}`}>
                 {getIssueIcon(issue.type)}
               </div>
 
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {issue.title}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {issue.location}
-                </p>
+                <p className="text-sm font-medium text-foreground truncate">{issue.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{issue.location}</p>
               </div>
 
               {/* Severity & time */}

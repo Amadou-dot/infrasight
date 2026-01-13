@@ -3,12 +3,7 @@
 import { useEffect, useState } from 'react';
 import { v2Api } from '@/lib/api/v2-client';
 import type { MaintenanceForecastResponse, DeviceV2Response } from '@/types/v2';
-import {
-  Calendar,
-  Wrench,
-  Settings,
-  Loader2,
-} from 'lucide-react';
+import { Calendar, Wrench, Settings, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface MaintenanceItem {
@@ -23,10 +18,7 @@ interface MaintenanceWidgetProps {
   maxItems?: number;
 }
 
-export default function MaintenanceWidget({
-  onItemClick,
-  maxItems = 4,
-}: MaintenanceWidgetProps) {
+export default function MaintenanceWidget({ onItemClick, maxItems = 4 }: MaintenanceWidgetProps) {
   const [items, setItems] = useState<MaintenanceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,28 +42,26 @@ export default function MaintenanceWidget({
         ];
 
         const maintenanceItems: MaintenanceItem[] = allDevices
-          .filter((d) => d.metadata?.next_maintenance)
+          .filter(d => d.metadata?.next_maintenance)
           .map((d, index) => {
             // Determine maintenance type based on device type or serial
             let maintType: MaintenanceItem['type'] = 'inspection';
-            
-            if (d.type === 'temperature' || d.type === 'humidity' || d.type === 'pressure') 
+
+            if (d.type === 'temperature' || d.type === 'humidity' || d.type === 'pressure')
               maintType = 'calibration';
-             else if (d.firmware_version && index % 3 === 0) 
-              maintType = 'firmware';
-             else if (d.status === 'error') 
-              maintType = 'repair';
-            
+            else if (d.firmware_version && index % 3 === 0) maintType = 'firmware';
+            else if (d.status === 'error') maintType = 'repair';
 
             return {
               id: d._id,
-              title: maintType === 'firmware'
-                ? `Firmware Update v${d.firmware_version || '2.4'}`
-                : maintType === 'calibration'
-                  ? 'Sensor Calibration'
-                  : maintType === 'repair'
-                    ? 'Device Repair'
-                    : 'Routine Inspection',
+              title:
+                maintType === 'firmware'
+                  ? `Firmware Update v${d.firmware_version || '2.4'}`
+                  : maintType === 'calibration'
+                    ? 'Sensor Calibration'
+                    : maintType === 'repair'
+                      ? 'Device Repair'
+                      : 'Routine Inspection',
               scheduledDate: new Date(d.metadata.next_maintenance!),
               type: maintType,
             };
@@ -124,18 +114,14 @@ export default function MaintenanceWidget({
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-    const targetDate = new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate()
-    );
+    const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-    if (targetDate.getTime() === today.getTime()) 
+    if (targetDate.getTime() === today.getTime())
       return `Today, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    
-    if (targetDate.getTime() === tomorrow.getTime()) 
+
+    if (targetDate.getTime() === tomorrow.getTime())
       return `Tomorrow, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    
+
     return date.toLocaleDateString([], {
       month: 'short',
       day: 'numeric',
@@ -144,7 +130,7 @@ export default function MaintenanceWidget({
     });
   };
 
-  if (loading) 
+  if (loading)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -155,9 +141,8 @@ export default function MaintenanceWidget({
         </div>
       </div>
     );
-  
 
-  if (error) 
+  if (error)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
@@ -168,7 +153,6 @@ export default function MaintenanceWidget({
         </div>
       </div>
     );
-  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">
@@ -191,7 +175,7 @@ export default function MaintenanceWidget({
             <p className="text-sm">No upcoming maintenance</p>
           </div>
         ) : (
-          items.map((item) => (
+          items.map(item => (
             <button
               key={item.id}
               onClick={() => onItemClick?.(item.id)}
@@ -204,9 +188,7 @@ export default function MaintenanceWidget({
 
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {item.title}
-                </p>
+                <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
                   Scheduled for {formatDate(item.scheduledDate)}
                 </p>

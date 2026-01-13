@@ -7,10 +7,10 @@ coverage:
     project:
       default:
         target: 80%
-        threshold: 2%  # Allow 2% drop without failing
+        threshold: 2% # Allow 2% drop without failing
     patch:
       default:
-        target: 75%  # New code should have at least 75% coverage
+        target: 75% # New code should have at least 75% coverage
 
   # Precision of coverage percentage
   precision: 2
@@ -18,22 +18,22 @@ coverage:
 
 # PR Comment settings
 comment:
-  layout: "header, diff, flags, files, footer"
-  behavior: default  # Update existing comment
-  require_changes: true  # Only comment if coverage changed
+  layout: 'header, diff, flags, files, footer'
+  behavior: default # Update existing comment
+  require_changes: true # Only comment if coverage changed
   require_base: false
   require_head: true
 
 # File/path configuration
 ignore:
-  - "**/*.test.ts"
-  - "**/*.test.tsx"
-  - "__tests__/**/*"
-  - "coverage/**/*"
-  - "node_modules/**/*"
-  - "*.config.js"
-  - "*.config.ts"
-  - "scripts/**/*"
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '__tests__/**/*'
+  - 'coverage/**/*'
+  - 'node_modules/**/*'
+  - '*.config.js'
+  - '*.config.ts'
+  - 'scripts/**/*'
 
 # GitHub integration
 github_checks:

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Redis Client Tests
  *
@@ -198,7 +199,11 @@ describe('Redis Client', () => {
         }));
       });
 
-      const { getRedisClient, closeRedisConnection, isRedisAvailable } = require('@/lib/redis/client');
+      const {
+        getRedisClient,
+        closeRedisConnection,
+        isRedisAvailable,
+      } = require('@/lib/redis/client');
       getRedisClient(); // Create client
 
       await closeRedisConnection();
@@ -238,9 +243,11 @@ describe('Redis Client', () => {
       delete process.env.REDIS_URL;
 
       const { safeRedisCommand } = require('@/lib/redis/client');
-      const result = await safeRedisCommand(async (client: { get: (key: string) => Promise<string> }) => {
-        return client.get('key');
-      });
+      const result = await safeRedisCommand(
+        async (client: { get: (key: string) => Promise<string> }) => {
+          return client.get('key');
+        }
+      );
 
       expect(result).toBeNull();
     });
@@ -262,9 +269,11 @@ describe('Redis Client', () => {
       getRedisClient();
 
       // isRedisAvailable returns false by default
-      const result = await safeRedisCommand(async (client: { get: (key: string) => Promise<string> }) => {
-        return client.get('key');
-      });
+      const result = await safeRedisCommand(
+        async (client: { get: (key: string) => Promise<string> }) => {
+          return client.get('key');
+        }
+      );
 
       expect(result).toBeNull();
     });

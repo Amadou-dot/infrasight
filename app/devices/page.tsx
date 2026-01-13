@@ -36,7 +36,11 @@ export default function DevicesPage() {
 
   // Fetch all devices with React Query (cached, shared across components)
   const { data: devices = [], isLoading, error: fetchError } = useDevicesList();
-  const error = fetchError ? (fetchError instanceof Error ? fetchError.message : 'Failed to load devices') : null;
+  const error = fetchError
+    ? fetchError instanceof Error
+      ? fetchError.message
+      : 'Failed to load devices'
+    : null;
 
   // Search and floor filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,12 +68,12 @@ export default function DevicesPage() {
   const filterOptions = useMemo(() => {
     const manufacturers = new Set<string>();
     const departments = new Set<string>();
-    
+
     devices.forEach(d => {
       if (d.manufacturer) manufacturers.add(d.manufacturer);
       if (d.metadata?.department) departments.add(d.metadata.department);
     });
-    
+
     return {
       manufacturers: Array.from(manufacturers).sort(),
       departments: Array.from(departments).sort(),
@@ -80,9 +84,8 @@ export default function DevicesPage() {
   const filteredDevices = useMemo(() => {
     let filtered = devices;
 
-    if (selectedFloor !== 'all') 
+    if (selectedFloor !== 'all')
       filtered = filtered.filter(d => d.location.floor === selectedFloor);
-    
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -95,18 +98,16 @@ export default function DevicesPage() {
     }
 
     // Apply advanced filters
-    if (filters.status.length > 0) 
+    if (filters.status.length > 0)
       filtered = filtered.filter(d => filters.status.includes(d.status));
-    
-    if (filters.type.length > 0) 
-      filtered = filtered.filter(d => filters.type.includes(d.type));
-    
-    if (filters.manufacturer.length > 0) 
+
+    if (filters.type.length > 0) filtered = filtered.filter(d => filters.type.includes(d.type));
+
+    if (filters.manufacturer.length > 0)
       filtered = filtered.filter(d => filters.manufacturer.includes(d.manufacturer));
-    
-    if (filters.department.length > 0) 
+
+    if (filters.department.length > 0)
       filtered = filtered.filter(d => filters.department.includes(d.metadata?.department || ''));
-    
 
     return filtered;
   }, [devices, selectedFloor, searchQuery, filters]);
@@ -118,8 +119,9 @@ export default function DevicesPage() {
     return filteredDevices.slice(startIndex, startIndex + DEVICES_PER_PAGE);
   }, [filteredDevices, currentPage]);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters change - intentional state reset on filter change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset pagination when filters change
     setCurrentPage(1);
   }, [selectedFloor, searchQuery, filters]);
 
@@ -188,31 +190,29 @@ export default function DevicesPage() {
   // ============================================================================
 
   return (
-    <div className='min-h-screen bg-background p-4 md:p-6 lg:p-8'>
+    <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <ToastContainer
-        position='bottom-center'
+        position="bottom-center"
         autoClose={false}
         pauseOnFocusLoss
         pauseOnHover
-        theme='colored'
+        theme="colored"
       />
 
       {/* Header */}
-      <header className='mb-6'>
-        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+      <header className="mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className='flex items-center gap-3 mb-2'>
-              <Monitor className='h-8 w-8 text-primary' />
-              <h1 className='text-2xl md:text-3xl font-bold text-foreground'>
-                Device Inventory
-              </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <Monitor className="h-8 w-8 text-primary" />
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Device Inventory</h1>
             </div>
-            <p className='text-muted-foreground'>
+            <p className="text-muted-foreground">
               Manage connected IoT endpoints across all zones.
             </p>
           </div>
-          <Button className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white'>
-            <Plus className='h-4 w-4 mr-2' />
+          <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="h-4 w-4 mr-2" />
             Add Device
           </Button>
         </div>
@@ -234,13 +234,14 @@ export default function DevicesPage() {
 
       {/* Error State */}
       {error && (
-        <div className='mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm'>
+        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
           {error}
           <Button
-            variant='outline'
-            size='sm'
-            className='ml-4'
-            onClick={() => window.location.reload()}>
+            variant="outline"
+            size="sm"
+            className="ml-4"
+            onClick={() => window.location.reload()}
+          >
             Retry
           </Button>
         </div>
@@ -253,11 +254,11 @@ export default function DevicesPage() {
       {!isLoading && (
         <>
           {filteredDevices.length === 0 ? (
-            <div className='text-center py-12 text-muted-foreground'>
+            <div className="text-center py-12 text-muted-foreground">
               No devices found matching your filters.
             </div>
           ) : (
-            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {paginatedDevices.map(device => (
                 <DeviceInventoryCard
                   key={device._id}
@@ -278,7 +279,7 @@ export default function DevicesPage() {
           totalItems={filteredDevices.length}
           itemsPerPage={DEVICES_PER_PAGE}
           onPageChange={setCurrentPage}
-          className='mt-6'
+          className="mt-6"
         />
       )}
 

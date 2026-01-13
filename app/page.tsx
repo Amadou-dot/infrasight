@@ -8,18 +8,8 @@ import {
   StatCard,
   SystemHealthWidget,
 } from '@/components/dashboard';
-import {
-  useHealthAnalytics,
-  useMaintenanceForecast,
-  useAnomalies,
-} from '@/lib/query/hooks';
-import {
-  AlertTriangle,
-  FileText,
-  Gauge,
-  Monitor,
-  Zap
-} from 'lucide-react';
+import { useHealthAnalytics, useMaintenanceForecast, useAnomalies } from '@/lib/query/hooks';
+import { AlertTriangle, FileText, Gauge, Monitor, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -83,11 +73,10 @@ export default function Home() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Title section */}
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
-              System Overview
-            </h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">System Overview</h1>
             <p className="text-muted-foreground">
-              {getGreeting()}{user?.firstName ? `, ${user.firstName}` : ''}.{' '}
+              {getGreeting()}
+              {user?.firstName ? `, ${user.firstName}` : ''}.{' '}
               {activeAlerts > 0 && (
                 <span>
                   You have{' '}
@@ -102,7 +91,6 @@ export default function Home() {
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3">
-
             {/* Generate Report button */}
             <button className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors">
               <FileText className="h-4 w-4" />
@@ -153,11 +141,8 @@ export default function Home() {
         {/* Left Column - Critical Issues + Anomaly Chart */}
         <div className="lg:col-span-2 space-y-6">
           {/* Critical Issues Panel */}
-          <div className="min-h-[300px]">
-            <CriticalIssuesPanel
-              onIssueClick={handleDeviceClick}
-              maxItems={5}
-            />
+          <div className="min-h-75">
+            <CriticalIssuesPanel onIssueClick={handleDeviceClick} maxItems={5} />
           </div>
 
           {/* Anomaly Detection Chart */}
@@ -174,11 +159,8 @@ export default function Home() {
           </div>
 
           {/* Maintenance Widget */}
-          <div className="min-h-[280px]">
-            <MaintenanceWidget
-              onItemClick={handleDeviceClick}
-              maxItems={4}
-            />
+          <div className="min-h-70">
+            <MaintenanceWidget onItemClick={handleDeviceClick} maxItems={4} />
           </div>
         </div>
       </section>

@@ -11,7 +11,6 @@ import {
   normalizeError,
   withErrorHandler,
   errorToResponse,
-  type ErrorHandlerOptions,
 } from '@/lib/errors/errorHandler';
 import { ApiError } from '@/lib/errors/ApiError';
 import { ErrorCodes } from '@/lib/errors/errorCodes';
@@ -24,7 +23,7 @@ describe('Error Handler', () => {
   describe('handleError() - ApiError instances', () => {
     it('should pass through ApiError as-is', () => {
       const originalError = ApiError.notFound('Device', 'device_001');
-      const { error, shouldLog } = handleError(originalError);
+      const { error } = handleError(originalError);
 
       expect(error).toBe(originalError);
       expect(error.errorCode).toBe('NOT_FOUND');
@@ -319,9 +318,7 @@ describe('Error Handler', () => {
 
   describe('handleError() - MongoDB connection errors', () => {
     it('should handle ECONNREFUSED errors', () => {
-      const connectionError = new Error(
-        'connect ECONNREFUSED 127.0.0.1:27017'
-      ) as Error & {
+      const connectionError = new Error('connect ECONNREFUSED 127.0.0.1:27017') as Error & {
         code: number | undefined;
       };
       connectionError.code = undefined;
@@ -467,9 +464,7 @@ describe('Error Handler', () => {
     });
 
     it('should use console.error by default', () => {
-      const consoleErrorSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const serverError = ApiError.internalError();
 
       handleError(serverError);
@@ -534,9 +529,7 @@ describe('Error Handler', () => {
 
   describe('withErrorHandler()', () => {
     it('should pass through successful responses', async () => {
-      const handler = jest
-        .fn()
-        .mockResolvedValue(Response.json({ success: true }));
+      const handler = jest.fn().mockResolvedValue(Response.json({ success: true }));
       const wrappedHandler = withErrorHandler(handler);
 
       const response = await wrappedHandler('arg1', 'arg2');
@@ -575,9 +568,7 @@ describe('Error Handler', () => {
     });
 
     it('should handle generic errors', async () => {
-      const handler = jest
-        .fn()
-        .mockRejectedValue(new Error('Unexpected error'));
+      const handler = jest.fn().mockRejectedValue(new Error('Unexpected error'));
       const wrappedHandler = withErrorHandler(handler);
 
       const response = await wrappedHandler();

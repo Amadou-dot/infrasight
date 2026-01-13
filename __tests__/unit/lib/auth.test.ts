@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Auth Module Tests
  *
  * Tests for authentication utilities.
  */
 
-import { ApiError } from '@/lib/errors/ApiError';
+import type { ApiError } from '@/lib/errors/ApiError';
 
 // Mock Clerk auth functions
 jest.mock('@clerk/nextjs/server', () => ({
@@ -57,9 +58,7 @@ describe('Auth Module', () => {
         firstName: 'John',
         lastName: 'Doe',
         primaryEmailAddressId: 'email_1',
-        emailAddresses: [
-          { id: 'email_1', emailAddress: 'john@example.com' },
-        ],
+        emailAddresses: [{ id: 'email_1', emailAddress: 'john@example.com' }],
       });
 
       const { getAuthenticatedUser } = require('@/lib/auth');
@@ -85,9 +84,7 @@ describe('Auth Module', () => {
         firstName: null,
         lastName: null,
         primaryEmailAddressId: 'email_missing',
-        emailAddresses: [
-          { id: 'email_1', emailAddress: 'other@example.com' },
-        ],
+        emailAddresses: [{ id: 'email_1', emailAddress: 'other@example.com' }],
       });
 
       const { getAuthenticatedUser } = require('@/lib/auth');
@@ -128,9 +125,7 @@ describe('Auth Module', () => {
         firstName: 'Jane',
         lastName: 'Doe',
         primaryEmailAddressId: 'email_1',
-        emailAddresses: [
-          { id: 'email_1', emailAddress: 'jane@example.com' },
-        ],
+        emailAddresses: [{ id: 'email_1', emailAddress: 'jane@example.com' }],
       });
 
       const { requireAuth } = require('@/lib/auth');
@@ -197,9 +192,7 @@ describe('Auth Module', () => {
         firstName: 'Test',
         lastName: 'User',
         primaryEmailAddressId: 'email_1',
-        emailAddresses: [
-          { id: 'email_1', emailAddress: 'test@example.com' },
-        ],
+        emailAddresses: [{ id: 'email_1', emailAddress: 'test@example.com' }],
       });
 
       const { withAuth } = require('@/lib/auth');

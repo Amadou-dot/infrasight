@@ -8,11 +8,7 @@
 import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
-import {
-  createDeviceInput,
-  resetCounters,
-  VALID_DEVICE_TYPES,
-} from '../../setup/factories';
+import { createDeviceInput, resetCounters, VALID_DEVICE_TYPES } from '../../setup/factories';
 
 import { GET as GET_SIMULATE } from '@/app/api/v2/cron/simulate/route';
 
@@ -44,9 +40,7 @@ describe('Simulate Cron API Integration Tests', () => {
       // Ensure no devices exist
       await DeviceV2.deleteMany({});
 
-      const request = new NextRequest(
-        'http://localhost:3000/api/v2/cron/simulate'
-      );
+      const _request = new NextRequest('http://localhost:3000/api/v2/cron/simulate');
       const response = await GET_SIMULATE();
       const data = await parseResponse<{
         success: boolean;
@@ -143,7 +137,7 @@ describe('Simulate Cron API Integration Tests', () => {
     // Test each device type to ensure value generation works
     const deviceTypes = VALID_DEVICE_TYPES;
 
-    describe.each(deviceTypes)('Device type: %s', (deviceType) => {
+    describe.each(deviceTypes)('Device type: %s', deviceType => {
       beforeEach(async () => {
         // Clear and create a single device of this type
         await DeviceV2.deleteMany({});
@@ -206,9 +200,7 @@ describe('Simulate Cron API Integration Tests', () => {
         };
 
         const expectedUnit = expectedUnits[deviceType];
-        if (expectedUnit) {
-          expect(expectedUnit).toContain(reading!.metadata.unit);
-        }
+        if (expectedUnit) expect(expectedUnit).toContain(reading!.metadata.unit);
       });
     });
   });
@@ -232,15 +224,13 @@ describe('Simulate Cron API Integration Tests', () => {
       await DeviceV2.create(device);
 
       // Generate multiple readings to check range
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'temp_range_device',
       });
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         // Normal: 18-28°C, Anomaly: 5-15°C or 30-40°C
         expect(r.value).toBeGreaterThanOrEqual(5);
         expect(r.value).toBeLessThanOrEqual(40);
@@ -255,15 +245,13 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'humidity_range_device',
       });
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         // Normal: 30-70%, Anomaly: 10-20% or 80-95%
         expect(r.value).toBeGreaterThanOrEqual(10);
         expect(r.value).toBeLessThanOrEqual(95);
@@ -278,15 +266,13 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'power_range_device',
       });
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         // Normal: 100-5000W, Anomaly: 8000-15000W
         expect(r.value).toBeGreaterThanOrEqual(100);
         expect(r.value).toBeLessThanOrEqual(15000);
@@ -301,15 +287,13 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'motion_range_device',
       });
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         expect([0, 1]).toContain(r.value);
       });
     });
@@ -322,15 +306,13 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'occupancy_range_device',
       });
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         // Normal: 0-50, Anomaly: 80-150
         expect(r.value).toBeGreaterThanOrEqual(0);
         expect(r.value).toBeLessThanOrEqual(150);
@@ -367,37 +349,32 @@ describe('Simulate Cron API Integration Tests', () => {
     });
 
     it('should generate confidence scores in valid range', async () => {
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'quality_device',
       });
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         expect(r.quality?.confidence_score).toBeGreaterThanOrEqual(0.85);
         expect(r.quality?.confidence_score).toBeLessThanOrEqual(1);
       });
     });
 
     it('should generate anomaly scores based on is_anomaly flag', async () => {
-      for (let i = 0; i < 20; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 20; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'quality_device',
       });
 
-      readings.forEach((r) => {
-        if (r.quality?.is_anomaly) {
+      readings.forEach(r => {
+        if (r.quality?.is_anomaly)
           // Anomaly score should be 0.5-1.0 for anomalies
           expect(r.quality?.anomaly_score).toBeGreaterThanOrEqual(0.5);
-        } else {
+        else
           // Anomaly score should be 0-0.3 for normal readings
           expect(r.quality?.anomaly_score).toBeLessThanOrEqual(0.3);
-        }
       });
     });
   });
@@ -477,22 +454,18 @@ describe('Simulate Cron API Integration Tests', () => {
       });
 
       // Raw value should be within ±0.5 of processed value
-      const diff = Math.abs(
-        (reading?.processing?.raw_value || 0) - (reading?.value || 0)
-      );
+      const diff = Math.abs((reading?.processing?.raw_value || 0) - (reading?.value || 0));
       expect(diff).toBeLessThanOrEqual(0.5);
     });
 
     it('should have calibration offset in valid range', async () => {
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'processing_device',
       });
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         expect(r.processing?.calibration_offset).toBeGreaterThanOrEqual(-0.25);
         expect(r.processing?.calibration_offset).toBeLessThanOrEqual(0.25);
       });
@@ -518,9 +491,7 @@ describe('Simulate Cron API Integration Tests', () => {
 
     it('should generate some anomalies (5% probability)', async () => {
       // Generate multiple batches to statistically ensure some anomalies
-      for (let i = 0; i < 10; i++) {
-        await GET_SIMULATE();
-      }
+      for (let i = 0; i < 10; i++) await GET_SIMULATE();
 
       const anomalyReadings = await ReadingV2.find({
         'quality.is_anomaly': true,
@@ -582,7 +553,7 @@ describe('Simulate Cron API Integration Tests', () => {
 
       // Verify each device got a reading
       const readings = await ReadingV2.find({});
-      const deviceIds = readings.map((r) => r.metadata.device_id);
+      const deviceIds = readings.map(r => r.metadata.device_id);
 
       expect(deviceIds).toContain('multi_temp');
       expect(deviceIds).toContain('multi_humidity');
@@ -605,7 +576,7 @@ describe('Simulate Cron API Integration Tests', () => {
 
       const readings = await ReadingV2.find({});
 
-      readings.forEach((r) => {
+      readings.forEach(r => {
         expect(r.metadata.source).toBe('simulation');
       });
     });

@@ -60,23 +60,12 @@ interface MongoError extends Error {
 // ERROR DETECTION HELPERS
 // ============================================================================
 
-function isMongooseValidationError(
-  error: unknown
-): error is MongooseValidationError {
-  return (
-    error instanceof Error &&
-    error.name === 'ValidationError' &&
-    'errors' in error
-  );
+function isMongooseValidationError(error: unknown): error is MongooseValidationError {
+  return error instanceof Error && error.name === 'ValidationError' && 'errors' in error;
 }
 
 function isMongooseCastError(error: unknown): error is MongooseCastError {
-  return (
-    error instanceof Error &&
-    error.name === 'CastError' &&
-    'path' in error &&
-    'kind' in error
-  );
+  return error instanceof Error && error.name === 'CastError' && 'path' in error && 'kind' in error;
 }
 
 function isMongoError(error: unknown): error is MongoError {
@@ -98,7 +87,7 @@ function formatZodErrors(error: ZodError): {
   message: string;
   metadata: ApiErrorMetadata;
 } {
-  const issues = error.issues.map((issue) => {
+  const issues = error.issues.map(issue => {
     const path = issue.path.join('.');
     return path ? `${path}: ${issue.message}` : issue.message;
   });
@@ -110,7 +99,7 @@ function formatZodErrors(error: ZodError): {
     message: issues.length === 1 ? issues[0] : `Validation failed: ${issues.join('; ')}`,
     metadata: {
       field,
-      errors: error.issues.map((e) => ({
+      errors: error.issues.map(e => ({
         path: e.path.join('.'),
         message: e.message,
         code: e.code,
@@ -122,22 +111,20 @@ function formatZodErrors(error: ZodError): {
 /**
  * Format Mongoose validation errors
  */
-function formatMongooseValidationErrors(
-  error: MongooseValidationError
-): { message: string; metadata: ApiErrorMetadata } {
+function formatMongooseValidationErrors(error: MongooseValidationError): {
+  message: string;
+  metadata: ApiErrorMetadata;
+} {
   const errors = Object.entries(error.errors).map(([path, err]) => ({
     path,
     message: err.message,
     value: err.value,
   }));
 
-  const messages = errors.map((e) => `${e.path}: ${e.message}`);
+  const messages = errors.map(e => `${e.path}: ${e.message}`);
 
   return {
-    message:
-      messages.length === 1
-        ? messages[0]
-        : `Validation failed: ${messages.join('; ')}`,
+    message: messages.length === 1 ? messages[0] : `Validation failed: ${messages.join('; ')}`,
     metadata: {
       field: errors[0]?.path,
       errors,
@@ -156,30 +143,26 @@ function handleMongoDuplicateKeyError(error: MongoError): ApiError {
   const value = keyValue[field];
 
   // Special handling for known fields
-  if (field === 'serial_number' || field === 'serialNumber') 
+  if (field === 'serial_number' || field === 'serialNumber')
     return new ApiError(
       ErrorCodes.SERIAL_NUMBER_EXISTS,
       409,
       `A device with serial number '${value}' already exists`,
       { field, value: String(value) }
     );
-  
 
-  if (field === '_id' || field === 'id') 
+  if (field === '_id' || field === 'id')
     return new ApiError(
       ErrorCodes.DEVICE_ID_EXISTS,
       409,
       `A resource with ID '${value}' already exists`,
       { field, value: String(value) }
     );
-  
 
-  return new ApiError(
-    ErrorCodes.DUPLICATE_RESOURCE,
-    409,
-    `Duplicate value for field '${field}'`,
-    { field, value: String(value) }
-  );
+  return new ApiError(ErrorCodes.DUPLICATE_RESOURCE, 409, `Duplicate value for field '${field}'`, {
+    field,
+    value: String(value),
+  });
 }
 
 // ============================================================================
@@ -200,10 +183,7 @@ function handleMongoDuplicateKeyError(error: MongoError): ApiError {
  * }
  * ```
  */
-export function handleError(
-  error: unknown,
-  options: ErrorHandlerOptions = {}
-): NormalizedError {
+export function handleError(error: unknown, options: ErrorHandlerOptions = {}): NormalizedError {
   const { logError = true, logger, context } = options;
 
   let apiError: ApiError;
@@ -238,69 +218,49 @@ export function handleError(
     shouldLog = false;
   }
   // MongoDB errors (duplicate key, etc.)
-  else if (isMongoError(error)) 
-    // Duplicate key error
+  else if (isMongoError(error))
     if (error.code === 11000) {
+      // Duplicate key error
       apiError = handleMongoDuplicateKeyError(error);
       shouldLog = false;
     }
     // Connection errors
-    else if (
-      error.message?.includes('ECONNREFUSED') ||
-      error.message?.includes('ETIMEDOUT')
-    ) {
-      apiError = new ApiError(
-        ErrorCodes.CONNECTION_ERROR,
-        500,
-        'Database connection error',
-        { originalMessage: error.message }
-      );
+    else if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ETIMEDOUT')) {
+      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Database connection error', {
+        originalMessage: error.message,
+      });
       shouldLog = true;
     }
     // Other MongoDB errors
     else {
-      apiError = new ApiError(
-        ErrorCodes.DATABASE_ERROR,
-        500,
-        'A database error occurred',
-        { originalMessage: error.message }
-      );
+      apiError = new ApiError(ErrorCodes.DATABASE_ERROR, 500, 'A database error occurred', {
+        originalMessage: error.message,
+      });
       shouldLog = true;
     }
-  
   // Standard Error instances
   else if (error instanceof Error) {
     // Check for common error patterns
-    if (error.message?.toLowerCase().includes('timeout')) 
-      apiError = new ApiError(
-        ErrorCodes.GATEWAY_TIMEOUT,
-        504,
-        'Request timed out',
-        { originalMessage: error.message }
-      );
-     else if (error.message?.toLowerCase().includes('network')) 
-      apiError = new ApiError(
-        ErrorCodes.CONNECTION_ERROR,
-        500,
-        'Network error occurred',
-        { originalMessage: error.message }
-      );
-     else 
-      apiError = new ApiError(
-        ErrorCodes.INTERNAL_ERROR,
-        500,
-        'An unexpected error occurred',
-        { originalMessage: error.message }
-      );
-    
+    if (error.message?.toLowerCase().includes('timeout'))
+      apiError = new ApiError(ErrorCodes.GATEWAY_TIMEOUT, 504, 'Request timed out', {
+        originalMessage: error.message,
+      });
+    else if (error.message?.toLowerCase().includes('network'))
+      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Network error occurred', {
+        originalMessage: error.message,
+      });
+    else
+      apiError = new ApiError(ErrorCodes.INTERNAL_ERROR, 500, 'An unexpected error occurred', {
+        originalMessage: error.message,
+      });
+
     // Preserve original stack trace
     apiError.stack = error.stack;
     shouldLog = true;
   }
   // Unknown error types
   else {
-    const message =
-      typeof error === 'string' ? error : 'An unexpected error occurred';
+    const message = typeof error === 'string' ? error : 'An unexpected error occurred';
     apiError = new ApiError(ErrorCodes.INTERNAL_ERROR, 500, message);
     shouldLog = true;
   }
@@ -322,10 +282,7 @@ export function handleError(
 /**
  * Convenience function that returns an ApiError directly
  */
-export function normalizeError(
-  error: unknown,
-  options?: ErrorHandlerOptions
-): ApiError {
+export function normalizeError(error: unknown, options?: ErrorHandlerOptions): ApiError {
   return handleError(error, options).error;
 }
 
@@ -357,10 +314,7 @@ export function withErrorHandler<T extends unknown[]>(
 /**
  * Creates a Response from any error
  */
-export function errorToResponse(
-  error: unknown,
-  options?: ErrorHandlerOptions
-): Response {
+export function errorToResponse(error: unknown, options?: ErrorHandlerOptions): Response {
   const { error: apiError } = handleError(error, options);
   return apiError.toResponse();
 }

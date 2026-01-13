@@ -34,14 +34,15 @@ try {
 import DeviceHealthWidget from '@/components/DeviceHealthWidget';
 
 function Dashboard() {
-  const handleFilterDevices = (filter: { status?: string; hasIssues?: boolean }) => {
+  const handleFilterDevices = (filter: {
+    status?: string;
+    hasIssues?: boolean;
+  }) => {
     console.log('Filter devices by:', filter);
     // Update your device grid filter
   };
 
-  return (
-    <DeviceHealthWidget onFilterDevices={handleFilterDevices} />
-  );
+  return <DeviceHealthWidget onFilterDevices={handleFilterDevices} />;
 }
 ```
 
@@ -56,12 +57,7 @@ function Dashboard() {
     // Open device detail modal
   };
 
-  return (
-    <AlertsPanel 
-      onDeviceClick={handleDeviceClick}
-      maxAlerts={5}
-    />
-  );
+  return <AlertsPanel onDeviceClick={handleDeviceClick} maxAlerts={5} />;
 }
 ```
 
@@ -82,10 +78,8 @@ function Dashboard() {
 
   return (
     <>
-      <button onClick={() => openDevice('device_001')}>
-        View Device
-      </button>
-      
+      <button onClick={() => openDevice('device_001')}>View Device</button>
+
       <DeviceDetailModal
         deviceId={selectedDevice}
         isOpen={modalOpen}
@@ -123,11 +117,7 @@ function DeviceAuditPage({ deviceId }: { deviceId: string }) {
   }, [deviceId]);
 
   return (
-    <AuditLogViewer 
-      deviceId={deviceId}
-      entries={auditLog}
-      loading={loading}
-    />
+    <AuditLogViewer deviceId={deviceId} entries={auditLog} loading={loading} />
   );
 }
 ```
@@ -203,11 +193,11 @@ export default function Dashboard() {
   // Floor/Room filtering
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
   const [selectedRoom, setSelectedRoom] = useState<string | 'all'>('all');
-  
+
   // Device detail modal
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-  
+
   // Device filtering
   const [deviceFilter, setDeviceFilter] = useState<any>(null);
 
@@ -222,27 +212,30 @@ export default function Dashboard() {
   };
 
   return (
-    <main className="p-8 space-y-8">
+    <main className='p-8 space-y-8'>
       {/* Header with Floor Selector */}
       <header>
-        <select 
+        <select
           value={selectedFloor}
-          onChange={(e) => setSelectedFloor(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
-        >
-          <option value="all">All Floors</option>
-          <option value="1">Floor 1</option>
-          <option value="2">Floor 2</option>
+          onChange={e =>
+            setSelectedFloor(
+              e.target.value === 'all' ? 'all' : parseInt(e.target.value)
+            )
+          }>
+          <option value='all'>All Floors</option>
+          <option value='1'>Floor 1</option>
+          <option value='2'>Floor 2</option>
         </select>
       </header>
 
       {/* Health Overview Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
         <DeviceHealthWidget onFilterDevices={setDeviceFilter} />
         <AlertsPanel onDeviceClick={openDeviceDetail} maxAlerts={5} />
       </div>
 
       {/* Visualization Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
         <FloorPlan
           selectedFloor={selectedFloor}
           onDeviceClick={setSelectedRoom}
@@ -274,27 +267,35 @@ export default function Dashboard() {
 ## Key Features
 
 ### Responsive Design
+
 All components are fully responsive:
+
 - Mobile: Card-based layouts with expand/collapse
 - Tablet: 2-column grids
 - Desktop: Full table layouts
 
 ### Dark Mode
+
 All components support dark mode via Tailwind's `dark:` variants.
 
 ### Real-time Updates
+
 Components auto-refresh:
+
 - DeviceHealthWidget: Every 30s
 - AlertsPanel: Every 30s
 - DeviceDetailModal: On open
 
 ### Error Handling
+
 All components handle errors gracefully:
+
 - Loading states with spinners
 - Error states with messages
 - Fallback to v1 API where applicable
 
 ### Type Safety
+
 All props and responses are fully typed using TypeScript types from `types/v2/`.
 
 ## Testing Checklist
@@ -317,21 +318,27 @@ All props and responses are fully typed using TypeScript types from `types/v2/`.
 ## Troubleshooting
 
 ### "API endpoint not found" errors
+
 The v2 API backend is not yet implemented. Components will show errors or fall back to v1 where available.
 
 **Solution:** Complete Phase 3 of plan.md to implement v2 API endpoints.
 
 ### TypeScript errors about missing types
+
 Ensure you've imported types from the correct location:
+
 ```typescript
 import type { DeviceV2Response } from '@/types/v2';
 ```
 
 ### Components not updating in real-time
+
 Check that Pusher is properly configured and the `NEXT_PUBLIC_PUSHER_*` env vars are set.
 
 ### Modal not opening
+
 Ensure state management is correct:
+
 ```typescript
 const [isOpen, setIsOpen] = useState(false);
 const [deviceId, setDeviceId] = useState<string | null>(null);

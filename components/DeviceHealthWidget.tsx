@@ -17,15 +17,17 @@ interface DeviceHealthWidgetProps {
   onFilterDevices?: (filter: { status?: string; hasIssues?: boolean }) => void;
 }
 
-export default function DeviceHealthWidget({
-  onFilterDevices,
-}: DeviceHealthWidgetProps) {
+export default function DeviceHealthWidget({ onFilterDevices }: DeviceHealthWidgetProps) {
   // Data fetching with React Query (shared with Dashboard and other components)
   const { data: healthData, isLoading, error: fetchError } = useHealthAnalytics();
 
-  const error = fetchError ? (fetchError instanceof Error ? fetchError.message : 'Failed to load health data') : null;
+  const error = fetchError
+    ? fetchError instanceof Error
+      ? fetchError.message
+      : 'Failed to load health data'
+    : null;
 
-  if (isLoading) 
+  if (isLoading)
     return (
       <Card className="w-full">
         <CardHeader>
@@ -41,9 +43,8 @@ export default function DeviceHealthWidget({
         </CardContent>
       </Card>
     );
-  
 
-  if (error || !healthData) 
+  if (error || !healthData)
     return (
       <Card className="w-full border-red-200 dark:border-red-800">
         <CardHeader>
@@ -59,29 +60,29 @@ export default function DeviceHealthWidget({
         </CardContent>
       </Card>
     );
-  
 
   // Extract values from nested structure
   const healthScore = healthData.summary?.health_score ?? 0;
   const totalDevices = healthData.summary?.total_devices ?? 0;
   const activeDevices = healthData.summary?.active_devices ?? 0;
-  
+
   // Get counts from status_breakdown
-  const maintenanceDevices = healthData.status_breakdown?.find(s => s.status === 'maintenance')?.count ?? 0;
+  const maintenanceDevices =
+    healthData.status_breakdown?.find(s => s.status === 'maintenance')?.count ?? 0;
   const offlineDevices = healthData.status_breakdown?.find(s => s.status === 'offline')?.count ?? 0;
   const errorDevices = healthData.alerts?.error_devices?.count ?? 0;
-  
+
   // Get alert counts
   const criticalAlerts = errorDevices;
   const maintenanceNeeded = healthData.alerts?.maintenance_due?.count ?? 0;
   const batteryWarnings = healthData.alerts?.low_battery_devices?.count ?? 0;
-  
+
   const healthScoreColor =
     healthScore >= 90
       ? 'text-green-600 dark:text-green-400'
       : healthScore >= 70
-      ? 'text-yellow-600 dark:text-yellow-400'
-      : 'text-red-600 dark:text-red-400';
+        ? 'text-yellow-600 dark:text-yellow-400'
+        : 'text-red-600 dark:text-red-400';
 
   return (
     <Card className="w-full">
@@ -144,18 +145,14 @@ export default function DeviceHealthWidget({
           >
             <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                {errorDevices}
-              </p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{errorDevices}</p>
               <p className="text-xs text-red-700 dark:text-red-300">Error</p>
             </div>
           </button>
         </div>
 
         {/* Alerts & Warnings */}
-        {(criticalAlerts > 0 ||
-          maintenanceNeeded > 0 ||
-          batteryWarnings > 0) && (
+        {(criticalAlerts > 0 || maintenanceNeeded > 0 || batteryWarnings > 0) && (
           <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               Alerts & Warnings
@@ -183,9 +180,7 @@ export default function DeviceHealthWidget({
                   <Wrench className="h-4 w-4" />
                   Maintenance Needed
                 </span>
-                <Badge className="bg-yellow-500 hover:bg-yellow-600">
-                  {maintenanceNeeded}
-                </Badge>
+                <Badge className="bg-yellow-500 hover:bg-yellow-600">{maintenanceNeeded}</Badge>
               </button>
             )}
 
@@ -198,9 +193,7 @@ export default function DeviceHealthWidget({
                   <Battery className="h-4 w-4" />
                   Low Battery Warnings
                 </span>
-                <Badge className="bg-orange-500 hover:bg-orange-600">
-                  {batteryWarnings}
-                </Badge>
+                <Badge className="bg-orange-500 hover:bg-orange-600">{batteryWarnings}</Badge>
               </button>
             )}
           </div>
@@ -210,9 +203,7 @@ export default function DeviceHealthWidget({
         <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Total Devices:{' '}
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {totalDevices}
-            </span>
+            <span className="font-semibold text-gray-900 dark:text-white">{totalDevices}</span>
           </p>
         </div>
       </CardContent>

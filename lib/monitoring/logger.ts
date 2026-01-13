@@ -72,31 +72,27 @@ function shouldLog(level: LogLevel): boolean {
  */
 function formatLog(entry: LogEntry): string {
   // In production, output JSON for log aggregation
-  if (process.env.NODE_ENV === 'production') 
-    return JSON.stringify(entry);
-  
+  if (process.env.NODE_ENV === 'production') return JSON.stringify(entry);
 
   // In development, use readable format
   const timestamp = new Date(entry.timestamp).toLocaleTimeString();
   const levelColor = {
     debug: '\x1b[90m', // gray
-    info: '\x1b[36m',  // cyan
-    warn: '\x1b[33m',  // yellow
+    info: '\x1b[36m', // cyan
+    warn: '\x1b[33m', // yellow
     error: '\x1b[31m', // red
   }[entry.level];
   const reset = '\x1b[0m';
 
   let output = `${levelColor}[${timestamp}] ${entry.level.toUpperCase()}${reset}: ${entry.message}`;
 
-  if (entry.context && Object.keys(entry.context).length > 0) 
+  if (entry.context && Object.keys(entry.context).length > 0)
     output += ` ${JSON.stringify(entry.context)}`;
-  
 
   if (entry.error) {
     output += `\n  Error: ${entry.error.message}`;
-    if (entry.error.stack && process.env.LOG_LEVEL === 'debug') 
+    if (entry.error.stack && process.env.LOG_LEVEL === 'debug')
       output += `\n  Stack: ${entry.error.stack}`;
-    
   }
 
   return output;
@@ -105,12 +101,7 @@ function formatLog(entry: LogEntry): string {
 /**
  * Internal log function
  */
-function log(
-  level: LogLevel,
-  message: string,
-  context?: LogContext,
-  error?: Error
-): void {
+function log(level: LogLevel, message: string, context?: LogContext, error?: Error): void {
   if (!shouldLog(level)) return;
 
   const entry: LogEntry = {
@@ -120,14 +111,13 @@ function log(
     context: context && Object.keys(context).length > 0 ? context : undefined,
   };
 
-  if (error) 
+  if (error)
     entry.error = {
       name: error.name,
       message: error.message,
       stack: error.stack,
       code: (error as Error & { code?: string }).code,
     };
-  
 
   const formatted = formatLog(entry);
 
@@ -150,14 +140,12 @@ export const logger = {
   /**
    * Debug level log - verbose information for debugging
    */
-  debug: (message: string, context?: LogContext) =>
-    log('debug', message, context),
+  debug: (message: string, context?: LogContext) => log('debug', message, context),
 
   /**
    * Info level log - general operational information
    */
-  info: (message: string, context?: LogContext) =>
-    log('info', message, context),
+  info: (message: string, context?: LogContext) => log('info', message, context),
 
   /**
    * Warning level log - potentially problematic situations
@@ -181,8 +169,7 @@ export const logger = {
     duration: number,
     context?: Partial<LogContext>
   ) => {
-    const level: LogLevel =
-      statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
+    const level: LogLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
 
     log(level, `${method} ${path} ${statusCode} ${duration}ms`, {
       method,

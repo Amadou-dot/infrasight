@@ -27,25 +27,18 @@ class MockPusherServer {
   /**
    * Trigger an event on a channel
    */
-  async trigger(
-    channel: string | string[],
-    event: string,
-    data: unknown
-  ): Promise<void> {
-    if (!this.isConnected) 
-      throw new Error('Pusher is not connected');
-    
+  async trigger(channel: string | string[], event: string, data: unknown): Promise<void> {
+    if (!this.isConnected) throw new Error('Pusher is not connected');
 
     const channels = Array.isArray(channel) ? channel : [channel];
 
-    for (const ch of channels) 
+    for (const ch of channels)
       this.triggeredEvents.push({
         channel: ch,
         event,
         data,
         timestamp: new Date(),
       });
-    
   }
 
   /**
@@ -59,14 +52,14 @@ class MockPusherServer {
    * Get events for a specific channel
    */
   getEventsForChannel(channel: string): TriggeredEvent[] {
-    return this.triggeredEvents.filter((e) => e.channel === channel);
+    return this.triggeredEvents.filter(e => e.channel === channel);
   }
 
   /**
    * Get events of a specific type
    */
   getEventsByType(event: string): TriggeredEvent[] {
-    return this.triggeredEvents.filter((e) => e.event === event);
+    return this.triggeredEvents.filter(e => e.event === event);
   }
 
   /**
@@ -112,17 +105,13 @@ class MockPusherClient {
    * Subscribe to a channel
    */
   subscribe(channelName: string): MockChannel {
-    if (!this.subscriptions.has(channelName)) 
+    if (!this.subscriptions.has(channelName))
       this.subscriptions.set(channelName, {
         channel: channelName,
         callbacks: new Map(),
       });
-    
 
-    return new MockChannel(
-      channelName,
-      this.subscriptions.get(channelName)!.callbacks
-    );
+    return new MockChannel(channelName, this.subscriptions.get(channelName)!.callbacks);
   }
 
   /**
@@ -139,9 +128,7 @@ class MockPusherClient {
     const subscription = this.subscriptions.get(channel);
     if (subscription) {
       const callbacks = subscription.callbacks.get(event);
-      if (callbacks) 
-        callbacks.forEach((cb) => cb(data));
-      
+      if (callbacks) callbacks.forEach(cb => cb(data));
     }
   }
 
@@ -199,9 +186,8 @@ class MockChannel {
    * Bind a callback to an event
    */
   bind(event: string, callback: (data: unknown) => void): this {
-    if (!this.callbacks.has(event)) 
-      this.callbacks.set(event, []);
-    
+    if (!this.callbacks.has(event)) this.callbacks.set(event, []);
+
     this.callbacks.get(event)!.push(callback);
     return this;
   }
@@ -210,15 +196,12 @@ class MockChannel {
    * Unbind a callback from an event
    */
   unbind(event: string, callback?: (data: unknown) => void): this {
-    if (!callback) 
-      this.callbacks.delete(event);
-     else {
+    if (!callback) this.callbacks.delete(event);
+    else {
       const callbacks = this.callbacks.get(event);
       if (callbacks) {
         const index = callbacks.indexOf(callback);
-        if (index > -1) 
-          callbacks.splice(index, 1);
-        
+        if (index > -1) callbacks.splice(index, 1);
       }
     }
     return this;
@@ -229,9 +212,7 @@ class MockChannel {
    */
   emit(event: string, data: unknown): void {
     const callbacks = this.callbacks.get(event);
-    if (callbacks) 
-      callbacks.forEach((cb) => cb(data));
-    
+    if (callbacks) callbacks.forEach(cb => cb(data));
   }
 
   /**
@@ -250,9 +231,8 @@ let mockPusherClient: MockPusherClient | null = null;
  * Get mock Pusher server instance
  */
 export function getMockPusherServer(): MockPusherServer {
-  if (!mockPusherServer) 
-    mockPusherServer = new MockPusherServer();
-  
+  if (!mockPusherServer) mockPusherServer = new MockPusherServer();
+
   return mockPusherServer;
 }
 
@@ -260,9 +240,8 @@ export function getMockPusherServer(): MockPusherServer {
  * Get mock Pusher client instance
  */
 export function getMockPusherClient(): MockPusherClient {
-  if (!mockPusherClient) 
-    mockPusherClient = new MockPusherClient();
-  
+  if (!mockPusherClient) mockPusherClient = new MockPusherClient();
+
   return mockPusherClient;
 }
 

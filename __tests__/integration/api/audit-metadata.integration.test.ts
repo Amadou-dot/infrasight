@@ -38,7 +38,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 /**
  * Sleep helper for timestamp differentiation
  */
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('Audit and Metadata API Integration Tests', () => {
   beforeEach(() => {

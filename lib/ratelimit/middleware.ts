@@ -6,11 +6,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import {
-  checkRateLimit,
-  checkMultipleRateLimits,
-  type RateLimitResult,
-} from './limiter';
+import { checkRateLimit, checkMultipleRateLimits, type RateLimitResult } from './limiter';
 import { getRateLimitConfig, isRateLimitEnabled } from './config';
 import { ApiError } from '../errors/ApiError';
 import { logger } from '../monitoring/logger';
@@ -69,19 +65,14 @@ async function extractDeviceId(request: NextRequest): Promise<string | null> {
 /**
  * Add rate limit headers to response
  */
-export function addRateLimitHeaders(
-  response: Response,
-  result: RateLimitResult
-): Response {
+export function addRateLimitHeaders(response: Response, result: RateLimitResult): Response {
   const headers = new Headers(response.headers);
 
   headers.set('X-RateLimit-Limit', String(result.limit));
   headers.set('X-RateLimit-Remaining', String(result.remaining));
   headers.set('X-RateLimit-Reset', String(result.resetIn));
 
-  if (result.retryAfter !== undefined) 
-    headers.set('Retry-After', String(result.retryAfter));
-  
+  if (result.retryAfter !== undefined) headers.set('Retry-After', String(result.retryAfter));
 
   return new Response(response.body, {
     status: response.status,
@@ -105,9 +96,7 @@ export function withRateLimit<T extends [NextRequest, ...unknown[]]>(
 ): (...args: T) => Promise<Response> {
   return async (...args: T): Promise<Response> => {
     // Check if rate limiting is enabled
-    if (!isRateLimitEnabled()) 
-      return handler(...args);
-    
+    if (!isRateLimitEnabled()) return handler(...args);
 
     const request = args[0];
     const path = request.nextUrl.pathname;
@@ -115,10 +104,9 @@ export function withRateLimit<T extends [NextRequest, ...unknown[]]>(
 
     // Get rate limit config for this endpoint
     const config = getRateLimitConfig(path, method);
-    if (!config) 
+    if (!config)
       // No config means exempt from rate limiting
       return handler(...args);
-    
 
     const clientIp = getClientIp(request);
 
@@ -130,9 +118,7 @@ export function withRateLimit<T extends [NextRequest, ...unknown[]]>(
     // For ingestion endpoint, also check per-device limit
     if (config.perDevice && path.includes('/readings/ingest')) {
       const deviceId = await extractDeviceId(request);
-      if (deviceId) 
-        limitsToCheck.push({ identifier: deviceId, config: config.perDevice });
-      
+      if (deviceId) limitsToCheck.push({ identifier: deviceId, config: config.perDevice });
     }
 
     // Check rate limits
@@ -165,21 +151,17 @@ export function withRateLimit<T extends [NextRequest, ...unknown[]]>(
 /**
  * Create a custom rate limit middleware with specific configuration
  */
-export function createRateLimitMiddleware(
-  customConfig: {
-    name: string;
-    max: number;
-    windowSeconds: number;
-    getIdentifier?: (request: NextRequest) => Promise<string>;
-  }
-) {
+export function createRateLimitMiddleware(customConfig: {
+  name: string;
+  max: number;
+  windowSeconds: number;
+  getIdentifier?: (request: NextRequest) => Promise<string>;
+}) {
   return function <T extends [NextRequest, ...unknown[]]>(
     handler: (...args: T) => Promise<Response>
   ): (...args: T) => Promise<Response> {
     return async (...args: T): Promise<Response> => {
-      if (!isRateLimitEnabled()) 
-        return handler(...args);
-      
+      if (!isRateLimitEnabled()) return handler(...args);
 
       const request = args[0];
       const identifier = customConfig.getIdentifier

@@ -38,14 +38,14 @@ Infrasight uses a comprehensive testing strategy following the test pyramid mode
 
 ### Testing Goals
 
-| Category | Coverage Target | Priority |
-|----------|----------------|----------|
-| API Routes | >= 85% | Critical |
-| Models | >= 90% | Critical |
-| Validation Schemas | 100% | Critical |
-| Utilities | >= 80% | High |
-| Components | >= 70% | Medium |
-| E2E (User Flows) | Critical paths | High |
+| Category           | Coverage Target | Priority |
+| ------------------ | --------------- | -------- |
+| API Routes         | >= 85%          | Critical |
+| Models             | >= 90%          | Critical |
+| Validation Schemas | 100%            | Critical |
+| Utilities          | >= 80%          | High     |
+| Components         | >= 70%          | Medium   |
+| E2E (User Flows)   | Critical paths  | High     |
 
 ---
 
@@ -69,13 +69,13 @@ Infrasight uses a comprehensive testing strategy following the test pyramid mode
 
 ## Testing Tools
 
-| Tool | Purpose | Usage |
-|------|---------|-------|
-| **Jest** | Unit & Integration testing | Primary test runner |
-| **Testing Library** | React component testing | Component assertions |
-| **Playwright** | E2E testing | Browser automation |
-| **MongoDB Memory Server** | In-memory MongoDB | Database isolation |
-| **Supertest** | HTTP testing | API route testing |
+| Tool                      | Purpose                    | Usage                |
+| ------------------------- | -------------------------- | -------------------- |
+| **Jest**                  | Unit & Integration testing | Primary test runner  |
+| **Testing Library**       | React component testing    | Component assertions |
+| **Playwright**            | E2E testing                | Browser automation   |
+| **MongoDB Memory Server** | In-memory MongoDB          | Database isolation   |
+| **Supertest**             | HTTP testing               | API route testing    |
 
 ---
 
@@ -156,16 +156,13 @@ const config = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
 
   // Test patterns
-  testMatch: [
-    '**/__tests__/**/*.test.ts',
-    '**/__tests__/**/*.test.tsx',
-  ],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
 
   // Ignore patterns
   testPathIgnorePatterns: [
     '/node_modules/',
     '/.next/',
-    '/e2e/',  // E2E tests use Playwright
+    '/e2e/', // E2E tests use Playwright
   ],
 
   // Coverage configuration
@@ -382,10 +379,12 @@ describe('DeviceV2 Model', () => {
   describe('Static Methods', () => {
     beforeEach(async () => {
       await DeviceV2.create(createValidDevice());
-      await DeviceV2.create(createValidDevice({
-        _id: 'device_test_002',
-        serial_number: 'SN-TEST-002',
-      }));
+      await DeviceV2.create(
+        createValidDevice({
+          _id: 'device_test_002',
+          serial_number: 'SN-TEST-002',
+        })
+      );
     });
 
     describe('findActive', () => {
@@ -448,9 +447,7 @@ describe('DeviceV2 Model', () => {
       device.status = 'maintenance';
       await device.save();
 
-      expect(device.audit.updated_at.getTime()).toBeGreaterThan(
-        originalUpdatedAt.getTime()
-      );
+      expect(device.audit.updated_at.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
     });
   });
 });
@@ -498,18 +495,24 @@ describe('ReadingV2 Model', () => {
       // Create test readings with different timestamps
       const now = new Date();
 
-      await ReadingV2.create(createValidReading({
-        timestamp: new Date(now.getTime() - 3600000), // 1 hour ago
-        value: 20,
-      }));
-      await ReadingV2.create(createValidReading({
-        timestamp: new Date(now.getTime() - 1800000), // 30 min ago
-        value: 21,
-      }));
-      await ReadingV2.create(createValidReading({
-        timestamp: now,
-        value: 22,
-      }));
+      await ReadingV2.create(
+        createValidReading({
+          timestamp: new Date(now.getTime() - 3600000), // 1 hour ago
+          value: 20,
+        })
+      );
+      await ReadingV2.create(
+        createValidReading({
+          timestamp: new Date(now.getTime() - 1800000), // 30 min ago
+          value: 21,
+        })
+      );
+      await ReadingV2.create(
+        createValidReading({
+          timestamp: now,
+          value: 22,
+        })
+      );
     });
 
     describe('getLatestForDevice', () => {
@@ -521,15 +524,17 @@ describe('ReadingV2 Model', () => {
       });
 
       it('should filter by type', async () => {
-        await ReadingV2.create(createValidReading({
-          metadata: {
-            device_id: 'device_001',
-            type: 'humidity',
-            unit: 'percent',
-            source: 'sensor',
-          },
-          value: 45,
-        }));
+        await ReadingV2.create(
+          createValidReading({
+            metadata: {
+              device_id: 'device_001',
+              type: 'humidity',
+              unit: 'percent',
+              source: 'sensor',
+            },
+            value: 45,
+          })
+        );
 
         const latest = await ReadingV2.getLatestForDevice('device_001', 'humidity');
 
@@ -564,10 +569,12 @@ describe('ReadingV2 Model', () => {
 
     describe('getAnomalies', () => {
       it('should return anomalous readings', async () => {
-        await ReadingV2.create(createValidReading({
-          value: 99,
-          quality: { is_valid: true, is_anomaly: true, anomaly_score: 0.9 },
-        }));
+        await ReadingV2.create(
+          createValidReading({
+            value: 99,
+            quality: { is_valid: true, is_anomaly: true, anomaly_score: 0.9 },
+          })
+        );
 
         const anomalies = await ReadingV2.getAnomalies();
 
@@ -576,14 +583,18 @@ describe('ReadingV2 Model', () => {
       });
 
       it('should filter by minimum score', async () => {
-        await ReadingV2.create(createValidReading({
-          value: 98,
-          quality: { is_valid: true, is_anomaly: true, anomaly_score: 0.5 },
-        }));
-        await ReadingV2.create(createValidReading({
-          value: 99,
-          quality: { is_valid: true, is_anomaly: true, anomaly_score: 0.9 },
-        }));
+        await ReadingV2.create(
+          createValidReading({
+            value: 98,
+            quality: { is_valid: true, is_anomaly: true, anomaly_score: 0.5 },
+          })
+        );
+        await ReadingV2.create(
+          createValidReading({
+            value: 99,
+            quality: { is_valid: true, is_anomaly: true, anomaly_score: 0.9 },
+          })
+        );
 
         const anomalies = await ReadingV2.getAnomalies(undefined, { minScore: 0.8 });
 
@@ -1297,11 +1308,7 @@ it('should broadcast reading', async () => {
 
   // ... perform action that triggers Pusher
 
-  expect(pusher.trigger).toHaveBeenCalledWith(
-    'sensor-readings',
-    'new-reading',
-    expect.any(Object)
-  );
+  expect(pusher.trigger).toHaveBeenCalledWith('sensor-readings', 'new-reading', expect.any(Object));
 });
 ```
 
@@ -1331,13 +1338,13 @@ jest.mock('@/lib/api/v2-client', () => ({
 
 ## Coverage Goals
 
-| Category | Coverage Target | Current | Status |
-|----------|----------------|---------|--------|
-| API Routes | >= 85% | - | Pending |
-| Models | >= 90% | - | Pending |
-| Validation Schemas | 100% | - | Pending |
-| Utilities | >= 80% | - | Pending |
-| Components | >= 70% | - | Pending |
+| Category           | Coverage Target | Current | Status  |
+| ------------------ | --------------- | ------- | ------- |
+| API Routes         | >= 85%          | -       | Pending |
+| Models             | >= 90%          | -       | Pending |
+| Validation Schemas | 100%            | -       | Pending |
+| Utilities          | >= 80%          | -       | Pending |
+| Components         | >= 70%          | -       | Pending |
 
 Run coverage report:
 
@@ -1493,4 +1500,4 @@ await expect(page.locator('text=Loading')).not.toBeVisible();
 
 ---
 
-*Last Updated: 2026-01-05*
+_Last Updated: 2026-01-05_

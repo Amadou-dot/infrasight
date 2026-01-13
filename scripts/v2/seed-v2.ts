@@ -55,7 +55,14 @@ const deviceTypes = [
 const manufacturers = ['SensorCorp', 'IoTech', 'SmartSense', 'EnviroTech', 'DataLogix'];
 const departments = ['Engineering', 'Operations', 'Facilities', 'Research', 'Sales'];
 const buildings = ['HQ', 'Building-A', 'Building-B', 'Warehouse', 'Lab'];
-const rooms = ['Conference Room', 'Open Office', 'Server Room', 'Break Room', 'Reception', 'Lab Area'];
+const rooms = [
+  'Conference Room',
+  'Open Office',
+  'Server Room',
+  'Break Room',
+  'Reception',
+  'Lab Area',
+];
 const dataClassifications = ['public', 'internal', 'confidential', 'restricted'] as const;
 const statuses = ['active', 'maintenance', 'offline', 'error'] as const;
 
@@ -96,9 +103,8 @@ function generateDeviceId(index: number): string {
 function generateSerialNumber(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let serial = 'SN-';
-  for (let i = 0; i < 10; i++) 
-    serial += chars.charAt(Math.floor(Math.random() * chars.length));
-  
+  for (let i = 0; i < 10; i++) serial += chars.charAt(Math.floor(Math.random() * chars.length));
+
   return serial;
 }
 
@@ -152,26 +158,37 @@ function generateDevice(index: number): unknown {
       updated_by: 'seed-script',
     },
     health: {
-      last_seen: new Date(now.getTime() - randomInt(0, status === 'offline' ? 24 * 60 : 60) * 60 * 1000),
+      last_seen: new Date(
+        now.getTime() - randomInt(0, status === 'offline' ? 24 * 60 : 60) * 60 * 1000
+      ),
       uptime_percentage: status === 'active' ? randomFloat(95, 99.9) : randomFloat(50, 95),
       error_count: status === 'active' ? randomInt(0, 5) : randomInt(5, 50),
       battery_level: Math.random() > 0.3 ? randomInt(10, 100) : undefined,
       signal_strength: randomInt(-90, -30),
       // Add last_error for devices with error status or high error counts
-      ...(status === 'error' || (status !== 'active' && Math.random() > 0.5) ? {
-        last_error: {
-          timestamp: new Date(now.getTime() - randomInt(0, 48) * 60 * 60 * 1000),
-          code: randomChoice(['SENSOR_TIMEOUT', 'CALIBRATION_DRIFT', 'LOW_SIGNAL', 'BATTERY_CRITICAL', 'COMM_FAILURE', 'DATA_CORRUPTION']),
-          message: randomChoice([
-            'Sensor failed to respond within timeout period',
-            'Calibration values have drifted beyond acceptable range',
-            'Signal strength below minimum threshold',
-            'Battery level critically low, immediate replacement required',
-            'Communication failure with gateway device',
-            'Data integrity check failed, possible sensor malfunction',
-          ]),
-        },
-      } : {}),
+      ...(status === 'error' || (status !== 'active' && Math.random() > 0.5)
+        ? {
+            last_error: {
+              timestamp: new Date(now.getTime() - randomInt(0, 48) * 60 * 60 * 1000),
+              code: randomChoice([
+                'SENSOR_TIMEOUT',
+                'CALIBRATION_DRIFT',
+                'LOW_SIGNAL',
+                'BATTERY_CRITICAL',
+                'COMM_FAILURE',
+                'DATA_CORRUPTION',
+              ]),
+              message: randomChoice([
+                'Sensor failed to respond within timeout period',
+                'Calibration values have drifted beyond acceptable range',
+                'Signal strength below minimum threshold',
+                'Battery level critically low, immediate replacement required',
+                'Communication failure with gateway device',
+                'Data integrity check failed, possible sensor malfunction',
+              ]),
+            },
+          }
+        : {}),
     },
     status,
     status_reason: status !== 'active' ? `${status} since ${new Date().toISOString()}` : undefined,
@@ -291,9 +308,8 @@ async function seed(): Promise<void> {
     // Generate and insert devices
     console.log(`📱 Generating ${NUM_DEVICES} devices...`);
     const devices = [];
-    for (let i = 0; i < NUM_DEVICES; i++) 
-      devices.push(generateDevice(i));
-    
+    for (let i = 0; i < NUM_DEVICES; i++) devices.push(generateDevice(i));
+
     await DeviceV2.insertMany(devices);
     console.log(`✅ Inserted ${NUM_DEVICES} devices\n`);
 
@@ -305,7 +321,7 @@ async function seed(): Promise<void> {
     for (const device of devices) {
       const deviceDoc = device as { _id: string; type: string };
       const readings = [];
-      
+
       // Generate readings over the past 7 days
       for (let i = 0; i < READINGS_PER_DEVICE; i++) {
         const timestamp = new Date(now - i * 60 * 60 * 1000); // 1 hour apart

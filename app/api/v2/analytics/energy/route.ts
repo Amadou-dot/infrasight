@@ -35,11 +35,7 @@ function getDateFormat(granularity: string): string {
     case 'month':
       return '%Y-%m';
     default:
-      throw new ApiError(
-        ErrorCodes.INVALID_INPUT,
-        400,
-        `Invalid granularity: ${granularity}`
-      );
+      throw new ApiError(ErrorCodes.INVALID_INPUT, 400, `Invalid granularity: ${granularity}`);
   }
 }
 
@@ -145,10 +141,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Validate query parameters
-    const validationResult = validateQuery(
-      searchParams,
-      readingAnalyticsQuerySchema
-    );
+    const validationResult = validateQuery(searchParams, readingAnalyticsQuerySchema);
     if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
@@ -164,32 +157,24 @@ export async function GET(request: NextRequest) {
 
     // Device filter
     if (query.device_id) {
-      const deviceIds = Array.isArray(query.device_id)
-        ? query.device_id
-        : [query.device_id];
-      matchStage['metadata.device_id'] =
-        deviceIds.length === 1 ? deviceIds[0] : { $in: deviceIds };
+      const deviceIds = Array.isArray(query.device_id) ? query.device_id : [query.device_id];
+      matchStage['metadata.device_id'] = deviceIds.length === 1 ? deviceIds[0] : { $in: deviceIds };
     }
 
     // Type filter
     if (query.type) {
       const types = Array.isArray(query.type) ? query.type : [query.type];
-      matchStage['metadata.type'] =
-        types.length === 1 ? types[0] : { $in: types };
+      matchStage['metadata.type'] = types.length === 1 ? types[0] : { $in: types };
     }
 
     // Time range filter
     if (query.startDate || query.endDate) {
       matchStage.timestamp = {};
       if (query.startDate)
-        (matchStage.timestamp as Record<string, Date>).$gte = new Date(
-          query.startDate
-        );
+        (matchStage.timestamp as Record<string, Date>).$gte = new Date(query.startDate);
 
       if (query.endDate)
-        (matchStage.timestamp as Record<string, Date>).$lte = new Date(
-          query.endDate
-        );
+        (matchStage.timestamp as Record<string, Date>).$lte = new Date(query.endDate);
     }
 
     // Quality filter
@@ -234,9 +219,7 @@ export async function GET(request: NextRequest) {
 
     // Build aggregation pipeline
     // Using PipelineStage.Match etc. for type safety while allowing dynamic values
-    const pipeline: PipelineStage[] = [
-      { $match: matchStage } as PipelineStage.Match,
-    ];
+    const pipeline: PipelineStage[] = [{ $match: matchStage } as PipelineStage.Match];
 
     // Add $lookup for floor, room, building, department grouping
     if (needsLookup)
@@ -390,11 +373,16 @@ export async function GET(request: NextRequest) {
       comparisonResults = await ReadingV2.aggregate(comparisonPipeline);
 
       // Calculate summary statistics for comparison
-      const currentTotal = results.reduce((sum: number, r: { value?: number }) => sum + (r.value || 0), 0);
-      const comparisonTotal = comparisonResults.reduce((sum: number, r: { value?: number }) => sum + (r.value || 0), 0);
-      const percentageChange = comparisonTotal !== 0
-        ? ((currentTotal - comparisonTotal) / comparisonTotal) * 100
-        : null;
+      const currentTotal = results.reduce(
+        (sum: number, r: { value?: number }) => sum + (r.value || 0),
+        0
+      );
+      const comparisonTotal = comparisonResults.reduce(
+        (sum: number, r: { value?: number }) => sum + (r.value || 0),
+        0
+      );
+      const percentageChange =
+        comparisonTotal !== 0 ? ((currentTotal - comparisonTotal) / comparisonTotal) * 100 : null;
 
       comparisonMetadata = {
         label: comparisonRange.label,
@@ -406,26 +394,28 @@ export async function GET(request: NextRequest) {
         summary: {
           current_total: Math.round(currentTotal * 1000) / 1000,
           comparison_total: Math.round(comparisonTotal * 1000) / 1000,
-          percentage_change: percentageChange !== null
-            ? Math.round(percentageChange * 100) / 100
-            : null,
-          trend: percentageChange === null
-            ? 'no_data'
-            : percentageChange > 0
-              ? 'increase'
-              : percentageChange < 0
-                ? 'decrease'
-                : 'stable',
+          percentage_change:
+            percentageChange !== null ? Math.round(percentageChange * 100) / 100 : null,
+          trend:
+            percentageChange === null
+              ? 'no_data'
+              : percentageChange > 0
+                ? 'increase'
+                : percentageChange < 0
+                  ? 'decrease'
+                  : 'stable',
         },
       };
     }
 
     return jsonSuccess({
       results,
-      comparison: comparisonResults ? {
-        results: comparisonResults,
-        ...comparisonMetadata,
-      } : null,
+      comparison: comparisonResults
+        ? {
+            results: comparisonResults,
+            ...comparisonMetadata,
+          }
+        : null,
       metadata: {
         granularity: query.granularity || 'hour',
         aggregation_type: query.aggregation || 'avg',

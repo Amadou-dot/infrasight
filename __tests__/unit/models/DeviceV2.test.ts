@@ -281,9 +281,8 @@ describe('DeviceV2 Model', () => {
       it('should return only non-deleted devices', async () => {
         // Create active devices
         const devices = createDeviceInputs(3);
-        for (let i = 0; i < devices.length; i++) 
-          devices[i]._id = `device_active_${i}`;
-        
+        for (let i = 0; i < devices.length; i++) devices[i]._id = `device_active_${i}`;
+
         await DeviceV2.insertMany(devices);
 
         // Soft delete one
@@ -292,13 +291,19 @@ describe('DeviceV2 Model', () => {
         // Find active should return 2
         const activeDevices = await DeviceV2.findActive();
         expect(activeDevices.length).toBe(2);
-        expect(activeDevices.map((d) => d._id)).not.toContain('device_active_1');
+        expect(activeDevices.map(d => d._id)).not.toContain('device_active_1');
       });
 
       it('should support additional filters', async () => {
         const devices = [
-          createDeviceInput({ _id: 'floor1_device', location: { building_id: 'b1', floor: 1, room_name: 'R1' } }),
-          createDeviceInput({ _id: 'floor2_device', location: { building_id: 'b1', floor: 2, room_name: 'R2' } }),
+          createDeviceInput({
+            _id: 'floor1_device',
+            location: { building_id: 'b1', floor: 1, room_name: 'R1' },
+          }),
+          createDeviceInput({
+            _id: 'floor2_device',
+            location: { building_id: 'b1', floor: 2, room_name: 'R2' },
+          }),
         ];
         await DeviceV2.insertMany(devices);
 
@@ -311,9 +316,8 @@ describe('DeviceV2 Model', () => {
     describe('findDeleted', () => {
       it('should return only soft-deleted devices', async () => {
         const devices = createDeviceInputs(3);
-        for (let i = 0; i < devices.length; i++) 
-          devices[i]._id = `device_deleted_test_${i}`;
-        
+        for (let i = 0; i < devices.length; i++) devices[i]._id = `device_deleted_test_${i}`;
+
         await DeviceV2.insertMany(devices);
 
         // Soft delete two devices
@@ -322,8 +326,8 @@ describe('DeviceV2 Model', () => {
 
         const deletedDevices = await DeviceV2.findDeleted();
         expect(deletedDevices.length).toBe(2);
-        expect(deletedDevices.map((d) => d._id)).toContain('device_deleted_test_0');
-        expect(deletedDevices.map((d) => d._id)).toContain('device_deleted_test_2');
+        expect(deletedDevices.map(d => d._id)).toContain('device_deleted_test_0');
+        expect(deletedDevices.map(d => d._id)).toContain('device_deleted_test_2');
       });
     });
 
@@ -384,7 +388,7 @@ describe('DeviceV2 Model', () => {
         const originalUpdatedAt = device.audit.updated_at;
 
         // Wait a bit to ensure time difference
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 10));
 
         device.firmware_version = '2.0.0';
         await device.save();
@@ -394,12 +398,15 @@ describe('DeviceV2 Model', () => {
 
       it('should not update updated_at for new documents', async () => {
         const beforeCreate = new Date();
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 10));
 
         const device = await DeviceV2.create(createDeviceInput({ _id: 'device_new_test' }));
 
         // created_at and updated_at should be the same for new documents
-        expect(device.audit.created_at.getTime()).toBeCloseTo(device.audit.updated_at.getTime(), -2);
+        expect(device.audit.created_at.getTime()).toBeCloseTo(
+          device.audit.updated_at.getTime(),
+          -2
+        );
         expect(device.audit.created_at.getTime()).toBeGreaterThanOrEqual(beforeCreate.getTime());
       });
     });
@@ -409,7 +416,7 @@ describe('DeviceV2 Model', () => {
         await DeviceV2.create(createDeviceInput({ _id: 'device_findupdate_test' }));
 
         // Wait a bit
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 10));
 
         const updated = await DeviceV2.findByIdAndUpdate(
           'device_findupdate_test',
@@ -436,7 +443,8 @@ describe('DeviceV2 Model', () => {
           createDeviceInput({
             _id: `device_class_${classification}`,
             compliance: {
-              requires_encryption: classification === 'confidential' || classification === 'restricted',
+              requires_encryption:
+                classification === 'confidential' || classification === 'restricted',
               data_classification: classification,
               retention_days: 90,
             },
@@ -481,9 +489,7 @@ describe('DeviceV2 Model', () => {
   describe('Bulk Operations', () => {
     it('should insert multiple devices', async () => {
       const devices = createDeviceInputs(5);
-      for (let i = 0; i < devices.length; i++) 
-        devices[i]._id = `bulk_device_${i}`;
-      
+      for (let i = 0; i < devices.length; i++) devices[i]._id = `bulk_device_${i}`;
 
       const result = await DeviceV2.insertMany(devices);
 

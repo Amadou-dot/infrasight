@@ -42,18 +42,15 @@ jest.mock('@clerk/nextjs/server', () => ({
 beforeAll(async () => {
   const uri = process.env.MONGODB_URI;
 
-  if (!uri) 
-    throw new Error('MONGODB_URI not set. Did globalSetup run?');
-  
+  if (!uri) throw new Error('MONGODB_URI not set. Did globalSetup run?');
 
   // Only connect if not already connected
-  if (mongoose.connection.readyState === 0) 
+  if (mongoose.connection.readyState === 0)
     await mongoose.connect(uri, {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
-  
 });
 
 // Clear all collections after each test
@@ -78,13 +75,12 @@ afterAll(async () => {
     // Drop all collections to clean up
     const collections = mongoose.connection.collections;
 
-    for (const key in collections) 
+    for (const key in collections)
       try {
         await collections[key].drop();
       } catch {
         // Collection might not exist, ignore
       }
-    
 
     await mongoose.disconnect();
   }
@@ -97,19 +93,13 @@ console.error = (...args: unknown[]) => {
   const errorMessage = args[0]?.toString() || '';
 
   // Allow through, but don't fail tests for these
-  if (
-    errorMessage.includes('MongoDB') ||
-    errorMessage.includes('Connection')
-  ) 
-    return;
-  
+  if (errorMessage.includes('MongoDB') || errorMessage.includes('Connection')) return;
 
   originalError.apply(console, args);
 };
 
 // Global test utilities
 declare global {
-   
   var testUtils: {
     /**
      * Generate a unique test device ID
@@ -136,15 +126,14 @@ globalThis.testUtils = {
     return `${prefix}_${Date.now()}_${deviceCounter}`;
   },
 
-  sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep: (ms: number) => new Promise(resolve => setTimeout(resolve, ms)),
 
   randomString: (length: number) => {
-    const chars =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
-    for (let i = 0; i < length; i++) 
+    for (let i = 0; i < length; i++)
       result += chars.charAt(Math.floor(Math.random() * chars.length));
-    
+
     return result;
   },
 };

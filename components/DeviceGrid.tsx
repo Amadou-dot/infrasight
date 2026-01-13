@@ -36,11 +36,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 const columnHelper = createColumnHelper<DeviceV2Response>();
@@ -94,11 +90,8 @@ export default function DeviceGrid({
 
   // Sync selectedRoom prop with internal filter
   useEffect(() => {
-    if (selectedRoom && selectedRoom !== 'all') 
-      setFilterRoom(selectedRoom);
-     else if (selectedRoom === 'all') 
-      setFilterRoom('all');
-    
+    if (selectedRoom && selectedRoom !== 'all') setFilterRoom(selectedRoom);
+    else if (selectedRoom === 'all') setFilterRoom('all');
   }, [selectedRoom]);
 
   // Advanced filters
@@ -109,17 +102,13 @@ export default function DeviceGrid({
   // Metadata options
   const rooms = useMemo(() => {
     const filtered =
-      selectedFloor === 'all'
-        ? data
-        : data.filter(d => d.location?.floor === selectedFloor);
+      selectedFloor === 'all' ? data : data.filter(d => d.location?.floor === selectedFloor);
     return Array.from(new Set(filtered.map(d => d.location?.room_name).filter(Boolean))).sort();
   }, [data, selectedFloor]);
 
   const types = useMemo(() => {
     const filtered =
-      selectedFloor === 'all'
-        ? data
-        : data.filter(d => d.location?.floor === selectedFloor);
+      selectedFloor === 'all' ? data : data.filter(d => d.location?.floor === selectedFloor);
     return Array.from(new Set(filtered.map(d => d.type).filter(Boolean))).sort();
   }, [data, selectedFloor]);
 
@@ -128,9 +117,7 @@ export default function DeviceGrid({
       try {
         setLoading(true);
         const response = await v2Api.devices.list();
-        if (response.success) 
-          setData(response.data);
-        
+        if (response.success) setData(response.data);
       } catch (error) {
         console.error('Error fetching devices:', error);
       } finally {
@@ -148,7 +135,10 @@ export default function DeviceGrid({
         const response = await v2Api.readings.latest({ device_ids: deviceIds });
         if (response.success && response.data?.readings) {
           const readingMap = response.data.readings.reduce(
-            (acc: Record<string, Reading>, curr: { device_id: string; value: number; timestamp: string; type: string }) => {
+            (
+              acc: Record<string, Reading>,
+              curr: { device_id: string; value: number; timestamp: string; type: string }
+            ) => {
               acc[curr.device_id] = {
                 _id: curr.device_id,
                 value: curr.value,
@@ -166,9 +156,7 @@ export default function DeviceGrid({
       }
     };
 
-    if (data.length > 0) 
-      fetchReadings();
-    
+    if (data.length > 0) fetchReadings();
   }, [data]);
 
   // Real-time updates with Pusher
@@ -210,7 +198,8 @@ export default function DeviceGrid({
       // External filter from DeviceHealthWidget
       if (externalFilter) {
         if (externalFilter.status && device.status !== externalFilter.status) return false;
-        if (externalFilter.hasIssues && device.status !== 'error' && device.status !== 'offline') return false;
+        if (externalFilter.hasIssues && device.status !== 'error' && device.status !== 'offline')
+          return false;
       }
 
       return true;
@@ -219,62 +208,50 @@ export default function DeviceGrid({
 
   const toggleCard = (id: string) => {
     const newExpanded = new Set(expandedCards);
-    if (newExpanded.has(id)) 
-      newExpanded.delete(id);
-     else 
-      newExpanded.add(id);
-    
+    if (newExpanded.has(id)) newExpanded.delete(id);
+    else newExpanded.add(id);
+
     setExpandedCards(newExpanded);
   };
 
   const getDeviceIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case 'temperature':
-        return <Thermometer className='w-4 h-4' />;
+        return <Thermometer className="w-4 h-4" />;
       case 'humidity':
-        return <Droplet className='w-4 h-4' />;
+        return <Droplet className="w-4 h-4" />;
       case 'power':
-        return <Zap className='w-4 h-4' />;
+        return <Zap className="w-4 h-4" />;
       case 'occupancy':
-        return <Users className='w-4 h-4' />;
+        return <Users className="w-4 h-4" />;
       default:
-        return <Activity className='w-4 h-4' />;
+        return <Activity className="w-4 h-4" />;
     }
   };
 
-  const getStatusColor = (
-    status: string,
-    reading?: Reading,
-    device?: DeviceV2Response
-  ) => {
-    if (status === 'offline') 
+  const getStatusColor = (status: string, reading?: Reading, device?: DeviceV2Response) => {
+    if (status === 'offline')
       return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
-    
 
     if (reading && device) {
       const criticalThreshold = device.configuration?.threshold_critical;
       const warningThreshold = device.configuration?.threshold_warning;
-      
-      if (criticalThreshold && reading.value > criticalThreshold) 
+
+      if (criticalThreshold && reading.value > criticalThreshold)
         return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900';
-      
-      if (warningThreshold && reading.value > warningThreshold) 
+
+      if (warningThreshold && reading.value > warningThreshold)
         return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900';
-      
     }
     return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
   };
 
-  const getStatusLabel = (
-    status: string,
-    reading?: Reading,
-    device?: DeviceV2Response
-  ) => {
+  const getStatusLabel = (status: string, reading?: Reading, device?: DeviceV2Response) => {
     if (status === 'offline') return 'Offline';
     if (reading && device) {
       const criticalThreshold = device.configuration?.threshold_critical;
       const warningThreshold = device.configuration?.threshold_warning;
-      
+
       if (criticalThreshold && reading.value > criticalThreshold) return 'Critical';
       if (warningThreshold && reading.value > warningThreshold) return 'Warning';
     }
@@ -288,16 +265,15 @@ export default function DeviceGrid({
         header: ({ column }) => {
           return (
             <button
-              className='flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-200'
-              onClick={() =>
-                column.toggleSorting(column.getIsSorted() === 'asc')
-              }>
+              className="flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-200"
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
               Room Name
-              <ArrowUpDown className='w-4 h-4' />
+              <ArrowUpDown className="w-4 h-4" />
             </button>
           );
         },
-        cell: info => <span className='font-medium'>{info.getValue()}</span>,
+        cell: info => <span className="font-medium">{info.getValue()}</span>,
       }),
       columnHelper.accessor(row => row.location?.floor || 0, {
         id: 'floor',
@@ -306,7 +282,7 @@ export default function DeviceGrid({
       }),
       columnHelper.accessor('type', {
         header: 'Type',
-        cell: info => <span className='capitalize'>{info.getValue()}</span>,
+        cell: info => <span className="capitalize">{info.getValue()}</span>,
       }),
       columnHelper.display({
         id: 'status',
@@ -318,7 +294,7 @@ export default function DeviceGrid({
           const statusText = getStatusLabel(device.status, reading, device);
 
           return (
-            <Badge variant='outline' className={`${statusColor} border`}>
+            <Badge variant="outline" className={`${statusColor} border`}>
               {statusText}
             </Badge>
           );
@@ -330,15 +306,15 @@ export default function DeviceGrid({
         cell: info => {
           const device = info.row.original;
           const reading = readings[device._id];
-          if (!reading)  return <span className='text-gray-400'>--</span>; 
+          if (!reading) return <span className="text-gray-400">--</span>;
 
           let unit = '';
-          if (device.type === 'temperature')  unit = '°F'; 
-          if (device.type === 'humidity')  unit = '%'; 
-          if (device.type === 'power')  unit = ' kW'; 
+          if (device.type === 'temperature') unit = '°F';
+          if (device.type === 'humidity') unit = '%';
+          if (device.type === 'power') unit = ' kW';
 
           return (
-            <span className='font-mono font-medium text-gray-900 dark:text-gray-100'>
+            <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
               {reading.value}
               {unit}
             </span>
@@ -351,14 +327,14 @@ export default function DeviceGrid({
         cell: info => {
           const device = info.row.original;
           const value = info.getValue();
-          if (value === undefined) return <span className='text-gray-400'>N/A</span>;
-          
+          if (value === undefined) return <span className="text-gray-400">N/A</span>;
+
           let unit = '';
           if (device.type === 'temperature') unit = '°F';
           if (device.type === 'humidity') unit = '%';
           if (device.type === 'power') unit = ' kW';
           return (
-            <span className='text-gray-500'>
+            <span className="text-gray-500">
               {value}
               {unit}
             </span>
@@ -384,73 +360,76 @@ export default function DeviceGrid({
   });
 
   return (
-    <div className='w-full space-y-4'>
+    <div className="w-full space-y-4">
       {/* Mobile/Desktop Filters */}
-      <div className='bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm flex flex-col md:flex-row gap-4 justify-between'>
-        <div className='flex flex-col gap-2 w-full md:w-auto'>
-          <h3 className='text-lg font-semibold flex items-center gap-2'>
+      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm flex flex-col md:flex-row gap-4 justify-between">
+        <div className="flex flex-col gap-2 w-full md:w-auto">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
             Device Health
             {selectedRoom && selectedRoom !== 'all' && (
               <Badge
-                variant='secondary'
-                className='bg-blue-50 text-blue-700 hover:bg-blue-100 gap-1'>
+                variant="secondary"
+                className="bg-blue-50 text-blue-700 hover:bg-blue-100 gap-1"
+              >
                 {selectedRoom}
-                <button
-                  onClick={onClearRoomFilter}
-                  className='ml-1 hover:text-blue-900'>
-                  <span className='sr-only'>Clear</span>×
+                <button onClick={onClearRoomFilter} className="ml-1 hover:text-blue-900">
+                  <span className="sr-only">Clear</span>×
                 </button>
               </Badge>
             )}
           </h3>
 
           {/* Pill Filters */}
-          <div className='flex flex-wrap gap-2'>
+          <div className="flex flex-wrap gap-2">
             <Button
               variant={filterType === 'all' ? 'default' : 'outline'}
-              size='sm'
+              size="sm"
               onClick={() => setFilterType('all')}
-              className='h-7 text-xs'>
+              className="h-7 text-xs"
+            >
               All Types
             </Button>
             {types.map(t => (
               <Button
                 key={t}
                 variant={filterType === t ? 'default' : 'outline'}
-                size='sm'
+                size="sm"
                 onClick={() => setFilterType(filterType === t ? 'all' : t)}
-                className='h-7 text-xs capitalize'>
+                className="h-7 text-xs capitalize"
+              >
                 {t}
               </Button>
             ))}
           </div>
         </div>
 
-        <div className='flex flex-col md:flex-row gap-2 w-full md:w-auto'>
+        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
           {/* Room Autocomplete */}
           <Popover open={openRoomCombobox} onOpenChange={setOpenRoomCombobox}>
             <PopoverTrigger asChild>
               <Button
-                variant='outline'
-                role='combobox'
+                variant="outline"
+                role="combobox"
                 aria-expanded={openRoomCombobox}
-                className='w-full md:w-[200px] justify-between'>
+                className="w-full md:w-50 justify-between"
+              >
                 {filterRoom === 'all' ? 'Select room...' : filterRoom}
-                <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className='w-[200px] p-0'>
+            <PopoverContent className="w-50 p-0">
               <Command>
-                <CommandInput placeholder='Search room...' />
+                <CommandInput placeholder="Search room..." />
                 <CommandList>
                   <CommandEmpty>No room found.</CommandEmpty>
                   <CommandGroup>
                     <CommandItem
-                      value='all'
+                      value="all"
                       onSelect={() => {
                         setFilterRoom('all');
                         setOpenRoomCombobox(false);
-                      }}>
+                      }}
+                    >
                       <Check
                         className={cn(
                           'mr-2 h-4 w-4',
@@ -464,11 +443,10 @@ export default function DeviceGrid({
                         key={room}
                         value={room}
                         onSelect={currentValue => {
-                          setFilterRoom(
-                            currentValue === filterRoom ? 'all' : currentValue
-                          );
+                          setFilterRoom(currentValue === filterRoom ? 'all' : currentValue);
                           setOpenRoomCombobox(false);
-                        }}>
+                        }}
+                      >
                         <Check
                           className={cn(
                             'mr-2 h-4 w-4',
@@ -485,21 +463,21 @@ export default function DeviceGrid({
           </Popover>
 
           {/* Status Filter */}
-          <div className='flex gap-2'>
+          <div className="flex gap-2">
             <Button
               variant={filterStatus === 'all' ? 'secondary' : 'outline'}
-              size='sm'
+              size="sm"
               onClick={() => setFilterStatus('all')}
-              className='flex-1 md:flex-none'>
+              className="flex-1 md:flex-none"
+            >
               All Status
             </Button>
             <Button
               variant={filterStatus === 'active' ? 'secondary' : 'outline'}
-              size='sm'
-              onClick={() =>
-                setFilterStatus(filterStatus === 'active' ? 'all' : 'active')
-              }
-              className='flex-1 md:flex-none'>
+              size="sm"
+              onClick={() => setFilterStatus(filterStatus === 'active' ? 'all' : 'active')}
+              className="flex-1 md:flex-none"
+            >
               Active
             </Button>
           </div>
@@ -507,7 +485,7 @@ export default function DeviceGrid({
       </div>
 
       {/* Mobile/Tablet Card Layout */}
-      <div className='lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4'>
+      <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredData.map(device => {
           const reading = readings[device._id];
           const statusColor = getStatusColor(device.status, reading, device);
@@ -529,37 +507,34 @@ export default function DeviceGrid({
                 isDimmed && 'opacity-60 grayscale',
                 isCritical && 'animate-pulse ring-2 ring-red-200'
               )}
-              onClick={() => onDeviceClick?.(device._id)}>
-              <CardHeader className='p-4 pb-2'>
-                <div className='flex justify-between items-start'>
+              onClick={() => onDeviceClick?.(device._id)}
+            >
+              <CardHeader className="p-4 pb-2">
+                <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className='text-base font-medium flex items-center gap-2'>
+                    <CardTitle className="text-base font-medium flex items-center gap-2">
                       {roomName}
-                      <span className='text-xs font-normal text-gray-500'>
-                        Floor {floor}
-                      </span>
+                      <span className="text-xs font-normal text-gray-500">Floor {floor}</span>
                     </CardTitle>
-                    <div className='flex items-center gap-2 mt-1 text-sm text-gray-600'>
+                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
                       {getDeviceIcon(device.type)}
-                      <span className='capitalize'>{device.type}</span>
+                      <span className="capitalize">{device.type}</span>
                     </div>
                   </div>
-                  <Badge variant='outline' className={`${statusColor} border`}>
+                  <Badge variant="outline" className={`${statusColor} border`}>
                     {statusText}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className='p-4 pt-2'>
-                <div className='flex justify-between items-end'>
+              <CardContent className="p-4 pt-2">
+                <div className="flex justify-between items-end">
                   <div>
-                    <p className='text-xs text-gray-500 uppercase tracking-wider'>
-                      Current
-                    </p>
-                    <p className='text-2xl font-mono font-bold'>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Current</p>
+                    <p className="text-2xl font-mono font-bold">
                       {reading ? (
                         <>
                           {reading.value}
-                          <span className='text-sm font-normal text-gray-500 ml-1'>
+                          <span className="text-sm font-normal text-gray-500 ml-1">
                             {device.type === 'temperature'
                               ? '°F'
                               : device.type === 'humidity'
@@ -575,40 +550,37 @@ export default function DeviceGrid({
                     </p>
                   </div>
                   <Button
-                    variant='ghost'
-                    size='sm'
+                    variant="ghost"
+                    size="sm"
                     onClick={() => toggleCard(device._id)}
-                    className='h-8 w-8 p-0'>
+                    className="h-8 w-8 p-0"
+                  >
                     {isExpanded ? (
-                      <ChevronUp className='h-4 w-4' />
+                      <ChevronUp className="h-4 w-4" />
                     ) : (
-                      <ChevronDown className='h-4 w-4' />
+                      <ChevronDown className="h-4 w-4" />
                     )}
                   </Button>
                 </div>
 
                 {isExpanded && (
-                  <div className='mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200'>
+                  <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
                     <div>
-                      <p className='text-xs text-gray-500'>
-                        Critical Threshold
-                      </p>
-                      <p className='font-mono text-sm'>
+                      <p className="text-xs text-gray-500">Critical Threshold</p>
+                      <p className="font-mono text-sm">
                         {device.configuration?.threshold_critical || 'N/A'}
                       </p>
                     </div>
                     <div>
-                      <p className='text-xs text-gray-500'>Warning Threshold</p>
-                      <p className='font-mono text-sm'>
+                      <p className="text-xs text-gray-500">Warning Threshold</p>
+                      <p className="font-mono text-sm">
                         {device.configuration?.threshold_warning || 'N/A'}
                       </p>
                     </div>
-                    <div className='col-span-2'>
-                      <p className='text-xs text-gray-500'>Last Updated</p>
-                      <p className='text-sm'>
-                        {reading
-                          ? new Date(reading.timestamp).toLocaleTimeString()
-                          : 'Never'}
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-500">Last Updated</p>
+                      <p className="text-sm">
+                        {reading ? new Date(reading.timestamp).toLocaleTimeString() : 'Never'}
                       </p>
                     </div>
                   </div>
@@ -618,28 +590,21 @@ export default function DeviceGrid({
           );
         })}
         {filteredData.length === 0 && (
-          <div className='text-center py-8 text-gray-500'>
-            No devices found matching filters.
-          </div>
+          <div className="text-center py-8 text-gray-500">No devices found matching filters.</div>
         )}
       </div>
 
       {/* Desktop Table Layout */}
-      <div className='hidden lg:block bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm overflow-x-auto'>
-        <table className='w-full text-sm text-left'>
-          <thead className='bg-gray-50 dark:bg-zinc-950 text-gray-700 dark:text-gray-300 uppercase'>
+      <div className="hidden lg:block bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-50 dark:bg-zinc-950 text-gray-700 dark:text-gray-300 uppercase">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map(header => (
-                  <th
-                    key={header.id}
-                    className='px-6 py-3 font-medium whitespace-nowrap'>
+                  <th key={header.id} className="px-6 py-3 font-medium whitespace-nowrap">
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
               </tr>
@@ -651,22 +616,18 @@ export default function DeviceGrid({
                 <tr
                   key={row.id}
                   onClick={() => onDeviceClick?.(row.original._id)}
-                  className='border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer'>
+                  className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer"
+                >
                   {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className='px-6 py-4 whitespace-nowrap'>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                    <td key={cell.id} className="px-6 py-4 whitespace-nowrap">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
                 </tr>
               ))
             ) : (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className='px-6 py-8 text-center text-gray-500'>
+                <td colSpan={columns.length} className="px-6 py-8 text-center text-gray-500">
                   No devices found matching filters.
                 </td>
               </tr>

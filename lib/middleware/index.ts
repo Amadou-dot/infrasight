@@ -5,11 +5,7 @@ export {
   type RequestValidationOptions,
 } from './validateRequest';
 
-export {
-  validateHeaders,
-  extractRequestMetadata,
-  type HeaderValidationOptions,
-} from './headers';
+export { validateHeaders, extractRequestMetadata, type HeaderValidationOptions } from './headers';
 
 export {
   validateBodySize,

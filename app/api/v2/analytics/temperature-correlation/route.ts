@@ -25,20 +25,18 @@ import {
 const temperatureCorrelationQuerySchema = z.object({
   device_id: z.string().min(1, 'device_id is required'),
   hours: z
-    .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+    .union([z.number(), z.string().transform(v => parseInt(v, 10))])
     .default(24)
-    .refine((v) => v > 0 && v <= 168, 'hours must be between 1 and 168 (7 days)'),
+    .refine(v => v > 0 && v <= 168, 'hours must be between 1 and 168 (7 days)'),
   device_temp_threshold: z
-    .union([z.number(), z.string().transform((v) => parseFloat(v))])
+    .union([z.number(), z.string().transform(v => parseFloat(v))])
     .default(80),
   ambient_temp_threshold: z
-    .union([z.number(), z.string().transform((v) => parseFloat(v))])
+    .union([z.number(), z.string().transform(v => parseFloat(v))])
     .default(30),
 });
 
-type TemperatureCorrelationQuery = z.infer<
-  typeof temperatureCorrelationQuerySchema
->;
+type TemperatureCorrelationQuery = z.infer<typeof temperatureCorrelationQuerySchema>;
 
 // ============================================================================
 // GET /api/v2/analytics/temperature-correlation
@@ -51,36 +49,29 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Validate query parameters
-    const validationResult = validateQuery(
-      searchParams,
-      temperatureCorrelationQuerySchema
-    );
-    if (!validationResult.success) 
+    const validationResult = validateQuery(searchParams, temperatureCorrelationQuerySchema);
+    if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
-        validationResult.errors.map((e) => e.message).join(', '),
+        validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
 
     const query = validationResult.data as TemperatureCorrelationQuery;
 
     // Verify device exists
     const device = await DeviceV2.findById(query.device_id).lean();
-    if (!device) 
+    if (!device)
       throw new ApiError(
         ErrorCodes.DEVICE_NOT_FOUND,
         404,
         `Device with ID '${query.device_id}' not found`
       );
-    
 
     // Calculate time range
     const endTime = new Date();
-    const startTime = new Date(
-      endTime.getTime() - query.hours * 60 * 60 * 1000
-    );
+    const startTime = new Date(endTime.getTime() - query.hours * 60 * 60 * 1000);
 
     // Fetch temperature readings for this device
     const readings = await ReadingV2.find({
@@ -92,14 +83,15 @@ export async function GET(request: NextRequest) {
       .lean();
 
     // Check if we have sufficient data
-    if (readings.length === 0) 
+    if (readings.length === 0)
       return jsonSuccess({
         device_id: query.device_id,
         device_temp_series: [],
         ambient_temp_series: [],
         correlation_score: null,
         diagnosis: 'normal',
-        diagnosis_explanation: 'Insufficient data: No temperature readings found for this device in the specified time range.',
+        diagnosis_explanation:
+          'Insufficient data: No temperature readings found for this device in the specified time range.',
         threshold_breaches: [],
         data_points: 0,
         time_range: {
@@ -107,7 +99,6 @@ export async function GET(request: NextRequest) {
           end: endTime.toISOString(),
         },
       });
-    
 
     // Extract device temperatures and ambient temperatures
     const deviceTempSeries: Array<{ timestamp: string; value: number }> = [];
@@ -135,24 +126,18 @@ export async function GET(request: NextRequest) {
         ambientTemps.push(ambientTemp);
 
         // Check for threshold breaches
-        if (
-          deviceTemp > query.device_temp_threshold ||
-          ambientTemp > query.ambient_temp_threshold
-        ) 
+        if (deviceTemp > query.device_temp_threshold || ambientTemp > query.ambient_temp_threshold)
           thresholdBreaches.push({
             timestamp,
             device_temp: deviceTemp,
             ambient_temp: ambientTemp,
           });
-        
       }
     }
 
     // Calculate correlation if we have both series
     const correlationScore =
-      ambientTemps.length > 1
-        ? calculatePearsonCorrelation(deviceTemps, ambientTemps)
-        : null;
+      ambientTemps.length > 1 ? calculatePearsonCorrelation(deviceTemps, ambientTemps) : null;
 
     // Get current temperatures for diagnosis
     const latestReading = readings[readings.length - 1];

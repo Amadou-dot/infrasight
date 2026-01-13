@@ -16,7 +16,7 @@ import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
 // ============================================================================
 
 /** Maximum pages to fetch when loading all devices (100 per page = 2000 max devices) */
-const MAX_PAGINATION_PAGES = 20;
+const _MAX_PAGINATION_PAGES = 20;
 
 /** Days after which a device needs recalibration (90 days) */
 const CALIBRATION_THRESHOLD_DAYS = 90;
@@ -29,13 +29,27 @@ export default function MaintenancePage() {
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
 
   // Data fetching with React Query
-  const { data: forecast, isLoading: forecastLoading, error: forecastError } = useMaintenanceForecast({ days_ahead: 30 });
-  const { data: allDevices = [], isLoading: devicesLoading, error: devicesError } = useDevicesList();
+  const {
+    data: forecast,
+    isLoading: forecastLoading,
+    error: forecastError,
+  } = useMaintenanceForecast({ days_ahead: 30 });
+  const {
+    data: allDevices = [],
+    isLoading: devicesLoading,
+    error: devicesError,
+  } = useDevicesList();
 
   const loading = forecastLoading || devicesLoading;
-  const error = forecastError ? (forecastError instanceof Error ? forecastError.message : 'Failed to load forecast')
-    : devicesError ? (devicesError instanceof Error ? devicesError.message : 'Failed to load devices')
-    : null;
+  const error = forecastError
+    ? forecastError instanceof Error
+      ? forecastError.message
+      : 'Failed to load forecast'
+    : devicesError
+      ? devicesError instanceof Error
+        ? devicesError.message
+        : 'Failed to load devices'
+      : null;
 
   const handleDeviceClick = (deviceId: string) => {
     setSelectedDeviceId(deviceId);
@@ -44,9 +58,7 @@ export default function MaintenancePage() {
 
   // Calculate status counts
   const { criticalCount, dueForServiceCount, healthyCount } = useMemo(() => {
-    if (!forecast) 
-      return { criticalCount: 0, dueForServiceCount: 0, healthyCount: 0 };
-    
+    if (!forecast) return { criticalCount: 0, dueForServiceCount: 0, healthyCount: 0 };
 
     return {
       criticalCount: forecast.critical.length,
@@ -83,7 +95,7 @@ export default function MaintenancePage() {
     const today = new Date();
 
     // Add critical devices as emergency tasks
-    forecast.critical.forEach((device) => {
+    forecast.critical.forEach(device => {
       const nextMaint = device.metadata?.next_maintenance
         ? new Date(device.metadata.next_maintenance)
         : today;
@@ -99,12 +111,13 @@ export default function MaintenancePage() {
     });
 
     // Add warning devices as firmware/calibration tasks
-    forecast.warning.forEach((device) => {
+    forecast.warning.forEach(device => {
       const nextMaint = device.metadata?.next_maintenance
         ? new Date(device.metadata.next_maintenance)
         : new Date(today.getTime() + 7 * MS_PER_DAY);
       const needsCalibration = device.configuration?.calibration_date
-        ? new Date(device.configuration.calibration_date).getTime() < today.getTime() - CALIBRATION_THRESHOLD_DAYS * MS_PER_DAY
+        ? new Date(device.configuration.calibration_date).getTime() <
+          today.getTime() - CALIBRATION_THRESHOLD_DAYS * MS_PER_DAY
         : false;
       tasks.push({
         id: `warning-${device._id}`,
@@ -118,7 +131,7 @@ export default function MaintenancePage() {
     });
 
     // Add watch devices as routine tasks
-    forecast.watch.forEach((device) => {
+    forecast.watch.forEach(device => {
       const nextMaint = device.metadata?.next_maintenance
         ? new Date(device.metadata.next_maintenance)
         : new Date(today.getTime() + 14 * MS_PER_DAY);
@@ -138,32 +151,31 @@ export default function MaintenancePage() {
   }, [forecast]);
 
   return (
-    <div className='min-h-screen bg-background p-4 md:p-6 lg:p-8'>
+    <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <ToastContainer
-        position='bottom-center'
+        position="bottom-center"
         autoClose={false}
         pauseOnFocusLoss
         pauseOnHover
-        theme='colored'
+        theme="colored"
       />
 
       {/* Header */}
-      <header className='mb-6 md:mb-8'>
-        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+      <header className="mb-6 md:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className='flex items-center gap-3 mb-2'>
-              <Wrench className='h-8 w-8 text-primary' />
-              <h1 className='text-2xl md:text-3xl font-bold text-foreground'>
+            <div className="flex items-center gap-3 mb-2">
+              <Wrench className="h-8 w-8 text-primary" />
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">
                 Maintenance Schedule
               </h1>
             </div>
-            <p className='text-muted-foreground'>
-              Track device maintenance schedules, health status, and upcoming
-              service needs.
+            <p className="text-muted-foreground">
+              Track device maintenance schedules, health status, and upcoming service needs.
             </p>
           </div>
-          <Button className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white'>
-            <Plus className='h-4 w-4 mr-2' />
+          <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="h-4 w-4 mr-2" />
             Schedule Service
           </Button>
         </div>
@@ -171,36 +183,33 @@ export default function MaintenancePage() {
 
       {/* Error State */}
       {error && (
-        <div className='mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm'>
+        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
           {error}
           <Button
-            variant='outline'
-            size='sm'
-            className='ml-4'
-            onClick={() => window.location.reload()}>
+            variant="outline"
+            size="sm"
+            className="ml-4"
+            onClick={() => window.location.reload()}
+          >
             Retry
           </Button>
         </div>
       )}
 
       {/* Status Cards */}
-      <section className='mb-6'>
+      <section className="mb-6">
         <MaintenanceStatusCards
           criticalCount={criticalCount}
           dueForServiceCount={dueForServiceCount}
           healthyCount={healthyCount}
-          criticalNew={
-            forecast?.critical.length
-              ? Math.min(2, forecast.critical.length)
-              : 0
-          }
+          criticalNew={forecast?.critical.length ? Math.min(2, forecast.critical.length) : 0}
           uptimePercentage={uptimePercentage}
           loading={loading}
         />
       </section>
 
       {/* Timeline */}
-      <section className='mb-6'>
+      <section className="mb-6">
         <MaintenanceTimeline tasks={timelineTasks} loading={loading} />
       </section>
 

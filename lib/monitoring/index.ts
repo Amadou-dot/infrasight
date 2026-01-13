@@ -1,8 +1,4 @@
-export {
-  logger,
-  type LogLevel,
-  type LogContext,
-} from './logger';
+export { logger, type LogLevel, type LogContext } from './logger';
 
 export {
   recordRequest,

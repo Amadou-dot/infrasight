@@ -37,25 +37,20 @@ export const queryKeys = {
   health: ['analytics', 'health'] as const,
   devices: {
     all: ['devices'] as const,
-    list: (filters?: Record<string, unknown>) =>
-      ['devices', 'list', filters] as const,
+    list: (filters?: Record<string, unknown>) => ['devices', 'list', filters] as const,
     detail: (id: string) => ['devices', 'detail', id] as const,
   },
   analytics: {
     maintenanceForecast: (params?: Record<string, unknown>) =>
       ['analytics', 'maintenance-forecast', params] as const,
-    anomalies: (params?: Record<string, unknown>) =>
-      ['analytics', 'anomalies', params] as const,
-    energy: (params?: Record<string, unknown>) =>
-      ['analytics', 'energy', params] as const,
+    anomalies: (params?: Record<string, unknown>) => ['analytics', 'anomalies', params] as const,
+    energy: (params?: Record<string, unknown>) => ['analytics', 'energy', params] as const,
     temperatureCorrelation: (params?: Record<string, unknown>) =>
       ['analytics', 'temperature-correlation', params] as const,
   },
   readings: {
-    latest: (params?: Record<string, unknown>) =>
-      ['readings', 'latest', params] as const,
-    list: (params?: Record<string, unknown>) =>
-      ['readings', 'list', params] as const,
+    latest: (params?: Record<string, unknown>) => ['readings', 'latest', params] as const,
+    list: (params?: Record<string, unknown>) => ['readings', 'list', params] as const,
   },
   metadata: ['metadata'] as const,
 } as const;

@@ -9,7 +9,7 @@ on:
 jobs:
   simulate:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Call simulation endpoint
         run: |

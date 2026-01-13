@@ -15,17 +15,21 @@ import { createDeviceInput, resetCounters } from '../../setup/factories';
 
 // Import route handlers
 import { GET as getDevices, POST as createDevice } from '@/app/api/v2/devices/route';
-import { GET as getDevice, PATCH as updateDevice, DELETE as deleteDevice } from '@/app/api/v2/devices/[id]/route';
+import {
+  GET as getDevice,
+  PATCH as updateDevice,
+  DELETE as deleteDevice,
+} from '@/app/api/v2/devices/[id]/route';
 import { POST as ingestReadings } from '@/app/api/v2/readings/ingest/route';
 import { GET as simulateReadings } from '@/app/api/v2/cron/simulate/route';
+
+import { auth, currentUser } from '@clerk/nextjs/server';
 
 // Mock Clerk auth module
 jest.mock('@clerk/nextjs/server', () => ({
   auth: jest.fn(),
   currentUser: jest.fn(),
 }));
-
-import { auth, currentUser } from '@clerk/nextjs/server';
 
 const mockAuth = auth as jest.MockedFunction<typeof auth>;
 const mockCurrentUser = currentUser as jest.MockedFunction<typeof currentUser>;
@@ -65,7 +69,10 @@ function mockUnauthenticated() {
 /**
  * Create mock GET request
  */
-function createMockGetRequest(path: string, searchParams: Record<string, string> = {}): NextRequest {
+function createMockGetRequest(
+  path: string,
+  searchParams: Record<string, string> = {}
+): NextRequest {
   const url = new URL(`http://localhost:3000${path}`);
   Object.entries(searchParams).forEach(([key, value]) => {
     url.searchParams.set(key, value);
@@ -85,9 +92,8 @@ function createMockMutationRequest(
     method,
     headers: { 'Content-Type': 'application/json' },
   };
-  if (body) {
-    options.body = JSON.stringify(body);
-  }
+  if (body) options.body = JSON.stringify(body);
+
   return new NextRequest(`http://localhost:3000${path}`, options);
 }
 
@@ -159,11 +165,9 @@ describe('Authentication Integration Tests', () => {
 
     describe('PATCH /api/v2/devices/[id] (Update)', () => {
       it('should return 401 when not authenticated', async () => {
-        const request = createMockMutationRequest(
-          '/api/v2/devices/device_123',
-          'PATCH',
-          { status: 'maintenance' }
-        );
+        const request = createMockMutationRequest('/api/v2/devices/device_123', 'PATCH', {
+          status: 'maintenance',
+        });
         const params = Promise.resolve({ id: 'device_123' });
         const response = await updateDevice(request, { params });
         const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);

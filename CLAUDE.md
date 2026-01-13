@@ -25,7 +25,7 @@ Readings use MongoDB timeseries with **critical constraints**:
 - Cannot modify schema fields after creation without recreating collection
 - TTL: 90 days (`expireAfterSeconds`)
 - **15 Device/Reading Types**: temperature, humidity, occupancy, power, co2, pressure, light, motion, air_quality, water_flow, gas, vibration, voltage, current, energy
-- **44+ Reading Units**: Comprehensive unit support (celsius, fahrenheit, kelvin, percent, ppm, watts, volts, lux, etc.)
+- **35 Reading Units**: Comprehensive unit support (celsius, fahrenheit, kelvin, percent, ppm, watts, volts, lux, etc.)
 
 **Example** (see [ReadingV2.ts](models/v2/ReadingV2.ts)):
 
@@ -54,7 +54,20 @@ pnpm seed               # Populate 500 v2 test devices + readings
 pnpm simulate           # Generate synthetic readings (real-time testing)
 pnpm create-indexes-v2  # Create v2 collection indexes
 pnpm verify-indexes     # Verify all required indexes exist
-pnpm test               # Test v2 API endpoints
+pnpm test:api           # Test v2 API endpoints
+```
+
+### Testing Commands
+
+```bash
+pnpm test               # Run all Jest tests
+pnpm test:watch         # Jest watch mode
+pnpm test:coverage      # Jest with coverage report
+pnpm test:unit          # Unit tests only
+pnpm test:integration   # Integration tests only
+pnpm test:e2e           # Playwright E2E tests
+pnpm test:e2e:ui        # Playwright UI mode
+pnpm lint               # ESLint
 ```
 
 ### Required Environment Variables
@@ -66,15 +79,28 @@ All checked at import time—app fails loudly if missing:
 - `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER`: Client-side (must have `NEXT_PUBLIC_` prefix)
 
 **Clerk Authentication (required):**
+
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key
 - `CLERK_SECRET_KEY`: Clerk secret key
 - `NEXT_PUBLIC_CLERK_SIGN_IN_URL`: Sign-in page URL (`/sign-in`)
 - `NEXT_PUBLIC_CLERK_SIGN_UP_URL`: Sign-up page URL (`/sign-up`)
+- `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`: Redirect after sign-in (`/`)
+- `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`: Redirect after sign-up (`/`)
 
 **Optional (Phase 5 Features):**
+
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`: Redis for caching and rate limiting
+- `REDIS_URL`, `REDIS_TLS`: Alternative Redis configuration
 - `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`: Error tracking with Sentry
+- `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`: Sentry project configuration
 - `ENABLE_METRICS`: Enable Prometheus metrics endpoint (true/false)
+- `LOG_LEVEL`: Logging level (debug/info/warn/error)
+- `RATE_LIMIT_ENABLED`: Enable rate limiting (true/false)
+- `CACHE_ENABLED`, `CACHE_METADATA_TTL`, `CACHE_HEALTH_TTL`: Cache configuration
+
+**Testing:**
+
+- `E2E_TESTING`: Set to `true` to bypass auth for E2E tests
 
 Copy `example.env` → `.env.local` and populate.
 
@@ -106,8 +132,7 @@ export async function GET(request: NextRequest) {
 1. **Always check `mongoose.models` before creating**:
 
    ```typescript
-   const DeviceV2 =
-     mongoose.models.DeviceV2 || mongoose.model('DeviceV2', schema);
+   const DeviceV2 = mongoose.models.DeviceV2 || mongoose.model('DeviceV2', schema);
    ```
 
    Hot reload will crash without this.
@@ -150,11 +175,36 @@ const response = await v2Api.devices.list({ floor: 1, status: 'active' });
 
 Prefer this over raw `fetch()` for type safety.
 
+### React Query Hooks
+
+For React components, use the typed hooks in `lib/query/hooks/`:
+
+```typescript
+import { useDevicesList, useHealthAnalytics, useAnomalies } from '@/lib/query/hooks';
+
+// In component
+const { data: devices, isLoading, error } = useDevicesList({ status: 'active' });
+const { data: health } = useHealthAnalytics();
+const { data: anomalies } = useAnomalies({ minScore: 0.7 });
+```
+
+**Available Hooks:**
+
+- `useDevicesList(params)` - List devices with filtering
+- `useHealthAnalytics()` - Device health dashboard data
+- `useEnergyAnalytics(params)` - Energy consumption analytics
+- `useMaintenanceForecast()` - Predictive maintenance data
+- `useMetadata()` - System metadata
+- `useAnomalies(params)` - Anomaly detection results
+
+Hooks handle caching, refetching, and error states automatically via React Query.
+
 ## V2 API Endpoints Reference
 
 The v2 API provides 19 comprehensive endpoints organized into 6 categories:
 
 ### Device Management (6 endpoints)
+
 - **GET /api/v2/devices** - List/filter devices with pagination, sorting, field projection
 - **POST /api/v2/devices** - Create new device with audit trail
 - **GET /api/v2/devices/[id]** - Get single device (optional: include recent readings)
@@ -163,11 +213,13 @@ The v2 API provides 19 comprehensive endpoints organized into 6 categories:
 - **GET /api/v2/devices/[id]/history** - Get device audit history
 
 ### Reading Data (3 endpoints)
+
 - **GET /api/v2/readings** - Query readings with filters, time range, quality metrics
 - **GET /api/v2/readings/latest** - Get latest readings per device
 - **POST /api/v2/readings/ingest** - Bulk insert up to 10,000 readings
 
 ### Analytics & Intelligence (5 endpoints)
+
 - **GET /api/v2/analytics/anomalies** - Anomaly detection with trend analysis
 - **GET /api/v2/analytics/energy** - Energy/reading analytics with aggregation (sum, avg, min, max)
 - **GET /api/v2/analytics/health** - Device health dashboard and alerts
@@ -175,15 +227,18 @@ The v2 API provides 19 comprehensive endpoints organized into 6 categories:
 - **GET /api/v2/analytics/maintenance-forecast** - Predictive maintenance analytics
 
 ### System & Monitoring (3 endpoints)
+
 - **GET /api/v2/audit** - Cross-device audit trail with filtering
 - **GET /api/v2/metadata** - System metadata and configuration aggregates
 - **GET /api/v2/metrics** - Prometheus-compatible metrics export
 
 ### Utilities (2 endpoints)
+
 - **GET /api/v2/cron/simulate** - Generate synthetic readings for testing
 - **GET/POST /api/v2/test-sentry** - Sentry error capture testing (dev only)
 
 **Key Features:**
+
 - Zod validation on all inputs
 - Pagination with configurable limits
 - Field projection support
@@ -205,6 +260,9 @@ lib/
   api/
     v2-client.ts                   # Typed client for v2 endpoints
     response.ts, pagination.ts     # Response helpers and pagination utilities
+  query/                           # React Query integration
+    hooks/                         # API hooks (useDevicesList, useHealthAnalytics, etc.)
+    queryClient.ts                 # Query client configuration
   deprecated/                      # Archived migration utilities
   cache/                           # Redis caching with invalidation
   monitoring/                      # Sentry, Prometheus metrics, logging, tracing
@@ -212,9 +270,15 @@ lib/
   redis/                           # Redis client configuration
   middleware/                      # Request validation, body size, headers
   utils/                           # Correlation analysis, severity calculation
+  auth/                            # Auth utilities (requireAuth, getAuditUser, withAuth)
 app/
   layout.tsx                       # Root layout with ClerkProvider
   page.tsx                         # Dashboard home page
+  settings/page.tsx                # User settings (theme, profile, sign-out)
+  analytics/page.tsx               # Analytics dashboard
+  devices/page.tsx                 # Device list view
+  floor-plan/page.tsx              # Floor plan visualization
+  maintenance/page.tsx             # Maintenance dashboard
   sign-in/[[...sign-in]]/page.tsx  # Clerk sign-in page
   sign-up/[[...sign-up]]/page.tsx  # Clerk sign-up page
   api/
@@ -229,6 +293,14 @@ proxy.ts                           # Clerk middleware for route protection (Next
 scripts/v2/                        # seed-v2, simulate, test-api, create-indexes, verify-indexes
 components/                        # React components (all use 'use client')
 types/v2/                          # TypeScript types for v2 API contracts
+__tests__/                         # Jest test suites
+  unit/                            # Unit tests (models, validations, auth, utils)
+  integration/api/                 # API integration tests
+e2e/                               # Playwright E2E tests
+instrumentation.ts                 # Next.js instrumentation hook for Sentry
+sentry.*.config.ts                 # Sentry configuration (client, server, edge)
+playwright.config.ts               # Playwright E2E configuration
+jest.config.js                     # Jest configuration
 ```
 
 ## Phase 5: Security, Performance & Monitoring
@@ -236,12 +308,14 @@ types/v2/                          # TypeScript types for v2 API contracts
 The v2 API includes enterprise-grade features for production deployment:
 
 ### Rate Limiting
+
 - **Implementation**: Upstash Redis-backed rate limiter
 - **Default Limits**: 100 requests/minute for POST operations
 - **Middleware**: `applyRateLimit()` in `lib/ratelimit/`
 - **Endpoints**: Applied to device creation, reading ingestion
 
 ### Caching Strategy
+
 - **Cache Provider**: Redis with cache-aside pattern
 - **TTL**: 10 minutes for metadata, configurable per endpoint
 - **Invalidation**: Automatic cache invalidation on create/update/delete operations
@@ -249,6 +323,7 @@ The v2 API includes enterprise-grade features for production deployment:
 - **Endpoints**: Metadata, analytics aggregations
 
 ### Authentication (Clerk)
+
 - **Provider**: [Clerk](https://clerk.com) for user authentication
 - **Middleware**: `proxy.ts` protects all routes (Next.js 16+ uses `proxy.ts` instead of `middleware.ts`)
 - **Components**: `UserButton` in TopNav, `useUser()` hook for user data
@@ -259,6 +334,7 @@ The v2 API includes enterprise-grade features for production deployment:
 - **Audit Tracking**: All mutation operations (create, update, delete) track the authenticated user's email in audit trails
 
 ### Monitoring & Observability
+
 - **Error Tracking**: Sentry integration for error capture and analysis
 - **Metrics**: Prometheus-compatible metrics export (GET /api/v2/metrics)
   - Request latency histograms
@@ -269,16 +345,64 @@ The v2 API includes enterprise-grade features for production deployment:
 - **Tracing**: Request ID tracking for distributed tracing
 
 ### Request Validation & Security
+
 - **Body Size Limits**: 10MB max for bulk operations
 - **Request Validation**: Zod schema validation on all inputs
 - **Security Headers**: CORS, CSP, rate limit headers
 - **Sanitization**: Input sanitization in `lib/validations/sanitizer.ts`
+
+## Testing
+
+The project includes comprehensive test coverage across unit, integration, and E2E tests.
+
+### Test Structure
+
+```
+__tests__/
+  unit/                          # Unit tests
+    models/                      # Model tests (DeviceV2, ReadingV2)
+    validations/                 # Zod schema validation tests
+    auth/                        # Auth utility tests
+    utils/                       # Utility function tests
+  integration/api/               # API integration tests
+    devices.test.ts              # Device CRUD endpoints
+    readings.test.ts             # Reading endpoints
+    analytics.test.ts            # Analytics endpoints
+    audit.test.ts                # Audit trail endpoints
+e2e/                             # Playwright E2E tests
+  dashboard.spec.ts              # Dashboard functionality
+  device-detail.spec.ts          # Device detail page
+  error-handling.spec.ts         # Error handling flows
+  real-time-updates.spec.ts      # Real-time Pusher updates
+```
+
+### Running Tests
+
+```bash
+pnpm test                 # All Jest tests
+pnpm test:unit            # Unit tests only
+pnpm test:integration     # Integration tests only
+pnpm test:coverage        # With coverage report
+pnpm test:e2e             # Playwright E2E tests
+pnpm test:e2e:ui          # Playwright UI mode
+```
+
+### E2E Testing with Auth Bypass
+
+Set `E2E_TESTING=true` in `.env.local` to bypass Clerk authentication during E2E tests. The `proxy.ts` middleware checks this environment variable.
+
+### Test Configuration
+
+- **Jest**: `jest.config.js` - Unit and integration test runner
+- **Playwright**: `playwright.config.ts` - E2E test configuration
+- **Coverage**: `codecov.yml` - Coverage reporting configuration
 
 ## Validation Schemas
 
 The v2 API uses comprehensive Zod schemas for all operations:
 
 ### Device Validation
+
 - **createDeviceSchema**: Full device creation with all required fields
 - **updateDeviceSchema**: Partial updates with at least one field required
 - **listDevicesQuerySchema**: Pagination, sorting (11+ fields), filtering (status, type, building, floor, zone, department, tags, manufacturer, battery level)
@@ -286,6 +410,7 @@ The v2 API uses comprehensive Zod schemas for all operations:
 - **deviceHistoryQuerySchema**: Audit history with action/user/date filters
 
 ### Reading Validation
+
 - **createReadingSchema**: Single reading with metadata, timestamp, value, quality
 - **bulkIngestReadingsSchema**: Bulk insert 1-10,000 readings with idempotency
 - **listReadingsQuerySchema**: Time range (required), device filter, quality filters, value range
@@ -293,9 +418,10 @@ The v2 API uses comprehensive Zod schemas for all operations:
 - **readingAnalyticsQuerySchema**: Aggregation (raw/avg/sum/min/max/count), granularity (second to month), grouping (device/type/floor/room/building/department)
 
 ### Common Validation Helpers
+
 - **Pagination**: Cursor-based, offset-based, analytics (higher limits)
 - **Date Ranges**: Past/future dates, range validation
-- **Enumerations**: Device types (15), reading units (44+), statuses, sources
+- **Enumerations**: Device types (15), reading units (35), statuses, sources
 - **Field-Level**: ObjectIds, device IDs, serial numbers, percentages, coordinates, firmware versions
 
 All schemas are in `lib/validations/v2/` with TypeScript type inference via `z.infer<>`.
@@ -323,16 +449,18 @@ All schemas are in `lib/validations/v2/` with TypeScript type inference via `z.i
 Currently supports **15 device types**: temperature, humidity, occupancy, power, co2, pressure, light, motion, air_quality, water_flow, gas, vibration, voltage, current, energy
 
 To add a new type:
+
 1. Update `deviceTypeSchema` in both:
    - [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts) (enum array)
    - [lib/validations/v2/device.validation.ts](lib/validations/v2/device.validation.ts) (Zod enum)
 2. Update `ReadingType` in [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts) to match
-3. Add appropriate `ReadingUnit` enum values (currently 44+ units supported)
+3. Add appropriate `ReadingUnit` enum values (currently 35 units supported)
 4. Update unit mapping in `/api/v2/readings/ingest/route.ts` if auto-mapping is needed
 
 ### Using Model Static Methods
 
 **DeviceV2 Methods:**
+
 ```typescript
 // Find active (non-deleted) devices
 const activeDevices = await DeviceV2.findActive({ status: 'active' });
@@ -348,28 +476,31 @@ await DeviceV2.restore('device_001');
 ```
 
 **ReadingV2 Methods:**
+
 ```typescript
 // Get latest reading for a device
 const latest = await ReadingV2.getLatestForDevice('device_001', 'temperature');
 
 // Get readings in time range
-const readings = await ReadingV2.getForDeviceInRange(
-  'device_001',
-  startDate,
-  endDate,
-  { type: 'temperature', limit: 100, includeInvalid: false }
-);
+const readings = await ReadingV2.getForDeviceInRange('device_001', startDate, endDate, {
+  type: 'temperature',
+  limit: 100,
+  includeInvalid: false,
+});
 
 // Get anomalous readings
 const anomalies = await ReadingV2.getAnomalies('device_001', {
   startTime: new Date('2024-01-01'),
   minScore: 0.7,
-  limit: 50
+  limit: 50,
 });
 
 // Bulk insert readings
 await ReadingV2.bulkInsertReadings([
-  { metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }, value: 22.5 },
+  {
+    metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' },
+    value: 22.5,
+  },
   // ... more readings
 ]);
 ```
@@ -399,20 +530,25 @@ await ReadingV2.bulkInsertReadings([
 ## Key Files to Reference
 
 ### Core Models & Data
+
 - V2 models: [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts)
 - Database connection: [lib/db.ts](lib/db.ts)
 
 ### Validation & Error Handling
+
 - Validation schemas: [lib/validations/v2/](lib/validations/v2/)
 - Error handling: [lib/errors/errorHandler.ts](lib/errors/errorHandler.ts), [lib/errors/errorCodes.ts](lib/errors/errorCodes.ts)
 - Sanitization: [lib/validations/sanitizer.ts](lib/validations/sanitizer.ts)
 
 ### API Layer
+
 - API client: [lib/api/v2-client.ts](lib/api/v2-client.ts)
+- React Query hooks: [lib/query/hooks/](lib/query/hooks/)
 - Response helpers: [lib/api/response.ts](lib/api/response.ts), [lib/api/pagination.ts](lib/api/pagination.ts)
 - API routes: [app/api/v2/](app/api/v2/)
 
 ### Security & Performance
+
 - Rate limiting: [lib/ratelimit/](lib/ratelimit/)
 - Caching: [lib/cache/](lib/cache/)
 - Authentication middleware: [proxy.ts](proxy.ts) (Clerk)
@@ -422,11 +558,22 @@ await ReadingV2.bulkInsertReadings([
 - Middleware: [lib/middleware/](lib/middleware/)
 
 ### Scripts & Utilities
+
 - Seeding: [scripts/v2/seed-v2.ts](scripts/v2/seed-v2.ts)
 - Simulation: [scripts/v2/simulate.ts](scripts/v2/simulate.ts)
 - Testing: [scripts/v2/test-api.ts](scripts/v2/test-api.ts)
 - Indexing: [scripts/v2/create-indexes-v2.ts](scripts/v2/create-indexes-v2.ts), [scripts/v2/verify-indexes.ts](scripts/v2/verify-indexes.ts)
 
+### Testing
+
+- Unit tests: [**tests**/unit/](__tests__/unit/)
+- Integration tests: [**tests**/integration/api/](__tests__/integration/api/)
+- E2E tests: [e2e/](e2e/)
+- Jest config: [jest.config.js](jest.config.js)
+- Playwright config: [playwright.config.ts](playwright.config.ts)
+
 ### Documentation
+
 - Quick start: [QUICK_START_V2.md](plans/QUICK_START_V2.md)
 - Phase 5 plan: [PLAN_PHASE_5.md](plans/PLAN_PHASE_5.md)
+- Test coverage setup: [docs/TEST_COVERAGE_SETUP.md](docs/TEST_COVERAGE_SETUP.md)

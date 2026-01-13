@@ -45,9 +45,7 @@ export function ClerkThemeProvider({ children }: { children: React.ReactNode }) 
           navbarButton: isDark
             ? 'text-gray-300 hover:text-white hover:bg-white/10'
             : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100',
-          navbarButtonActive: isDark
-            ? 'text-white bg-white/10'
-            : 'text-gray-900 bg-gray-100',
+          navbarButtonActive: isDark ? 'text-white bg-white/10' : 'text-gray-900 bg-gray-100',
 
           // Form elements
           formFieldLabel: isDark ? 'text-gray-300' : 'text-gray-700',
@@ -83,9 +81,7 @@ export function ClerkThemeProvider({ children }: { children: React.ReactNode }) 
             : 'text-gray-900 hover:bg-gray-100',
 
           // Badges and tags
-          badge: isDark
-            ? 'bg-white/10 text-gray-300'
-            : 'bg-gray-100 text-gray-700',
+          badge: isDark ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-700',
 
           // Dividers
           dividerLine: isDark ? 'bg-white/10' : 'bg-gray-200',
@@ -98,9 +94,7 @@ export function ClerkThemeProvider({ children }: { children: React.ReactNode }) 
           menuList: isDark
             ? 'bg-[#252525] border border-white/10'
             : 'bg-white border border-gray-200',
-          menuItem: isDark
-            ? 'text-gray-300 hover:bg-white/10'
-            : 'text-gray-700 hover:bg-gray-100',
+          menuItem: isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100',
 
           // Alerts
           alertText: isDark ? 'text-gray-300' : 'text-gray-700',

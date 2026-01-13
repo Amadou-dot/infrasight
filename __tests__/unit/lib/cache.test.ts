@@ -186,11 +186,7 @@ describe('Cache Manager', () => {
       const result = await set('device:device_001', data, { ttl: 300 });
 
       expect(result).toBe(true);
-      expect(mockRedis.setex).toHaveBeenCalledWith(
-        'device:device_001',
-        300,
-        JSON.stringify(data)
-      );
+      expect(mockRedis.setex).toHaveBeenCalledWith('device:device_001', 300, JSON.stringify(data));
     });
 
     it('should return false on Redis error', async () => {
@@ -287,8 +283,7 @@ describe('Cache Manager', () => {
 
     it('should scan and delete matching keys', async () => {
       const mockRedis = {
-        scan: jest.fn()
-          .mockResolvedValueOnce(['0', ['device:001', 'device:002']]),
+        scan: jest.fn().mockResolvedValueOnce(['0', ['device:001', 'device:002']]),
         del: jest.fn().mockResolvedValue(2),
       };
       (redisModule.getRedisClient as jest.Mock).mockReturnValue(mockRedis);
@@ -302,12 +297,11 @@ describe('Cache Manager', () => {
 
     it('should handle multiple scan iterations', async () => {
       const mockRedis = {
-        scan: jest.fn()
+        scan: jest
+          .fn()
           .mockResolvedValueOnce(['123', ['key1', 'key2']])
           .mockResolvedValueOnce(['0', ['key3']]),
-        del: jest.fn()
-          .mockResolvedValueOnce(2)
-          .mockResolvedValueOnce(1),
+        del: jest.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(1),
       };
       (redisModule.getRedisClient as jest.Mock).mockReturnValue(mockRedis);
       (redisModule.isRedisAvailable as jest.Mock).mockReturnValue(true);

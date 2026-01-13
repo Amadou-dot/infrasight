@@ -9,7 +9,6 @@
  */
 
 import ReadingV2 from '@/models/v2/ReadingV2';
-import DeviceV2 from '@/models/v2/DeviceV2';
 import {
   createReadingV2Input,
   createReadingV2Inputs,
@@ -17,9 +16,7 @@ import {
   createReadingV2OfType,
   resetCounters,
   VALID_READING_TYPES_V2,
-  VALID_READING_UNITS,
   VALID_READING_SOURCES_V2,
-  createDeviceInput,
 } from '../../setup/factories';
 
 describe('ReadingV2 Model', () => {
@@ -101,9 +98,7 @@ describe('ReadingV2 Model', () => {
 
     it('should accept all valid reading types', async () => {
       for (const type of VALID_READING_TYPES_V2) {
-        const reading = await ReadingV2.create(
-          createReadingV2OfType(type, `device_type_${type}`)
-        );
+        const reading = await ReadingV2.create(createReadingV2OfType(type, `device_type_${type}`));
         expect(reading.metadata.type).toBe(type);
       }
     });
@@ -420,14 +415,13 @@ describe('ReadingV2 Model', () => {
         const readings = [];
 
         // Create 10 readings over 10 hours
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 10; i++)
           readings.push(
             createReadingV2Input('device_range', {
               timestamp: new Date(baseTime - i * 60 * 60 * 1000), // 1 hour apart
               value: 20 + i,
             })
           );
-        }
 
         // Add an invalid reading
         readings.push(
@@ -446,11 +440,7 @@ describe('ReadingV2 Model', () => {
         const startTime = new Date(now - 5 * 60 * 60 * 1000); // 5 hours ago
         const endTime = new Date(now);
 
-        const readings = await ReadingV2.getForDeviceInRange(
-          'device_range',
-          startTime,
-          endTime
-        );
+        const readings = await ReadingV2.getForDeviceInRange('device_range', startTime, endTime);
 
         // Should return readings from last 5 hours (excluding invalid by default)
         expect(readings.length).toBeGreaterThan(0);
@@ -462,12 +452,9 @@ describe('ReadingV2 Model', () => {
         const startTime = new Date(now - 24 * 60 * 60 * 1000);
         const endTime = new Date(now);
 
-        const readings = await ReadingV2.getForDeviceInRange(
-          'device_range',
-          startTime,
-          endTime,
-          { limit: 3 }
-        );
+        const readings = await ReadingV2.getForDeviceInRange('device_range', startTime, endTime, {
+          limit: 3,
+        });
 
         expect(readings.length).toBe(3);
       });
@@ -492,7 +479,7 @@ describe('ReadingV2 Model', () => {
           { type: 'temperature' }
         );
 
-        expect(tempReadings.every((r) => r.metadata.type === 'temperature')).toBe(true);
+        expect(tempReadings.every(r => r.metadata.type === 'temperature')).toBe(true);
       });
 
       it('should exclude invalid readings by default', async () => {
@@ -500,13 +487,9 @@ describe('ReadingV2 Model', () => {
         const startTime = new Date(now - 24 * 60 * 60 * 1000);
         const endTime = new Date(now);
 
-        const readings = await ReadingV2.getForDeviceInRange(
-          'device_range',
-          startTime,
-          endTime
-        );
+        const readings = await ReadingV2.getForDeviceInRange('device_range', startTime, endTime);
 
-        expect(readings.every((r) => r.quality.is_valid === true)).toBe(true);
+        expect(readings.every(r => r.quality.is_valid === true)).toBe(true);
       });
 
       it('should include invalid readings when requested', async () => {
@@ -514,14 +497,11 @@ describe('ReadingV2 Model', () => {
         const startTime = new Date(now - 24 * 60 * 60 * 1000);
         const endTime = new Date(now);
 
-        const readings = await ReadingV2.getForDeviceInRange(
-          'device_range',
-          startTime,
-          endTime,
-          { includeInvalid: true }
-        );
+        const readings = await ReadingV2.getForDeviceInRange('device_range', startTime, endTime, {
+          includeInvalid: true,
+        });
 
-        const hasInvalid = readings.some((r) => r.quality.is_valid === false);
+        const hasInvalid = readings.some(r => r.quality.is_valid === false);
         expect(hasInvalid).toBe(true);
       });
     });
@@ -531,14 +511,13 @@ describe('ReadingV2 Model', () => {
         const baseTime = Date.now();
 
         // Create normal readings
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 5; i++)
           await ReadingV2.create(
             createReadingV2Input('device_anomaly_test', {
               timestamp: new Date(baseTime - i * 60 * 60 * 1000),
               value: 22 + i * 0.5,
             })
           );
-        }
 
         // Create anomaly readings
         await ReadingV2.create(
@@ -562,16 +541,14 @@ describe('ReadingV2 Model', () => {
         const anomalies = await ReadingV2.getAnomalies();
 
         expect(anomalies.length).toBe(3);
-        expect(anomalies.every((r) => r.quality.is_anomaly === true)).toBe(true);
+        expect(anomalies.every(r => r.quality.is_anomaly === true)).toBe(true);
       });
 
       it('should filter by device when provided', async () => {
         const anomalies = await ReadingV2.getAnomalies('device_anomaly_test');
 
         expect(anomalies.length).toBe(2);
-        expect(anomalies.every((r) => r.metadata.device_id === 'device_anomaly_test')).toBe(
-          true
-        );
+        expect(anomalies.every(r => r.metadata.device_id === 'device_anomaly_test')).toBe(true);
       });
 
       it('should filter by time range', async () => {
@@ -678,7 +655,7 @@ describe('ReadingV2 Model', () => {
       { type: 'energy', units: ['watt_hours', 'kilowatt_hours'] },
     ] as const;
 
-    for (const { type, units } of typeUnitPairs) {
+    for (const { type, units } of typeUnitPairs)
       it(`should accept ${units.join(', ')} units for ${type} type`, async () => {
         for (const unit of units) {
           const readingData = {
@@ -696,6 +673,5 @@ describe('ReadingV2 Model', () => {
           expect(reading.metadata.unit).toBe(unit);
         }
       });
-    }
   });
 });

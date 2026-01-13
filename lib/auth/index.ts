@@ -54,28 +54,24 @@ export interface AuthResult {
 export async function getAuthenticatedUser(): Promise<AuthResult> {
   const { userId } = await auth();
 
-  if (!userId) {
+  if (!userId)
     return {
       isAuthenticated: false,
       user: null,
       userId: null,
     };
-  }
 
   // Get full user details
   const user = await currentUser();
 
-  if (!user) {
+  if (!user)
     return {
       isAuthenticated: false,
       user: null,
       userId: null,
     };
-  }
 
-  const primaryEmail = user.emailAddresses.find(
-    (email) => email.id === user.primaryEmailAddressId
-  );
+  const primaryEmail = user.emailAddresses.find(email => email.id === user.primaryEmailAddressId);
 
   return {
     isAuthenticated: true,
@@ -112,13 +108,12 @@ export async function requireAuth(): Promise<{
 }> {
   const authResult = await getAuthenticatedUser();
 
-  if (!authResult.isAuthenticated || !authResult.userId || !authResult.user) {
+  if (!authResult.isAuthenticated || !authResult.userId || !authResult.user)
     throw new ApiError(
       ErrorCodes.UNAUTHORIZED,
       401,
       'Authentication required to access this resource'
     );
-  }
 
   return {
     userId: authResult.userId,
@@ -137,10 +132,7 @@ export async function requireAuth(): Promise<{
  * // auditUser = "user@example.com" or "user_xxx"
  * ```
  */
-export function getAuditUser(
-  userId: string,
-  user: AuthenticatedUser | null
-): string {
+export function getAuditUser(userId: string, user: AuthenticatedUser | null): string {
   return user?.email || userId;
 }
 
@@ -157,9 +149,7 @@ export function getAuditUser(
  * ```
  */
 export function withAuth<T extends unknown[]>(
-  handler: (
-    ...args: [...T, { userId: string; user: AuthenticatedUser }]
-  ) => Promise<Response>
+  handler: (...args: [...T, { userId: string; user: AuthenticatedUser }]) => Promise<Response>
 ): (...args: T) => Promise<Response> {
   return async (...args: T): Promise<Response> => {
     const { userId, user } = await requireAuth();

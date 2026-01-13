@@ -357,8 +357,12 @@ describe('Metrics Collection', () => {
 
       const output = getPrometheusMetrics();
 
-      expect(output).toContain('http_request_duration_ms_count{method="GET",path="/api/v2/devices"} 1');
-      expect(output).toContain('http_request_duration_ms_sum{method="GET",path="/api/v2/devices"} 50');
+      expect(output).toContain(
+        'http_request_duration_ms_count{method="GET",path="/api/v2/devices"} 1'
+      );
+      expect(output).toContain(
+        'http_request_duration_ms_sum{method="GET",path="/api/v2/devices"} 50'
+      );
     });
 
     it('should include request count metrics with status labels', () => {
@@ -366,7 +370,9 @@ describe('Metrics Collection', () => {
 
       const output = getPrometheusMetrics();
 
-      expect(output).toContain('http_requests_total{method="POST",path="/api/v2/readings",status="201"} 1');
+      expect(output).toContain(
+        'http_requests_total{method="POST",path="/api/v2/readings",status="201"} 1'
+      );
     });
 
     it('should include error metrics', () => {

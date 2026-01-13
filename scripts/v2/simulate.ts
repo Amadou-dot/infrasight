@@ -18,15 +18,17 @@ interface GeneratedReading {
 function generateValueForType(type: ReadingType): GeneratedReading {
   // 5% chance of anomaly
   const isAnomaly = Math.random() < 0.05;
-  
+
   let value: number;
   let unit: ReadingUnit;
 
   switch (type) {
     case 'temperature':
       // Normal: 18-28°C, Anomaly: 30-40°C or 5-15°C
-      value = isAnomaly 
-        ? (Math.random() > 0.5 ? 30 + Math.random() * 10 : 5 + Math.random() * 10)
+      value = isAnomaly
+        ? Math.random() > 0.5
+          ? 30 + Math.random() * 10
+          : 5 + Math.random() * 10
         : 18 + Math.random() * 10;
       unit = 'celsius';
       break;
@@ -34,7 +36,9 @@ function generateValueForType(type: ReadingType): GeneratedReading {
     case 'humidity':
       // Normal: 30-70%, Anomaly: 10-20% or 80-95%
       value = isAnomaly
-        ? (Math.random() > 0.5 ? 80 + Math.random() * 15 : 10 + Math.random() * 10)
+        ? Math.random() > 0.5
+          ? 80 + Math.random() * 15
+          : 10 + Math.random() * 10
         : 30 + Math.random() * 40;
       unit = 'percent';
       break;
@@ -60,7 +64,9 @@ function generateValueForType(type: ReadingType): GeneratedReading {
     case 'pressure':
       // Normal: 1000-1030 hPa, Anomaly: 950-980 or 1040-1060
       value = isAnomaly
-        ? (Math.random() > 0.5 ? 1040 + Math.random() * 20 : 950 + Math.random() * 30)
+        ? Math.random() > 0.5
+          ? 1040 + Math.random() * 20
+          : 950 + Math.random() * 30
         : 1000 + Math.random() * 30;
       unit = 'hpa';
       break;
@@ -68,7 +74,9 @@ function generateValueForType(type: ReadingType): GeneratedReading {
     case 'light':
       // Normal: 100-1000 lux, Anomaly: 0-50 or 1500-3000
       value = isAnomaly
-        ? (Math.random() > 0.5 ? 1500 + Math.random() * 1500 : Math.random() * 50)
+        ? Math.random() > 0.5
+          ? 1500 + Math.random() * 1500
+          : Math.random() * 50
         : 100 + Math.random() * 900;
       unit = 'lux';
       break;
@@ -88,7 +96,9 @@ function generateValueForType(type: ReadingType): GeneratedReading {
     case 'water_flow':
       // Normal: 0.5-50 L/min, Anomaly: 80-150 or 0
       value = isAnomaly
-        ? (Math.random() > 0.3 ? 80 + Math.random() * 70 : 0)
+        ? Math.random() > 0.3
+          ? 80 + Math.random() * 70
+          : 0
         : 0.5 + Math.random() * 49.5;
       unit = 'liters_per_minute';
       break;
@@ -108,7 +118,9 @@ function generateValueForType(type: ReadingType): GeneratedReading {
     case 'voltage':
       // Normal: 110-240V, Anomaly: 90-105 or 250-280
       value = isAnomaly
-        ? (Math.random() > 0.5 ? 250 + Math.random() * 30 : 90 + Math.random() * 15)
+        ? Math.random() > 0.5
+          ? 250 + Math.random() * 30
+          : 90 + Math.random() * 15
         : 110 + Math.random() * 130;
       unit = 'volts';
       break;
@@ -157,7 +169,7 @@ function generateQuality(isAnomaly: boolean) {
     confidence_score: parseFloat((0.85 + Math.random() * 0.15).toFixed(2)), // 0.85-1.0
     validation_flags: [] as string[],
     is_anomaly: isAnomaly,
-    anomaly_score: isAnomaly 
+    anomaly_score: isAnomaly
       ? parseFloat((0.5 + Math.random() * 0.5).toFixed(2)) // 0.5-1.0 for anomalies
       : parseFloat((Math.random() * 0.3).toFixed(2)), // 0-0.3 for normal
   };
@@ -200,15 +212,13 @@ async function generateReadings() {
 
     if (readings.length > 0) {
       await ReadingV2.insertMany(readings);
-      
+
       // Count anomalies for logging
       const anomalyCount = readings.filter(r => r.quality.is_anomaly).length;
       console.log(
         `[${timestamp.toISOString()}] Inserted ${readings.length} readings (${anomalyCount} anomalies)`
       );
-    } else 
-      console.log('No devices found. Run `pnpm seed` to create V2 devices.');
-    
+    } else console.log('No devices found. Run `pnpm seed` to create V2 devices.');
   } catch (error) {
     console.error('Error generating readings:', error);
   }
@@ -226,7 +236,7 @@ async function startSimulation() {
   setInterval(generateReadings, 5000);
 }
 
-startSimulation().catch((err) => {
+startSimulation().catch(err => {
   console.error(err);
   process.exit(1);
 });

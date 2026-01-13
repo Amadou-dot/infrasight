@@ -27,14 +27,13 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, latestReadingsQuerySchema);
-    if (!validationResult.success) 
+    if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
 
     const query = validationResult.data as LatestReadingsQuery;
 
@@ -54,9 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Quality filter
-    if (!query.include_invalid) 
-      matchStage['quality.is_valid'] = true;
-    
+    if (!query.include_invalid) matchStage['quality.is_valid'] = true;
 
     // Aggregation pipeline to get latest reading per device
     const pipeline = [
@@ -95,7 +92,7 @@ export async function GET(request: NextRequest) {
 
     if (query.include_quality_metrics && query.device_ids) {
       const deviceIds = Array.isArray(query.device_ids) ? query.device_ids : [query.device_ids];
-      
+
       // Calculate quality metrics
       const qualityPipeline = [
         {
@@ -124,10 +121,7 @@ export async function GET(request: NextRequest) {
             total_readings: 1,
             valid_readings: 1,
             validity_percentage: {
-              $multiply: [
-                { $divide: ['$valid_readings', { $max: ['$total_readings', 1] }] },
-                100,
-              ],
+              $multiply: [{ $divide: ['$valid_readings', { $max: ['$total_readings', 1] }] }, 100],
             },
             anomaly_count: 1,
             avg_confidence: { $round: ['$avg_confidence', 3] },

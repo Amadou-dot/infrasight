@@ -91,11 +91,7 @@ export async function get<T>(key: string): Promise<T | null> {
  *
  * @returns true if set successfully, false otherwise
  */
-export async function set<T>(
-  key: string,
-  value: T,
-  options: CacheOptions
-): Promise<boolean> {
+export async function set<T>(key: string, value: T, options: CacheOptions): Promise<boolean> {
   if (!isCacheEnabled()) return false;
 
   const redis = getRedisClient();
@@ -129,9 +125,7 @@ export async function del(...keys: string[]): Promise<number> {
   try {
     const deleted = await redis.del(...keys);
 
-    if (deleted > 0) 
-      recordCacheEvent('invalidate');
-    
+    if (deleted > 0) recordCacheEvent('invalidate');
 
     return deleted;
   } catch (error) {
@@ -157,18 +151,10 @@ export async function delPattern(pattern: string): Promise<number> {
 
     // Use SCAN to find keys matching pattern (non-blocking)
     do {
-      const [newCursor, keys] = await redis.scan(
-        cursor,
-        'MATCH',
-        pattern,
-        'COUNT',
-        100
-      );
+      const [newCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
       cursor = newCursor;
 
-      if (keys.length > 0) 
-        totalDeleted += await redis.del(...keys);
-      
+      if (keys.length > 0) totalDeleted += await redis.del(...keys);
     } while (cursor !== '0');
 
     if (totalDeleted > 0) {
@@ -202,9 +188,7 @@ export async function getOrSet<T>(
 ): Promise<T> {
   // Try cache first
   const cached = await get<T>(key);
-  if (cached !== null) 
-    return cached;
-  
+  if (cached !== null) return cached;
 
   // Fetch fresh data
   const fresh = await fetchFn();
@@ -264,9 +248,7 @@ export async function mset(
   try {
     const pipeline = redis.pipeline();
 
-    for (const entry of entries) 
-      pipeline.setex(entry.key, entry.ttl, JSON.stringify(entry.value));
-    
+    for (const entry of entries) pipeline.setex(entry.key, entry.ttl, JSON.stringify(entry.value));
 
     await pipeline.exec();
     return entries.length;
