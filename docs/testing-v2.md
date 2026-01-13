@@ -54,8 +54,8 @@ Infrasight uses a comprehensive testing strategy following the test pyramid mode
 ```
                     /\
                    /  \
-                  / E2E \        <- 10% - Slow, Critical Paths
-                 /      \
+                  /    \        <- 10% - Slow, Critical Paths
+                 / E2E  \
                 /--------\
                / Integr.  \      <- 30% - API + Database
               /            \
