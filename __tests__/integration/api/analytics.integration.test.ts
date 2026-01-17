@@ -55,19 +55,23 @@ describe('Analytics API Integration Tests', () => {
 
   describe('GET /api/v2/analytics/anomalies', () => {
     beforeEach(async () => {
-      // Create test device and readings
-      const deviceData = createDeviceInput({ _id: 'anomaly_device_001' });
-      await DeviceV2.create(deviceData);
+      // Create test devices and readings
+      const devices = [
+        createDeviceInput({ _id: 'anomaly_device_001' }),
+        createDeviceInput({ _id: 'anomaly_device_002' }),
+      ];
+      await DeviceV2.insertMany(devices);
 
       // Create normal readings
       const normalReadings = Array.from({ length: 5 }, () =>
         createReadingV2Input('anomaly_device_001')
       );
 
-      // Create anomaly readings
+      // Create anomaly readings for two devices
       const anomalyReadings = [
         createAnomalyReadingV2('anomaly_device_001', 0.9),
         createAnomalyReadingV2('anomaly_device_001', 0.85),
+        createAnomalyReadingV2('anomaly_device_002', 0.95),
       ];
 
       await ReadingV2.insertMany([...normalReadings, ...anomalyReadings]);
@@ -89,8 +93,19 @@ describe('Analytics API Integration Tests', () => {
         device_id: 'anomaly_device_001',
       });
       const response = await GET_ANOMALIES(request);
+      const data = await parseResponse<{
+        success: boolean;
+        data: { anomalies: Array<{ metadata: { device_id: string } }> };
+      }>(response);
 
       expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.anomalies.length).toBe(2);
+      expect(
+        data.data.anomalies.every(
+          (anomaly) => anomaly.metadata.device_id === 'anomaly_device_001'
+        )
+      ).toBe(true);
     });
 
     it('should filter anomalies by min_score', async () => {
@@ -98,18 +113,43 @@ describe('Analytics API Integration Tests', () => {
         min_score: '0.8',
       });
       const response = await GET_ANOMALIES(request);
+      const data = await parseResponse<{
+        success: boolean;
+        data: { anomalies: Array<{ quality: { anomaly_score: number } }> };
+      }>(response);
 
       expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.anomalies.length).toBeGreaterThan(0);
+      expect(
+        data.data.anomalies.every(
+          (anomaly) => anomaly.quality.anomaly_score >= 0.9
+        )
+      ).toBe(true);
     });
 
     it('should support pagination parameters', async () => {
       const request = createMockGetRequest('anomalies', {
         page: '1',
-        limit: '10',
+        limit: '1',
       });
       const response = await GET_ANOMALIES(request);
+      const data = await parseResponse<{
+        success: boolean;
+        data: {
+          anomalies: unknown[];
+          pagination: { total: number; page: number; limit: number };
+        };
+      }>(response);
 
       expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.anomalies.length).toBeLessThanOrEqual(1);
+      expect(data.data.pagination.page).toBe(1);
+      expect(data.data.pagination.limit).toBe(1);
+      expect(data.data.pagination.total).toBeGreaterThanOrEqual(
+        data.data.anomalies.length
+      );
     });
   });
 
@@ -176,9 +216,10 @@ describe('Analytics API Integration Tests', () => {
     it('should accept query without strict time range requirement', async () => {
       const request = createMockGetRequest('energy');
       const response = await GET_ENERGY(request);
+      const data = await parseResponse<{ success: boolean }>(response);
 
-      // Should either succeed or fail validation, but not crash
-      expect([200, 400]).toContain(response.status);
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
     });
   });
 
@@ -212,12 +253,22 @@ describe('Analytics API Integration Tests', () => {
       const response = await GET_HEALTH(request);
       const data = await parseResponse<{
         success: boolean;
-        data: Record<string, unknown>;
+        data: {
+          summary: { total_devices: number; active_devices: number };
+          status_breakdown: Array<{ status: string; count: number }>;
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.data).toBeDefined();
+      expect(data.data.summary.total_devices).toBe(3);
+      expect(data.data.summary.active_devices).toBe(1);
+      expect(
+        data.data.status_breakdown.find((s) => s.status === 'offline')?.count
+      ).toBe(1);
+      expect(
+        data.data.status_breakdown.find((s) => s.status === 'error')?.count
+      ).toBe(1);
     });
 
     it('should return device health data', async () => {
@@ -238,8 +289,14 @@ describe('Analytics API Integration Tests', () => {
         building_id: 'building_001',
       });
       const response = await GET_HEALTH(request);
+      const data = await parseResponse<{
+        success: boolean;
+        data: { summary: { total_devices: number } };
+      }>(response);
 
       expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.summary.total_devices).toBe(3);
     });
   });
 

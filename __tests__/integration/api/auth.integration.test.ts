@@ -13,17 +13,24 @@ import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import { createDeviceInput, resetCounters } from '../../setup/factories';
 
-// Import route handlers
-import { GET as getDevices, POST as createDevice } from '@/app/api/v2/devices/route';
-import { GET as getDevice, PATCH as updateDevice, DELETE as deleteDevice } from '@/app/api/v2/devices/[id]/route';
-import { POST as ingestReadings } from '@/app/api/v2/readings/ingest/route';
-import { GET as simulateReadings } from '@/app/api/v2/cron/simulate/route';
-
 // Mock Clerk auth module
 jest.mock('@clerk/nextjs/server', () => ({
   auth: jest.fn(),
   currentUser: jest.fn(),
 }));
+
+// Mock Pusher to avoid env dependency and network calls
+jest.mock('@/lib/pusher', () => ({
+  pusherServer: {
+    trigger: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+// Import route handlers (after mocks)
+import { GET as getDevices, POST as createDevice } from '@/app/api/v2/devices/route';
+import { GET as getDevice, PATCH as updateDevice, DELETE as deleteDevice } from '@/app/api/v2/devices/[id]/route';
+import { POST as ingestReadings } from '@/app/api/v2/readings/ingest/route';
+import { GET as simulateReadings } from '@/app/api/v2/cron/simulate/route';
 
 import { auth, currentUser } from '@clerk/nextjs/server';
 
@@ -231,9 +238,15 @@ describe('Authentication Integration Tests', () => {
         mockUnauthenticated();
         const response = await simulateReadings();
 
+        const data = await parseResponse<{
+          success: boolean;
+          count?: number;
+        }>(response);
+
         // The key test: should NOT return 401 (auth not required)
-        // May return 500 due to Pusher not being available in tests, or 200/404
-        expect(response.status).not.toBe(401);
+        expect(response.status).toBe(200);
+        expect(data.success).toBe(true);
+        expect(data.count).toBeGreaterThan(0);
       });
     });
   });

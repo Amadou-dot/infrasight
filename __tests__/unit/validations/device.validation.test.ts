@@ -41,6 +41,9 @@ describe('Device Validation Schemas', () => {
       for (const status of invalidStatuses) {
         const result = deviceStatusSchema.safeParse(status);
         expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.issues[0]?.code).toBe('invalid_enum_value');
+        }
       }
     });
   });
@@ -161,10 +164,28 @@ describe('Device Validation Schemas', () => {
         { building_id: 'b1', floor: 1 }, // missing room_name
       ];
 
-      for (const location of invalidLocations) {
-        const result = deviceLocationSchema.safeParse(location);
-        expect(result.success).toBe(false);
-      }
+      const [missingBuilding, missingFloor, missingRoom] = invalidLocations;
+
+      const missingBuildingResult = deviceLocationSchema.safeParse(missingBuilding);
+      expect(missingBuildingResult.success).toBe(false);
+      if (!missingBuildingResult.success)
+        expect(missingBuildingResult.error.issues.map((issue) => issue.path[0])).toContain(
+          'building_id'
+        );
+
+      const missingFloorResult = deviceLocationSchema.safeParse(missingFloor);
+      expect(missingFloorResult.success).toBe(false);
+      if (!missingFloorResult.success)
+        expect(missingFloorResult.error.issues.map((issue) => issue.path[0])).toContain(
+          'floor'
+        );
+
+      const missingRoomResult = deviceLocationSchema.safeParse(missingRoom);
+      expect(missingRoomResult.success).toBe(false);
+      if (!missingRoomResult.success)
+        expect(missingRoomResult.error.issues.map((issue) => issue.path[0])).toContain(
+          'room_name'
+        );
     });
 
     it('should reject floor outside valid range', () => {

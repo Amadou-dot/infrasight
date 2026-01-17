@@ -16,6 +16,9 @@ import {
 
 import { GET as GET_ENERGY } from '@/app/api/v2/analytics/energy/route';
 
+const AGGREGATION_BASE_TIME = new Date('2024-01-15T12:00:00.000Z');
+const HOUR_MS = 60 * 60 * 1000;
+
 /**
  * Helper to create a mock NextRequest for GET requests
  */
@@ -218,6 +221,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             source: 'sensor',
           },
           value: 100 + i * 10, // 100, 110, 120, ..., 190
+          timestamp: new Date(AGGREGATION_BASE_TIME.getTime() - i * HOUR_MS),
         })
       );
 
@@ -225,122 +229,171 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
     });
 
     it('should calculate sum aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'sum',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('sum');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(1450);
     });
 
     it('should calculate avg aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'avg',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('avg');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(145);
     });
 
     it('should calculate min aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'min',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('min');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(100);
     });
 
     it('should calculate max aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'max',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('max');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(190);
     });
 
     it('should calculate count aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'count',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('count');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(10);
     });
 
     it('should calculate first aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'first',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('first');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(190);
     });
 
     it('should calculate last aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'last',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('last');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(100);
     });
 
     // Note: 'raw' aggregation has a bug where $round is applied to an array

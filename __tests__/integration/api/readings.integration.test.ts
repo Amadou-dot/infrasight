@@ -119,8 +119,37 @@ describe('Readings API Integration Tests', () => {
           limit: '20',
         });
         const response = await GET(request);
+        const data = await parseResponse<{
+          success: boolean;
+          error: { code: string; message: string };
+        }>(response);
 
         expect(response.status).toBe(400);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('VALIDATION_ERROR');
+        expect(data.error.message).toContain('device_id or startDate');
+      });
+
+      it('should allow querying by startDate without device_id', async () => {
+        const readingTimestamp = new Date('2024-01-10T10:00:00.000Z');
+        await ReadingV2.create(
+          createReadingV2Input('device_001', {
+            timestamp: readingTimestamp,
+          })
+        );
+
+        const request = createMockGetRequest('/api/v2/readings', {
+          startDate: readingTimestamp.toISOString(),
+        });
+        const response = await GET(request);
+        const data = await parseResponse<{
+          success: boolean;
+          data: unknown[];
+        }>(response);
+
+        expect(response.status).toBe(200);
+        expect(data.success).toBe(true);
+        expect(data.data.length).toBeGreaterThan(0);
       });
     });
 
