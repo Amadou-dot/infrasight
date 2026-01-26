@@ -20,6 +20,7 @@ import {
   type ListDevicesQuery,
 } from '@/lib/validations/v2/device.validation';
 import { validateQuery, validateInput } from '@/lib/validations/validator';
+import { sanitizeSearchQuery } from '@/lib/validations/sanitizer';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import {
   jsonSuccess,
@@ -156,12 +157,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Search filter
-    if (query.search) 
+    if (query.search) {
+      const searchRegex = sanitizeSearchQuery(query.search);
       filter.$or = [
-        { serial_number: { $regex: query.search, $options: 'i' } },
-        { 'location.room_name': { $regex: query.search, $options: 'i' } },
-        { 'metadata.tags': { $regex: query.search, $options: 'i' } },
+        { serial_number: { $regex: searchRegex, $options: 'i' } },
+        { 'location.room_name': { $regex: searchRegex, $options: 'i' } },
+        { 'metadata.tags': { $regex: searchRegex, $options: 'i' } },
       ];
+    }
     
 
     // Build sort

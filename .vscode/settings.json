@@ -1,5 +1,9 @@
 {
     "github-actions.workflows.pinned.workflows": [
         ".github/workflows/test-coverage.yml"
+    ],
+    "cSpell.words": [
+        "retryable",
+        "vercel"
     ]
 }

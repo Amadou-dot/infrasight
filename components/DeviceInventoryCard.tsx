@@ -4,6 +4,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Thermometer,
   Droplets,
   Users,
@@ -18,12 +24,14 @@ import {
   BatteryWarning,
   MoreVertical,
   MapPin,
+  Trash2,
 } from 'lucide-react';
 import type { DeviceV2Response } from '@/types/v2';
 
 interface DeviceInventoryCardProps {
   device: DeviceV2Response;
   onClick?: () => void;
+  onDelete?: (deviceId: string) => void;
 }
 
 // Get icon component based on device type
@@ -200,6 +208,7 @@ function getSecondaryStat(
 export default function DeviceInventoryCard({
   device,
   onClick,
+  onDelete,
 }: DeviceInventoryCardProps) {
   const secondaryStat = getSecondaryStat(device);
 
@@ -232,7 +241,7 @@ export default function DeviceInventoryCard({
               {getDeviceIcon(device.type)}
             </div>
             <div>
-              <h3 className='font-semibold text-sm text-foreground truncate max-w-[140px]'>
+              <h3 className='font-semibold text-sm text-foreground truncate max-w-35'>
                 {device._id}
               </h3>
               <p className='text-xs text-muted-foreground'>
@@ -240,15 +249,28 @@ export default function DeviceInventoryCard({
               </p>
             </div>
           </div>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0'
-            onClick={e => {
-              e.stopPropagation();
-            }}>
-            <MoreVertical className='h-4 w-4' />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0'
+                onClick={e => {
+                  e.stopPropagation();
+                }}>
+                <MoreVertical className='h-4 w-4' />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end' onClick={e => e.stopPropagation()}>
+              <DropdownMenuItem
+                variant='destructive'
+                onClick={() => onDelete?.(device._id)}
+              >
+                <Trash2 className='h-4 w-4' />
+                Delete Device
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Location & Info */}

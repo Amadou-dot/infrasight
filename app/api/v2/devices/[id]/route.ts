@@ -19,7 +19,9 @@ import {
 import { validateInput, validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
+import { withRateLimit } from '@/lib/ratelimit';
 import { requireAuth, getAuditUser } from '@/lib/auth';
+import { invalidateDevice } from '@/lib/cache';
 
 // ============================================================================
 // GET /api/v2/devices/[id] - Get Single Device
@@ -251,7 +253,7 @@ export async function PATCH(
 // DELETE /api/v2/devices/[id] - Soft Delete Device
 // ============================================================================
 
-export async function DELETE(
+async function handleDeleteDevice(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -294,6 +296,11 @@ export async function DELETE(
     // Perform soft delete
     const deletedDevice = await DeviceV2.softDelete(id, auditUser);
 
+    // Invalidate device caches (non-blocking)
+    invalidateDevice(id).catch(() => {
+      // Error already logged
+    });
+
     return jsonSuccess(
       { 
         _id: id, 
@@ -304,3 +311,5 @@ export async function DELETE(
     );
   })();
 }
+
+export const DELETE = withRateLimit(handleDeleteDevice);

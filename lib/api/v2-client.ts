@@ -12,6 +12,7 @@ import type {
   DeviceV2Response,
   DeviceHistoryResponse,
   ListDevicesQuery,
+  CreateDeviceInput,
   ReadingV2Response,
   LatestReadingsResponse,
   ListReadingsQuery,
@@ -179,6 +180,19 @@ export const deviceApi = {
   ): Promise<PaginatedResponse<DeviceV2Response>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/devices${queryString}`);
+  },
+
+  /**
+   * Create a new device
+   */
+  async create(
+    data: CreateDeviceInput
+  ): Promise<ApiSuccessResponse<DeviceV2Response>> {
+    return apiCall('/api/v2/devices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   },
 
   /**

@@ -59,6 +59,9 @@ export const deviceTypeSchema = z.enum([
   'water_flow',
   'gas',
   'vibration',
+  'voltage',
+  'current',
+  'energy',
 ]);
 
 /**
