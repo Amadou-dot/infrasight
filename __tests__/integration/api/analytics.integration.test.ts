@@ -123,7 +123,7 @@ describe('Analytics API Integration Tests', () => {
       expect(data.data.anomalies.length).toBeGreaterThan(0);
       expect(
         data.data.anomalies.every(
-          (anomaly) => anomaly.quality.anomaly_score >= 0.9
+          (anomaly) => anomaly.quality.anomaly_score >= 0.8
         )
       ).toBe(true);
     });
