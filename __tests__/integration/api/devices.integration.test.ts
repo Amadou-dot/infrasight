@@ -123,19 +123,27 @@ describe('Devices API Integration Tests', () => {
     describe('Pagination', () => {
       beforeEach(async () => {
         // Create 30 devices for pagination tests
-        const devices = createDeviceInputs(30);
-        for (let i = 0; i < devices.length; i++)
-          devices[i]._id = `device_page_${i.toString().padStart(2, '0')}`;
+        const devices = Array.from({ length: 30 }, (_, i) =>
+          createDeviceInput({
+            _id: `device_page_${i.toString().padStart(2, '0')}`,
+            serial_number: `SN-${i.toString().padStart(3, '0')}`,
+          })
+        );
 
         await DeviceV2.insertMany(devices);
       });
 
       it('should respect page and limit parameters', async () => {
-        const request = createMockGetRequest({ page: '2', limit: '10' });
+        const request = createMockGetRequest({
+          page: '2',
+          limit: '10',
+          sortBy: 'serial_number',
+          sortDirection: 'asc',
+        });
         const response = await GET(request);
         const data = await parseResponse<{
           success: boolean;
-          data: unknown[];
+          data: Array<{ serial_number: string }>;
           pagination: { total: number; page: number; limit: number };
         }>(response);
 
@@ -143,6 +151,8 @@ describe('Devices API Integration Tests', () => {
         expect(data.data.length).toBe(10);
         expect(data.pagination.page).toBe(2);
         expect(data.pagination.limit).toBe(10);
+        expect(data.data[0]?.serial_number).toBe('SN-010');
+        expect(data.data[9]?.serial_number).toBe('SN-019');
       });
 
       it('should return hasNext and hasPrevious correctly', async () => {

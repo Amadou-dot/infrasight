@@ -16,12 +16,14 @@ test.describe('Real-time Updates', () => {
       const errors: string[] = [];
       const consoleMessages: string[] = [];
 
-      page.on('pageerror', error => {
+      page.on('pageerror', (error) => {
         errors.push(error.message);
       });
 
-      page.on('console', msg => {
-        if (msg.type() === 'error') consoleMessages.push(msg.text());
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') {
+          consoleMessages.push(msg.text());
+        }
       });
 
       await page.goto('/');
@@ -32,7 +34,10 @@ test.describe('Real-time Updates', () => {
 
       // Filter for critical Pusher-related errors
       const pusherErrors = errors.filter(
-        e => e.toLowerCase().includes('pusher') && !e.includes('connect') && !e.includes('timeout')
+        (e) =>
+          e.toLowerCase().includes('pusher') &&
+          !e.includes('connect') &&
+          !e.includes('timeout')
       );
 
       // Some connection warnings are expected in test env
@@ -42,12 +47,17 @@ test.describe('Real-time Updates', () => {
     test('should not have critical WebSocket failures', async ({ page }) => {
       const wsErrors: string[] = [];
 
-      page.on('console', msg => {
+      page.on('console', (msg) => {
         const text = msg.text().toLowerCase();
-        if (msg.type() === 'error' && (text.includes('websocket') || text.includes('socket')))
-          if (!text.includes('failed to connect') && !text.includes('timeout'))
-            // Ignore expected test environment connection issues
+        if (
+          msg.type() === 'error' &&
+          (text.includes('websocket') || text.includes('socket'))
+        ) {
+          // Ignore expected test environment connection issues
+          if (!text.includes('failed to connect') && !text.includes('timeout')) {
             wsErrors.push(msg.text());
+          }
+        }
       });
 
       await page.goto('/');
@@ -69,7 +79,9 @@ test.describe('Real-time Updates', () => {
       await page.waitForLoadState('load');
 
       // Look for timestamp or "last updated" indicators
-      const timestamps = page.locator('text=/\\d{1,2}:\\d{2}|ago|updated|last sync/i');
+      const timestamps = page.locator(
+        'text=/\\d{1,2}:\\d{2}|ago|updated|last sync/i'
+      );
 
       // Timestamps may or may not be visible depending on UI design
       const count = await timestamps.count();
@@ -98,7 +110,7 @@ test.describe('Real-time Updates', () => {
       await page.goto('/');
 
       // Look for loading indicators
-      const _loadingIndicators = page.locator(
+      const loadingIndicators = page.locator(
         '[data-testid="loading"], [class*="loading"], [class*="spinner"], [class*="skeleton"]'
       );
 
@@ -167,7 +179,9 @@ test.describe('Real-time Updates', () => {
       await page.waitForLoadState('load');
 
       // Look for chart elements
-      const charts = page.locator('[class*="recharts"], [class*="chart"], svg, canvas');
+      const charts = page.locator(
+        '[class*="recharts"], [class*="chart"], svg, canvas'
+      );
 
       await expect(charts.first()).toBeVisible({ timeout: 15000 });
     });
@@ -292,14 +306,16 @@ test.describe('Real-time Updates', () => {
 
       // Check for console errors that might indicate memory issues
       const errors: string[] = [];
-      page.on('pageerror', error => {
+      page.on('pageerror', (error) => {
         errors.push(error.message);
       });
 
       await page.goto('/');
       await page.waitForLoadState('load');
 
-      const memoryErrors = errors.filter(e => e.includes('memory') || e.includes('heap'));
+      const memoryErrors = errors.filter(
+        (e) => e.includes('memory') || e.includes('heap')
+      );
 
       expect(memoryErrors.length).toBe(0);
     });

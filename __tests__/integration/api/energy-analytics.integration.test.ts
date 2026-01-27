@@ -8,14 +8,23 @@
 import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
-import { createDeviceInput, createReadingV2Input, resetCounters } from '../../setup/factories';
+import {
+  createDeviceInput,
+  createReadingV2Input,
+  resetCounters,
+} from '../../setup/factories';
 
 import { GET as GET_ENERGY } from '@/app/api/v2/analytics/energy/route';
+
+const AGGREGATION_BASE_TIME = new Date('2024-01-15T12:00:00.000Z');
+const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * Helper to create a mock NextRequest for GET requests
  */
-function createMockGetRequest(searchParams: Record<string, string> = {}): NextRequest {
+function createMockGetRequest(
+  searchParams: Record<string, string> = {}
+): NextRequest {
   const url = new URL('http://localhost:3000/api/v2/analytics/energy');
   Object.entries(searchParams).forEach(([key, value]) => {
     url.searchParams.set(key, value);
@@ -212,6 +221,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             source: 'sensor',
           },
           value: 100 + i * 10, // 100, 110, 120, ..., 190
+          timestamp: new Date(AGGREGATION_BASE_TIME.getTime() - i * HOUR_MS),
         })
       );
 
@@ -219,122 +229,171 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
     });
 
     it('should calculate sum aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'sum',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('sum');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(1450);
     });
 
     it('should calculate avg aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'avg',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('avg');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(145);
     });
 
     it('should calculate min aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'min',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('min');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(100);
     });
 
     it('should calculate max aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'max',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('max');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(190);
     });
 
     it('should calculate count aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'count',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('count');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(10);
     });
 
     it('should calculate first aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'first',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('first');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(190);
     });
 
     it('should calculate last aggregation', async () => {
-      const dates = getDateRanges();
+      const startDate = new Date(AGGREGATION_BASE_TIME.getTime() - 12 * HOUR_MS);
+      const endDate = new Date(AGGREGATION_BASE_TIME.getTime() + 1 * HOUR_MS);
       const request = createMockGetRequest({
-        startDate: dates.yesterday,
-        endDate: dates.now,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         aggregation: 'last',
+        granularity: 'day',
       });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{
         success: boolean;
-        data: { metadata: { aggregation_type: string } };
+        data: {
+          results: Array<{ value: number }>;
+          metadata: { aggregation_type: string };
+        };
       }>(response);
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.aggregation_type).toBe('last');
+      expect(data.data.results.length).toBe(1);
+      expect(data.data.results[0]?.value).toBe(100);
     });
 
     // Note: 'raw' aggregation has a bug where $round is applied to an array
@@ -467,7 +526,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('device');
       // Results should have device_id field
-      if (data.data.results.length > 0) expect(data.data.results[0]).toHaveProperty('device_id');
+      if (data.data.results.length > 0) {
+        expect(data.data.results[0]).toHaveProperty('device_id');
+      }
     });
 
     it('should group by type', async () => {
@@ -488,7 +549,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('type');
-      if (data.data.results.length > 0) expect(data.data.results[0]).toHaveProperty('type');
+      if (data.data.results.length > 0) {
+        expect(data.data.results[0]).toHaveProperty('type');
+      }
     });
 
     it('should group by floor (requires device lookup)', async () => {
@@ -509,7 +572,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('floor');
-      if (data.data.results.length > 0) expect(data.data.results[0]).toHaveProperty('floor');
+      if (data.data.results.length > 0) {
+        expect(data.data.results[0]).toHaveProperty('floor');
+      }
     });
 
     it('should group by room (requires device lookup)', async () => {
@@ -530,7 +595,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('room');
-      if (data.data.results.length > 0) expect(data.data.results[0]).toHaveProperty('room');
+      if (data.data.results.length > 0) {
+        expect(data.data.results[0]).toHaveProperty('room');
+      }
     });
 
     it('should group by building (requires device lookup)', async () => {
@@ -551,7 +618,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('building');
-      if (data.data.results.length > 0) expect(data.data.results[0]).toHaveProperty('building');
+      if (data.data.results.length > 0) {
+        expect(data.data.results[0]).toHaveProperty('building');
+      }
     });
 
     it('should group by department (requires device lookup)', async () => {
@@ -572,7 +641,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('department');
-      if (data.data.results.length > 0) expect(data.data.results[0]).toHaveProperty('department');
+      if (data.data.results.length > 0) {
+        expect(data.data.results[0]).toHaveProperty('department');
+      }
     });
   });
 
@@ -593,7 +664,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
       const readings = [];
 
       // Current period readings
-      for (let i = 0; i < 24; i++)
+      for (let i = 0; i < 24; i++) {
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -606,9 +677,10 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000), // hourly for last 24 hours
           })
         );
+      }
 
       // Previous period readings (24-48 hours ago)
-      for (let i = 24; i < 48; i++)
+      for (let i = 24; i < 48; i++) {
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -621,10 +693,11 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000),
           })
         );
+      }
 
       // Last week readings
       const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-      for (let i = 0; i < 24; i++)
+      for (let i = 0; i < 24; i++) {
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -637,10 +710,11 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(weekAgo - i * 60 * 60 * 1000),
           })
         );
+      }
 
       // Last month readings
       const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
-      for (let i = 0; i < 24; i++)
+      for (let i = 0; i < 24; i++) {
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -653,6 +727,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(monthAgo - i * 60 * 60 * 1000),
           })
         );
+      }
 
       await ReadingV2.insertMany(readings);
     });
@@ -754,7 +829,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       const now = Date.now();
       const readings = [];
-      for (let i = 0; i < 24; i++)
+      for (let i = 0; i < 24; i++) {
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -767,7 +842,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000),
           })
         );
-
+      }
       await ReadingV2.insertMany(readings);
 
       const nowDate = new Date();
@@ -982,7 +1057,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
       const readings = [];
 
       // Create readings for current and comparison periods
-      for (let i = 0; i < 48; i++)
+      for (let i = 0; i < 48; i++) {
         readings.push(
           createReadingV2Input('combined_device_001', {
             metadata: {
@@ -995,6 +1070,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000),
           })
         );
+      }
 
       await ReadingV2.insertMany(readings);
     });

@@ -1,14 +1,29 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Monitor, Plus } from 'lucide-react';
+import { Monitor, Plus, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import Pagination from '@/components/Pagination';
 import DeviceInventoryCard from '@/components/DeviceInventoryCard';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
-import { ToastContainer } from 'react-toastify';
+import { CreateDeviceModal } from '@/components/devices/CreateDeviceModal';
+import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useDevicesList } from '@/lib/query/hooks';
+import { queryKeys } from '@/lib/query/queryClient';
+import { v2Api } from '@/lib/api/v2-client';
+import type { DeviceV2Response } from '@/types/v2';
 
 import {
   DeviceStatusCards,
@@ -30,9 +45,19 @@ const DEVICES_PER_PAGE = 16;
 // ============================================================================
 
 export default function DevicesPage() {
+  const queryClient = useQueryClient();
+
   // Device selection state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+
+  // Create device modal state
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deviceToDelete, setDeviceToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch all devices with React Query (cached, shared across components)
   const { data: devices = [], isLoading, error: fetchError } = useDevicesList();
@@ -185,6 +210,48 @@ export default function DevicesPage() {
     }));
   };
 
+  const handleDeviceCreated = () => {
+    // Invalidate devices cache to refresh the list
+    queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
+  };
+
+  const handleDeleteRequest = (deviceId: string) => {
+    setDeviceToDelete(deviceId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async (e: React.MouseEvent) => {
+    // Prevent AlertDialogAction's default close behavior
+    e.preventDefault();
+
+    if (!deviceToDelete) return;
+
+    setIsDeleting(true);
+    const deletedDeviceId = deviceToDelete;
+
+    try {
+      await v2Api.devices.delete(deletedDeviceId);
+
+      // Refresh the list and wait for it to complete
+      await queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
+
+      // Only close dialog after list is refreshed
+      setDeleteDialogOpen(false);
+      setDeviceToDelete(null);
+      toast.success(`Device ${deletedDeviceId} deleted successfully`, { autoClose: 3000 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete device';
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setDeviceToDelete(null);
+  };
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -211,8 +278,11 @@ export default function DevicesPage() {
               Manage connected IoT endpoints across all zones.
             </p>
           </div>
-          <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button
+            className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white'
+            onClick={() => setCreateModalOpen(true)}
+          >
+            <Plus className='h-4 w-4 mr-2' />
             Add Device
           </Button>
         </div>
@@ -264,6 +334,7 @@ export default function DevicesPage() {
                   key={device._id}
                   device={device}
                   onClick={() => handleDeviceClick(device._id)}
+                  onDelete={handleDeleteRequest}
                 />
               ))}
             </div>
@@ -303,6 +374,54 @@ export default function DevicesPage() {
         onClearAll={clearAllFilters}
         onApply={applyFilters}
       />
+
+      {/* Create Device Modal */}
+      <CreateDeviceModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={handleDeviceCreated}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          // Prevent closing while deletion is in progress
+          if (!isDeleting) {
+            setDeleteDialogOpen(open);
+            if (!open) setDeviceToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent onEscapeKeyDown={(e) => isDeleting && e.preventDefault()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Device</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete device <span className='font-semibold'>{deviceToDelete}</span>?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className='bg-destructive text-white hover:bg-destructive/90'
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

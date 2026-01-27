@@ -39,7 +39,9 @@ describe('Body Size Middleware', () => {
         '/api/v2/analytics/health',
       ];
 
-      for (const path of paths) expect(getMaxBodySize(path)).toBe(DEFAULT_BODY_SIZE_CONFIG.default);
+      for (const path of paths) {
+        expect(getMaxBodySize(path)).toBe(DEFAULT_BODY_SIZE_CONFIG.default);
+      }
     });
 
     it('should return bulk size for readings ingest endpoint', () => {
@@ -73,8 +75,9 @@ describe('Body Size Middleware', () => {
   describe('validateBodySize()', () => {
     const createMockRequest = (contentLength: string | null): Request => {
       const headers = new Headers();
-      if (contentLength !== null) headers.set('content-length', contentLength);
-
+      if (contentLength !== null) {
+        headers.set('content-length', contentLength);
+      }
       return {
         headers,
       } as unknown as Request;
@@ -83,27 +86,35 @@ describe('Body Size Middleware', () => {
     it('should pass validation when no content-length header', async () => {
       const request = createMockRequest(null);
 
-      await expect(validateBodySize(request, '/api/v2/devices')).resolves.toBeUndefined();
+      await expect(
+        validateBodySize(request, '/api/v2/devices')
+      ).resolves.toBeUndefined();
     });
 
     it('should pass validation when body size is within limit', async () => {
       const request = createMockRequest('1024'); // 1KB
 
-      await expect(validateBodySize(request, '/api/v2/devices')).resolves.toBeUndefined();
+      await expect(
+        validateBodySize(request, '/api/v2/devices')
+      ).resolves.toBeUndefined();
     });
 
     it('should pass validation when body size equals limit', async () => {
       const limit = DEFAULT_BODY_SIZE_CONFIG.default.toString();
       const request = createMockRequest(limit);
 
-      await expect(validateBodySize(request, '/api/v2/devices')).resolves.toBeUndefined();
+      await expect(
+        validateBodySize(request, '/api/v2/devices')
+      ).resolves.toBeUndefined();
     });
 
     it('should throw ApiError when body exceeds default limit', async () => {
       const overLimit = (DEFAULT_BODY_SIZE_CONFIG.default + 1).toString();
       const request = createMockRequest(overLimit);
 
-      await expect(validateBodySize(request, '/api/v2/devices')).rejects.toThrow(ApiError);
+      await expect(
+        validateBodySize(request, '/api/v2/devices')
+      ).rejects.toThrow(ApiError);
 
       try {
         await validateBodySize(request, '/api/v2/devices');
@@ -120,7 +131,9 @@ describe('Body Size Middleware', () => {
       const overLimit = (DEFAULT_BODY_SIZE_CONFIG.bulk + 1).toString();
       const request = createMockRequest(overLimit);
 
-      await expect(validateBodySize(request, '/api/v2/readings/ingest')).rejects.toThrow(ApiError);
+      await expect(
+        validateBodySize(request, '/api/v2/readings/ingest')
+      ).rejects.toThrow(ApiError);
 
       try {
         await validateBodySize(request, '/api/v2/readings/ingest');
@@ -135,7 +148,9 @@ describe('Body Size Middleware', () => {
     it('should throw ApiError for invalid content-length header', async () => {
       const request = createMockRequest('not-a-number');
 
-      await expect(validateBodySize(request, '/api/v2/devices')).rejects.toThrow(ApiError);
+      await expect(
+        validateBodySize(request, '/api/v2/devices')
+      ).rejects.toThrow(ApiError);
 
       try {
         await validateBodySize(request, '/api/v2/devices');
@@ -151,14 +166,18 @@ describe('Body Size Middleware', () => {
       // 5MB is under the 10MB bulk limit
       const request = createMockRequest((5 * 1024 * 1024).toString());
 
-      await expect(validateBodySize(request, '/api/v2/readings/ingest')).resolves.toBeUndefined();
+      await expect(
+        validateBodySize(request, '/api/v2/readings/ingest')
+      ).resolves.toBeUndefined();
     });
 
     it('should reject same size for regular endpoint', async () => {
       // 5MB is over the 1MB regular limit
       const request = createMockRequest((5 * 1024 * 1024).toString());
 
-      await expect(validateBodySize(request, '/api/v2/devices')).rejects.toThrow(ApiError);
+      await expect(
+        validateBodySize(request, '/api/v2/devices')
+      ).rejects.toThrow(ApiError);
     });
 
     it('should use custom config when provided', async () => {
@@ -169,9 +188,9 @@ describe('Body Size Middleware', () => {
       const request = createMockRequest('500');
 
       // Should fail with custom config (500 > 100)
-      await expect(validateBodySize(request, '/api/v2/devices', customConfig)).rejects.toThrow(
-        ApiError
-      );
+      await expect(
+        validateBodySize(request, '/api/v2/devices', customConfig)
+      ).rejects.toThrow(ApiError);
 
       // But should pass for bulk endpoint (500 < 1000)
       await expect(

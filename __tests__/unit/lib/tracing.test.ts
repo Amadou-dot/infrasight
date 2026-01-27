@@ -33,7 +33,9 @@ describe('Request Tracing', () => {
 
     it('should generate unique IDs', () => {
       const ids = new Set<string>();
-      for (let i = 0; i < 100; i++) ids.add(generateTraceId());
+      for (let i = 0; i < 100; i++) {
+        ids.add(generateTraceId());
+      }
 
       expect(ids.size).toBe(100);
     });
@@ -46,8 +48,9 @@ describe('Request Tracing', () => {
   describe('getTraceId()', () => {
     const createMockRequest = (headers: Record<string, string>): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) h.set(key, value);
-
+      for (const [key, value] of Object.entries(headers)) {
+        h.set(key, value);
+      }
       return { headers: h } as Request;
     };
 
@@ -167,7 +170,7 @@ describe('Request Tracing', () => {
       const timer = createRequestTimer();
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const elapsed = timer.elapsed();
 
@@ -191,8 +194,9 @@ describe('Request Tracing', () => {
   describe('withTracing()', () => {
     const createMockRequest = (headers: Record<string, string>, url: string): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) h.set(key, value);
-
+      for (const [key, value] of Object.entries(headers)) {
+        h.set(key, value);
+      }
       return { headers: h, url } as Request;
     };
 
@@ -251,15 +255,18 @@ describe('Request Tracing', () => {
       headers: Record<string, string> = {}
     ): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) h.set(key, value);
-
+      for (const [key, value] of Object.entries(headers)) {
+        h.set(key, value);
+      }
       return { method, url, headers: h } as Request;
     };
 
     it('should create context with trace ID from request', () => {
-      const request = createMockRequest('GET', 'http://localhost/api/v2/devices', {
-        'x-trace-id': 'trace-123',
-      });
+      const request = createMockRequest(
+        'GET',
+        'http://localhost/api/v2/devices',
+        { 'x-trace-id': 'trace-123' }
+      );
 
       const context = createRequestContext(request);
 

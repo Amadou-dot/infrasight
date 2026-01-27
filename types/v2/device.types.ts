@@ -215,8 +215,7 @@ export interface CreateDeviceInput {
   _id: string;
   serial_number: string;
   manufacturer: string;
-  /** Maps to 'device_model' in database */
-  model: string;
+  device_model: string;
   firmware_version: string;
   type: DeviceType;
   configuration: {
@@ -258,7 +257,7 @@ export interface CreateDeviceInput {
 export interface UpdateDeviceInput {
   serial_number?: string;
   manufacturer?: string;
-  model?: string;
+  device_model?: string;
   firmware_version?: string;
   type?: DeviceType;
   configuration?: Partial<{

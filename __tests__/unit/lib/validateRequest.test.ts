@@ -4,7 +4,7 @@
  * Tests for combined request validation.
  */
 
-import type { NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import {
   validateRequest,
   withRequestValidation,
@@ -20,10 +20,14 @@ const createMockNextRequest = (
   searchParams: Record<string, string> = {}
 ): NextRequest => {
   const url = new URL(`http://localhost${pathname}`);
-  for (const [key, value] of Object.entries(searchParams)) url.searchParams.set(key, value);
+  for (const [key, value] of Object.entries(searchParams)) {
+    url.searchParams.set(key, value);
+  }
 
   const h = new Headers();
-  for (const [key, value] of Object.entries(headers)) h.set(key, value);
+  for (const [key, value] of Object.entries(headers)) {
+    h.set(key, value);
+  }
 
   return {
     method,
@@ -60,7 +64,9 @@ describe('Request Validation Middleware', () => {
       const request = createMockNextRequest('POST', '/api/v2/devices');
       // No Content-Type, should normally fail
 
-      await expect(validateRequest(request, { skip: true })).resolves.toBeUndefined();
+      await expect(
+        validateRequest(request, { skip: true })
+      ).resolves.toBeUndefined();
     });
 
     it('should throw for POST without Content-Type', async () => {
@@ -151,7 +157,12 @@ describe('Request Validation Middleware', () => {
       const wrappedHandler = withRequestValidation(handler, {
         allowedQueryParams: ['status'],
       });
-      const request = createMockNextRequest('GET', '/api/v2/devices', {}, { invalid: 'param' });
+      const request = createMockNextRequest(
+        'GET',
+        '/api/v2/devices',
+        {},
+        { invalid: 'param' }
+      );
 
       const response = await wrappedHandler(request);
 
@@ -181,17 +192,23 @@ describe('Request Validation Middleware', () => {
     it('should define jsonApi preset', () => {
       expect(ValidationPresets.jsonApi).toBeDefined();
       expect(ValidationPresets.jsonApi.headers?.requireContentType).toBe(true);
-      expect(ValidationPresets.jsonApi.headers?.allowedContentTypes).toContain('application/json');
+      expect(ValidationPresets.jsonApi.headers?.allowedContentTypes).toContain(
+        'application/json'
+      );
     });
 
     it('should define bulkIngestion preset with larger body size', () => {
       expect(ValidationPresets.bulkIngestion).toBeDefined();
-      expect(ValidationPresets.bulkIngestion.bodySize?.bulk).toBe(10 * 1024 * 1024);
+      expect(ValidationPresets.bulkIngestion.bodySize?.bulk).toBe(
+        10 * 1024 * 1024
+      );
     });
 
     it('should define readOnly preset without Content-Type requirement', () => {
       expect(ValidationPresets.readOnly).toBeDefined();
-      expect(ValidationPresets.readOnly.headers?.requireContentType).toBe(false);
+      expect(ValidationPresets.readOnly.headers?.requireContentType).toBe(
+        false
+      );
     });
   });
 });
