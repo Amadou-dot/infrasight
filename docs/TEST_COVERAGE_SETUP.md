@@ -5,6 +5,7 @@ This guide explains how to enable test coverage reporting and enforcement on pul
 ## Overview
 
 The test coverage system provides:
+
 - Automated test execution on every PR
 - Coverage reports with detailed metrics
 - Automatic PR comments with coverage statistics
@@ -15,18 +16,19 @@ The test coverage system provides:
 
 As defined in `jest.config.js`:
 
-| Metric | Threshold |
-|--------|-----------|
-| Statements | 80% |
-| Branches | 70% |
-| Functions | 75% |
-| Lines | 80% |
+| Metric     | Threshold |
+| ---------- | --------- |
+| Statements | 80%       |
+| Branches   | 70%       |
+| Functions  | 75%       |
+| Lines      | 80%       |
 
 ## Setup Instructions
 
 ### 1. Enable GitHub Actions Workflow
 
 The workflow file `.github/workflows/test-coverage.yml` has been created and will automatically run on:
+
 - Pull requests to `main` or `develop` branches
 - Direct pushes to `main` or `develop` branches
 
@@ -37,6 +39,7 @@ No additional configuration needed - the workflow is ready to use.
 Codecov provides detailed coverage analysis and historical tracking.
 
 #### Steps:
+
 1. Go to [https://codecov.io/](https://codecov.io/)
 2. Sign in with your GitHub account
 3. Add the `infrasight` repository
@@ -54,6 +57,7 @@ Codecov provides detailed coverage analysis and historical tracking.
 To block merges when coverage falls below thresholds:
 
 #### Steps:
+
 1. Navigate to your repository on GitHub
 2. Go to `Settings` → `Branches`
 3. Click `Add rule` or edit existing rule for `main` branch
@@ -79,6 +83,7 @@ To block merges when coverage falls below thresholds:
 6. Repeat for `develop` branch if you use it
 
 #### What This Does:
+
 - PRs cannot be merged if tests fail
 - PRs cannot be merged if coverage drops below thresholds (80% statements, 70% branches, 75% functions, 80% lines)
 - The "Merge" button will be disabled until all checks pass
@@ -101,6 +106,7 @@ git push origin test-coverage-setup
 ```
 
 Then:
+
 1. Create a PR from `test-coverage-setup` to `main`
 2. Wait for the workflow to complete (usually 2-3 minutes)
 3. Check for:
@@ -112,12 +118,12 @@ Then:
 
 The PR comment will show a table like this:
 
-| Metric | Coverage | Threshold | Status |
-|--------|----------|-----------|--------|
-| 📝 **Statements** | 85% | 80% | ✅ Pass |
-| 🌿 **Branches** | 72% | 70% | ✅ Pass |
-| 🔧 **Functions** | 78% | 75% | ✅ Pass |
-| 📏 **Lines** | 86% | 80% | ✅ Pass |
+| Metric            | Coverage | Threshold | Status  |
+| ----------------- | -------- | --------- | ------- |
+| 📝 **Statements** | 85%      | 80%       | ✅ Pass |
+| 🌿 **Branches**   | 72%      | 70%       | ✅ Pass |
+| 🔧 **Functions**  | 78%      | 75%       | ✅ Pass |
+| 📏 **Lines**      | 86%      | 80%       | ✅ Pass |
 
 - **Green ✅**: Coverage meets or exceeds threshold
 - **Red ❌**: Coverage below threshold (merge will be blocked)
@@ -139,6 +145,7 @@ pnpm test:watch
 ```
 
 Coverage reports are generated in the `/coverage` directory:
+
 - Open `/coverage/lcov-report/index.html` in a browser for detailed local coverage report
 
 ## Adjusting Coverage Thresholds
@@ -157,6 +164,7 @@ coverageThreshold: {
 ```
 
 **Best Practices:**
+
 - Never lower thresholds to merge code - improve test coverage instead
 - Incrementally increase thresholds over time (e.g., 70% → 75% → 80%)
 - Review coverage reports to identify untested code paths
@@ -164,20 +172,24 @@ coverageThreshold: {
 ## Troubleshooting
 
 ### Workflow fails with "CODECOV_TOKEN not found"
+
 - This is a warning only - the workflow will continue
 - Add the token (see step 2) to enable Codecov integration
 
 ### Coverage drops unexpectedly
+
 - Check which files are uncovered in the PR comment
 - Add tests for new code or modified functions
 - Run `pnpm test:coverage` locally to see detailed report
 
 ### Tests pass locally but fail in CI
+
 - Ensure `.env.local` has all required variables
 - Check GitHub Actions logs for specific error messages
 - Verify MongoDB Memory Server is starting correctly
 
 ### Merge button still enabled despite failing tests
+
 - Branch protection rules may not be configured (see step 3)
 - Ensure you selected the correct status check: `test-coverage`
 - Wait for all checks to complete before attempting merge

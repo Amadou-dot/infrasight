@@ -131,36 +131,31 @@ export function validateSortParam<T extends readonly string[]>(
   defaultField: T[number] = allowedFields[0],
   defaultDirection: SortDirection = 'desc'
 ): SortConfig {
-  if (!sortParam) 
+  if (!sortParam)
     return {
       field: defaultField,
       direction: defaultDirection,
       mongoOrder: defaultDirection === 'desc' ? -1 : 1,
     };
-  
 
   const result = sortParamSchema.safeParse(sortParam);
-  if (!result.success) 
+  if (!result.success)
     throw new ApiError(
       ErrorCodes.INVALID_SORT,
       400,
       "Invalid sort format. Use 'field:asc' or 'field:desc'",
       { received: sortParam }
     );
-  
 
   const [field, direction] = sortParam.split(':') as [string, SortDirection];
 
-  if (!allowedFields.includes(field as T[number])) 
+  if (!allowedFields.includes(field as T[number]))
     throw new ApiError(
       ErrorCodes.INVALID_SORT,
       400,
-      `Invalid sort field '${field}'. Allowed fields: ${allowedFields.join(
-        ', '
-      )}`,
+      `Invalid sort field '${field}'. Allowed fields: ${allowedFields.join(', ')}`,
       { field, allowedFields: [...allowedFields] }
     );
-  
 
   return {
     field,
@@ -179,14 +174,11 @@ export function validateSortOrder(
 ): { [key: string]: MongoSortOrder } {
   const validOrder = order === 'asc' ? 1 : -1;
 
-  if (!allowedFields.includes(field)) 
-    throw new ApiError(
-      ErrorCodes.INVALID_SORT,
-      400,
-      `Invalid sort field '${field}'`,
-      { field, allowedFields: [...allowedFields] }
-    );
-  
+  if (!allowedFields.includes(field))
+    throw new ApiError(ErrorCodes.INVALID_SORT, 400, `Invalid sort field '${field}'`, {
+      field,
+      allowedFields: [...allowedFields],
+    });
 
   return { [field]: validOrder };
 }
@@ -234,44 +226,32 @@ export function buildDeviceFilter(options: DeviceFilterOptions): MongoFilter {
   if (options.type) {
     const types = Array.isArray(options.type) ? options.type : [options.type];
     const sanitizedTypes = types.map(t => sanitizeString(t));
-    filter.type =
-      types.length === 1 ? sanitizedTypes[0] : { $in: sanitizedTypes };
+    filter.type = types.length === 1 ? sanitizedTypes[0] : { $in: sanitizedTypes };
   }
 
   // Status filter (single or array)
   if (options.status) {
-    const statuses = Array.isArray(options.status)
-      ? options.status
-      : [options.status];
+    const statuses = Array.isArray(options.status) ? options.status : [options.status];
     const sanitizedStatuses = statuses.map(s => sanitizeString(s));
-    filter.status =
-      statuses.length === 1 ? sanitizedStatuses[0] : { $in: sanitizedStatuses };
+    filter.status = statuses.length === 1 ? sanitizedStatuses[0] : { $in: sanitizedStatuses };
   }
 
   // Floor filter
   if (options.floor !== undefined) {
-    const floor =
-      typeof options.floor === 'string'
-        ? parseInt(options.floor, 10)
-        : options.floor;
+    const floor = typeof options.floor === 'string' ? parseInt(options.floor, 10) : options.floor;
 
-    if (!isNaN(floor)) 
-      filter['location.floor'] = floor;
-    
+    if (!isNaN(floor)) filter['location.floor'] = floor;
   }
 
   // Building ID filter
-  if (options.building_id) 
-    filter['location.building_id'] = sanitizeString(options.building_id);
-  
+  if (options.building_id) filter['location.building_id'] = sanitizeString(options.building_id);
 
   // Room name filter (partial match)
-  if (options.room_name) 
+  if (options.room_name)
     filter['location.room_name'] = {
       $regex: sanitizeForRegex(options.room_name),
       $options: 'i',
     };
-  
 
   // Search filter (searches multiple fields)
   if (options.search) {
@@ -296,19 +276,15 @@ export function buildDeviceFilter(options: DeviceFilterOptions): MongoFilter {
   // Battery level range
   if (options.minBattery !== undefined || options.maxBattery !== undefined) {
     const batteryFilter: Record<string, number> = {};
-    if (options.minBattery !== undefined) 
-      batteryFilter.$gte = Number(options.minBattery);
-    
-    if (options.maxBattery !== undefined) 
-      batteryFilter.$lte = Number(options.maxBattery);
-    
+    if (options.minBattery !== undefined) batteryFilter.$gte = Number(options.minBattery);
+
+    if (options.maxBattery !== undefined) batteryFilter.$lte = Number(options.maxBattery);
+
     filter['health.battery_level'] = batteryFilter;
   }
 
   // Department filter
-  if (options.department) 
-    filter['ownership.department'] = sanitizeString(options.department);
-  
+  if (options.department) filter['ownership.department'] = sanitizeString(options.department);
 
   return filter;
 }
@@ -335,20 +311,16 @@ export function buildReadingFilter(options: ReadingFilterOptions): MongoFilter {
 
   // Device ID filter (single or array)
   if (options.device_id) {
-    const deviceIds = Array.isArray(options.device_id)
-      ? options.device_id
-      : [options.device_id];
+    const deviceIds = Array.isArray(options.device_id) ? options.device_id : [options.device_id];
     const sanitizedIds = deviceIds.map(id => sanitizeString(id));
-    filter['metadata.device_id'] =
-      deviceIds.length === 1 ? sanitizedIds[0] : { $in: sanitizedIds };
+    filter['metadata.device_id'] = deviceIds.length === 1 ? sanitizedIds[0] : { $in: sanitizedIds };
   }
 
   // Type filter (single or array)
   if (options.type) {
     const types = Array.isArray(options.type) ? options.type : [options.type];
     const sanitizedTypes = types.map(t => sanitizeString(t));
-    filter['metadata.type'] =
-      types.length === 1 ? sanitizedTypes[0] : { $in: sanitizedTypes };
+    filter['metadata.type'] = types.length === 1 ? sanitizedTypes[0] : { $in: sanitizedTypes };
   }
 
   // Date range filter
@@ -357,45 +329,30 @@ export function buildReadingFilter(options: ReadingFilterOptions): MongoFilter {
 
     if (options.startDate) {
       const startDate =
-        options.startDate instanceof Date
-          ? options.startDate
-          : new Date(options.startDate);
-      if (!isNaN(startDate.getTime())) 
-        timestampFilter.$gte = startDate;
-      
+        options.startDate instanceof Date ? options.startDate : new Date(options.startDate);
+      if (!isNaN(startDate.getTime())) timestampFilter.$gte = startDate;
     }
 
     if (options.endDate) {
-      const endDate =
-        options.endDate instanceof Date
-          ? options.endDate
-          : new Date(options.endDate);
-      if (!isNaN(endDate.getTime())) 
-        timestampFilter.$lte = endDate;
-      
+      const endDate = options.endDate instanceof Date ? options.endDate : new Date(options.endDate);
+      if (!isNaN(endDate.getTime())) timestampFilter.$lte = endDate;
     }
 
-    if (Object.keys(timestampFilter).length > 0) 
-      filter.timestamp = timestampFilter;
-    
+    if (Object.keys(timestampFilter).length > 0) filter.timestamp = timestampFilter;
   }
 
   // Value range filter
   if (options.minValue !== undefined || options.maxValue !== undefined) {
     const valueFilter: Record<string, number> = {};
-    if (options.minValue !== undefined) 
-      valueFilter.$gte = Number(options.minValue);
-    
-    if (options.maxValue !== undefined) 
-      valueFilter.$lte = Number(options.maxValue);
-    
+    if (options.minValue !== undefined) valueFilter.$gte = Number(options.minValue);
+
+    if (options.maxValue !== undefined) valueFilter.$lte = Number(options.maxValue);
+
     filter.value = valueFilter;
   }
 
   // Source filter
-  if (options.source) 
-    filter['metadata.source'] = sanitizeString(options.source);
-  
+  if (options.source) filter['metadata.source'] = sanitizeString(options.source);
 
   return filter;
 }
@@ -452,9 +409,7 @@ export function selectFields(
   fieldsParam: string | string[] | undefined,
   allowedFields: readonly string[]
 ): Record<string, 1> | undefined {
-  if (!fieldsParam) 
-    return undefined;
-  
+  if (!fieldsParam) return undefined;
 
   const requestedFields = Array.isArray(fieldsParam)
     ? fieldsParam
@@ -464,33 +419,26 @@ export function selectFields(
   const invalidFields: string[] = [];
 
   for (const field of requestedFields) {
-    if (!field) 
-      continue;
-    
+    if (!field) continue;
 
     const sanitizedField = sanitizeString(field);
 
     // Check if field or parent field is allowed
     const isAllowed = allowedFields.some(
-      allowed =>
-        sanitizedField === allowed || sanitizedField.startsWith(`${allowed}.`)
+      allowed => sanitizedField === allowed || sanitizedField.startsWith(`${allowed}.`)
     );
 
-    if (isAllowed) 
-      projection[sanitizedField] = 1;
-     else 
-      invalidFields.push(field);
-    
+    if (isAllowed) projection[sanitizedField] = 1;
+    else invalidFields.push(field);
   }
 
-  if (invalidFields.length > 0) 
+  if (invalidFields.length > 0)
     throw new ApiError(
       ErrorCodes.INVALID_INPUT,
       400,
       `Invalid field(s) requested: ${invalidFields.join(', ')}`,
       { invalidFields, allowedFields: [...allowedFields] }
     );
-  
 
   return Object.keys(projection).length > 0 ? projection : undefined;
 }
@@ -521,16 +469,11 @@ export function extractQueryParams<T extends Record<string, unknown>>(
 
   for (const name of paramNames) {
     const value = searchParams.get(String(name));
-    if (value !== null) 
-      // Handle comma-separated values as arrays
-      if (value.includes(',')) 
-        (params as Record<string, unknown>)[String(name)] = value
-          .split(',')
-          .map(v => v.trim());
-       else 
-        (params as Record<string, unknown>)[String(name)] = value;
-      
-    
+    if (value !== null)
+      if (value.includes(','))
+        // Handle comma-separated values as arrays
+        (params as Record<string, unknown>)[String(name)] = value.split(',').map(v => v.trim());
+      else (params as Record<string, unknown>)[String(name)] = value;
   }
 
   return params;

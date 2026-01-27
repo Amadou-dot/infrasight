@@ -24,12 +24,7 @@ export const cursorPaginationSchema = z.object({
  * Used for traditional page-based pagination
  */
 export const offsetPaginationSchema = z.object({
-  page: z
-    .number()
-    .int()
-    .min(1, 'Page must be at least 1')
-    .default(1)
-    .describe('Page number'),
+  page: z.number().int().min(1, 'Page must be at least 1').default(1).describe('Page number'),
   limit: z
     .number()
     .int()
@@ -47,16 +42,16 @@ export const paginationSchema = z
   .object({
     cursor: z.string().optional(),
     page: z
-      .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+      .union([z.number(), z.string().transform(v => parseInt(v, 10))])
       .pipe(z.number().int().min(1))
       .optional(),
     limit: z
-      .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+      .union([z.number(), z.string().transform(v => parseInt(v, 10))])
       .pipe(z.number().int().min(1).max(100))
       .default(20),
   })
   .refine(
-    (data) => !(data.cursor && data.page),
+    data => !(data.cursor && data.page),
     'Cannot use both cursor and page pagination simultaneously'
   );
 
@@ -66,11 +61,11 @@ export const paginationSchema = z
  */
 export const analyticsPaginationSchema = z.object({
   page: z
-    .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+    .union([z.number(), z.string().transform(v => parseInt(v, 10))])
     .pipe(z.number().int().min(1))
     .optional(),
   limit: z
-    .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+    .union([z.number(), z.string().transform(v => parseInt(v, 10))])
     .pipe(z.number().int().min(1).max(1000))
     .default(100),
 });
@@ -85,11 +80,8 @@ export const analyticsPaginationSchema = z.object({
 export const pastDateSchema = z
   .date()
   .or(z.string().datetime())
-  .transform((val) => (typeof val === 'string' ? new Date(val) : val))
-  .refine(
-    (date) => date <= new Date(),
-    'Date cannot be in the future'
-  );
+  .transform(val => (typeof val === 'string' ? new Date(val) : val))
+  .refine(date => date <= new Date(), 'Date cannot be in the future');
 
 /**
  * Date that can be in the future (for maintenance scheduling, warranty, etc.)
@@ -97,7 +89,7 @@ export const pastDateSchema = z
 export const futureDateSchema = z
   .date()
   .or(z.string().datetime())
-  .transform((val) => (typeof val === 'string' ? new Date(val) : val));
+  .transform(val => (typeof val === 'string' ? new Date(val) : val));
 
 /**
  * Date range schema with start and end dates
@@ -107,19 +99,18 @@ export const dateRangeSchema = z
     startDate: z
       .date()
       .or(z.string().datetime())
-      .transform((val) => (typeof val === 'string' ? new Date(val) : val))
+      .transform(val => (typeof val === 'string' ? new Date(val) : val))
       .optional(),
     endDate: z
       .date()
       .or(z.string().datetime())
-      .transform((val) => (typeof val === 'string' ? new Date(val) : val))
+      .transform(val => (typeof val === 'string' ? new Date(val) : val))
       .optional(),
   })
   .refine(
-    (data) => {
-      if (data.startDate && data.endDate) 
-        return data.startDate <= data.endDate;
-      
+    data => {
+      if (data.startDate && data.endDate) return data.startDate <= data.endDate;
+
       return true;
     },
     { message: 'Start date must be before or equal to end date' }
@@ -162,9 +153,7 @@ export const createSortSchema = <T extends readonly string[]>(fields: T) =>
 /**
  * MongoDB ObjectId validation
  */
-export const objectIdSchema = z
-  .string()
-  .regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId format');
+export const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId format');
 
 /**
  * Device ID validation (custom format like "device_001")
@@ -185,10 +174,7 @@ export const serialNumberSchema = z
   .string()
   .min(1, 'Serial number is required')
   .max(50, 'Serial number must be 50 characters or less')
-  .regex(
-    /^[A-Za-z0-9-]+$/,
-    'Serial number can only contain alphanumeric characters and hyphens'
-  );
+  .regex(/^[A-Za-z0-9-]+$/, 'Serial number can only contain alphanumeric characters and hyphens');
 
 /**
  * Building ID validation
@@ -259,9 +245,7 @@ export const anomalyScoreSchema = z
 /**
  * Threshold validation (positive number)
  */
-export const thresholdSchema = z
-  .number()
-  .describe('Threshold value');
+export const thresholdSchema = z.number().describe('Threshold value');
 
 /**
  * Sampling interval validation (in seconds)
@@ -290,7 +274,10 @@ export const tagsSchema = z
       .string()
       .min(1, 'Tag cannot be empty')
       .max(50, 'Tag must be 50 characters or less')
-      .regex(/^[a-zA-Z0-9_-]+$/, 'Tags can only contain alphanumeric characters, underscores, and hyphens')
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        'Tags can only contain alphanumeric characters, underscores, and hyphens'
+      )
   )
   .max(20, 'Cannot have more than 20 tags')
   .default([]);
@@ -342,10 +329,7 @@ export const firmwareVersionSchema = z
 /**
  * Zone validation (optional)
  */
-export const zoneSchema = z
-  .string()
-  .max(50, 'Zone must be 50 characters or less')
-  .optional();
+export const zoneSchema = z.string().max(50, 'Zone must be 50 characters or less').optional();
 
 /**
  * Coordinates schema for device positioning
@@ -390,22 +374,23 @@ export const errorMessageSchema = z
  */
 export const stringToNumberSchema = z
   .string()
-  .transform((val) => parseInt(val, 10))
+  .transform(val => parseInt(val, 10))
   .pipe(z.number());
 
 /**
  * Convert string query parameter to boolean
  */
-export const stringToBooleanSchema = z
-  .string()
-  .transform((val) => val === 'true' || val === '1');
+export const stringToBooleanSchema = z.string().transform(val => val === 'true' || val === '1');
 
 /**
  * Convert comma-separated string to array
  */
-export const commaSeparatedToArraySchema = z
-  .string()
-  .transform((val) => val.split(',').map((s) => s.trim()).filter(Boolean));
+export const commaSeparatedToArraySchema = z.string().transform(val =>
+  val
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+);
 
 // ============================================================================
 // TYPE EXPORTS

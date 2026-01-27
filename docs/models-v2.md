@@ -32,10 +32,10 @@ Complete data model reference for the Infrasight V2 IoT sensor monitoring system
 
 Infrasight V2 uses MongoDB with Mongoose ODM for data persistence. The system consists of two primary collections:
 
-| Collection | Model | Type | Purpose |
-|------------|-------|------|---------|
-| `devices_v2` | DeviceV2 | Standard | Device registry with audit trails |
-| `readings_v2` | ReadingV2 | Timeseries | Sensor readings with 90-day TTL |
+| Collection    | Model     | Type       | Purpose                           |
+| ------------- | --------- | ---------- | --------------------------------- |
+| `devices_v2`  | DeviceV2  | Standard   | Device registry with audit trails |
+| `readings_v2` | ReadingV2 | Timeseries | Sensor readings with 90-day TTL   |
 
 ### Key Characteristics
 
@@ -90,12 +90,12 @@ erDiagram
 
 ```typescript
 interface IDeviceV2 {
-  _id: string;                    // Custom ID (e.g., "device_001")
-  serial_number: string;          // Unique serial number
-  manufacturer: string;           // Device manufacturer
-  device_model: string;           // Model name (NOT "model" - reserved)
-  firmware_version: string;       // Current firmware version
-  type: DeviceType;               // Sensor type
+  _id: string; // Custom ID (e.g., "device_001")
+  serial_number: string; // Unique serial number
+  manufacturer: string; // Device manufacturer
+  device_model: string; // Model name (NOT "model" - reserved)
+  firmware_version: string; // Current firmware version
+  type: DeviceType; // Sensor type
   configuration: IDeviceConfiguration;
   location: IDeviceLocation;
   metadata: IDeviceMetadata;
@@ -109,22 +109,22 @@ interface IDeviceV2 {
 
 ### DeviceV2 Field Reference
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `_id` | string | Yes | - | Custom device ID (e.g., `device_001`) |
-| `serial_number` | string | Yes | - | Unique serial number (indexed) |
-| `manufacturer` | string | Yes | - | Device manufacturer |
-| `device_model` | string | Yes | - | Device model name |
-| `firmware_version` | string | Yes | - | Firmware version string |
-| `type` | DeviceType | Yes | - | Sensor/device type |
-| `configuration` | object | Yes | - | Thresholds and calibration |
-| `location` | object | Yes | - | Physical location |
-| `metadata` | object | No | `{tags:[], department:'unknown'}` | Operational metadata |
-| `audit` | object | No | Auto-generated | Audit trail |
-| `health` | object | No | Auto-generated | Health metrics |
-| `status` | DeviceStatus | No | `active` | Current status |
-| `status_reason` | string | No | - | Reason for status |
-| `compliance` | object | No | Defaults | Compliance settings |
+| Field              | Type         | Required | Default                           | Description                           |
+| ------------------ | ------------ | -------- | --------------------------------- | ------------------------------------- |
+| `_id`              | string       | Yes      | -                                 | Custom device ID (e.g., `device_001`) |
+| `serial_number`    | string       | Yes      | -                                 | Unique serial number (indexed)        |
+| `manufacturer`     | string       | Yes      | -                                 | Device manufacturer                   |
+| `device_model`     | string       | Yes      | -                                 | Device model name                     |
+| `firmware_version` | string       | Yes      | -                                 | Firmware version string               |
+| `type`             | DeviceType   | Yes      | -                                 | Sensor/device type                    |
+| `configuration`    | object       | Yes      | -                                 | Thresholds and calibration            |
+| `location`         | object       | Yes      | -                                 | Physical location                     |
+| `metadata`         | object       | No       | `{tags:[], department:'unknown'}` | Operational metadata                  |
+| `audit`            | object       | No       | Auto-generated                    | Audit trail                           |
+| `health`           | object       | No       | Auto-generated                    | Health metrics                        |
+| `status`           | DeviceStatus | No       | `active`                          | Current status                        |
+| `status_reason`    | string       | No       | -                                 | Reason for status                     |
+| `compliance`       | object       | No       | Defaults                          | Compliance settings                   |
 
 ### Device Types
 
@@ -151,11 +151,11 @@ type DeviceType =
 
 ```typescript
 type DeviceStatus =
-  | 'active'          // Device is operational
-  | 'maintenance'     // Under maintenance
-  | 'offline'         // Not responding
-  | 'decommissioned'  // Retired (soft deleted)
-  | 'error';          // Has errors
+  | 'active' // Device is operational
+  | 'maintenance' // Under maintenance
+  | 'offline' // Not responding
+  | 'decommissioned' // Retired (soft deleted)
+  | 'error'; // Has errors
 ```
 
 ### DeviceV2 Sub-Schemas
@@ -164,11 +164,11 @@ type DeviceStatus =
 
 ```typescript
 interface IDeviceConfiguration {
-  threshold_warning: number;      // Warning threshold value
-  threshold_critical: number;     // Critical threshold value
-  sampling_interval: number;      // Sampling interval in seconds (default: 60)
-  calibration_date: Date | null;  // Last calibration date
-  calibration_offset: number;     // Calibration offset (default: 0)
+  threshold_warning: number; // Warning threshold value
+  threshold_critical: number; // Critical threshold value
+  sampling_interval: number; // Sampling interval in seconds (default: 60)
+  calibration_date: Date | null; // Last calibration date
+  calibration_offset: number; // Calibration offset (default: 0)
 }
 ```
 
@@ -176,15 +176,16 @@ interface IDeviceConfiguration {
 
 ```typescript
 interface IDeviceLocation {
-  building_id: string;            // Building identifier
-  floor: number;                  // Floor number
-  room_name: string;              // Room name
-  coordinates?: {                 // Optional coordinates
+  building_id: string; // Building identifier
+  floor: number; // Floor number
+  room_name: string; // Room name
+  coordinates?: {
+    // Optional coordinates
     x: number;
     y: number;
     z?: number;
   };
-  zone?: string;                  // Optional zone/area
+  zone?: string; // Optional zone/area
 }
 ```
 
@@ -192,12 +193,12 @@ interface IDeviceLocation {
 
 ```typescript
 interface IDeviceMetadata {
-  tags: string[];                 // Searchable tags
-  department: string;             // Department (default: 'unknown')
-  cost_center?: string;           // Cost center code
-  warranty_expiry?: Date;         // Warranty expiration
-  last_maintenance?: Date;        // Last maintenance date
-  next_maintenance?: Date;        // Next scheduled maintenance
+  tags: string[]; // Searchable tags
+  department: string; // Department (default: 'unknown')
+  cost_center?: string; // Cost center code
+  warranty_expiry?: Date; // Warranty expiration
+  last_maintenance?: Date; // Last maintenance date
+  next_maintenance?: Date; // Next scheduled maintenance
 }
 ```
 
@@ -205,12 +206,12 @@ interface IDeviceMetadata {
 
 ```typescript
 interface IDeviceAudit {
-  created_at: Date;               // Creation timestamp
-  created_by: string;             // Creator identifier
-  updated_at: Date;               // Last update timestamp
-  updated_by: string;             // Updater identifier
-  deleted_at?: Date;              // Soft delete timestamp
-  deleted_by?: string;            // Who deleted
+  created_at: Date; // Creation timestamp
+  created_by: string; // Creator identifier
+  updated_at: Date; // Last update timestamp
+  updated_by: string; // Updater identifier
+  deleted_at?: Date; // Soft delete timestamp
+  deleted_by?: string; // Who deleted
 }
 ```
 
@@ -218,16 +219,16 @@ interface IDeviceAudit {
 
 ```typescript
 interface IDeviceHealth {
-  last_seen: Date;                // Last communication
-  uptime_percentage: number;      // Uptime % (0-100)
-  error_count: number;            // Total error count
+  last_seen: Date; // Last communication
+  uptime_percentage: number; // Uptime % (0-100)
+  error_count: number; // Total error count
   last_error?: {
     timestamp: Date;
     message: string;
     code: string;
   };
-  battery_level?: number;         // Battery % (0-100)
-  signal_strength?: number;       // Signal strength (dBm)
+  battery_level?: number; // Battery % (0-100)
+  signal_strength?: number; // Signal strength (dBm)
 }
 ```
 
@@ -235,9 +236,9 @@ interface IDeviceHealth {
 
 ```typescript
 interface IDeviceCompliance {
-  requires_encryption: boolean;   // Data encryption required (default: false)
+  requires_encryption: boolean; // Data encryption required (default: false)
   data_classification: 'public' | 'internal' | 'confidential' | 'restricted';
-  retention_days: number;         // Data retention period (default: 90)
+  retention_days: number; // Data retention period (default: 90)
 }
 ```
 
@@ -305,14 +306,14 @@ const deleted = await DeviceV2.findDeleted();
 
 ```typescript
 // Pre-save: Updates audit.updated_at on modifications
-DeviceV2Schema.pre('save', function() {
+DeviceV2Schema.pre('save', function () {
   if (!this.isNew) {
     this.audit.updated_at = new Date();
   }
 });
 
 // Pre-findOneAndUpdate: Updates audit.updated_at
-DeviceV2Schema.pre('findOneAndUpdate', function() {
+DeviceV2Schema.pre('findOneAndUpdate', function () {
   this.set({ 'audit.updated_at': new Date() });
 });
 ```
@@ -345,25 +346,25 @@ DeviceV2Schema.pre('findOneAndUpdate', function() {
 
 ```typescript
 interface IReadingV2 extends Document {
-  metadata: IReadingMetadata;     // Bucketing key (LOW CARDINALITY)
-  timestamp: Date;                // Reading timestamp
-  value: number;                  // Measurement value
-  quality: IReadingQuality;       // Data quality metrics
-  context?: IReadingContext;      // Environmental context
+  metadata: IReadingMetadata; // Bucketing key (LOW CARDINALITY)
+  timestamp: Date; // Reading timestamp
+  value: number; // Measurement value
+  quality: IReadingQuality; // Data quality metrics
+  context?: IReadingContext; // Environmental context
   processing: IReadingProcessing; // Processing metadata
 }
 ```
 
 ### ReadingV2 Field Reference
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `metadata` | object | Yes | Bucketing key for timeseries |
-| `timestamp` | Date | Yes | Reading timestamp (timeField) |
-| `value` | number | Yes | Measurement value |
-| `quality` | object | No | Data quality indicators |
-| `context` | object | No | Environmental context |
-| `processing` | object | No | Processing metadata |
+| Field        | Type   | Required | Description                   |
+| ------------ | ------ | -------- | ----------------------------- |
+| `metadata`   | object | Yes      | Bucketing key for timeseries  |
+| `timestamp`  | Date   | Yes      | Reading timestamp (timeField) |
+| `value`      | number | Yes      | Measurement value             |
+| `quality`    | object | No       | Data quality indicators       |
+| `context`    | object | No       | Environmental context         |
+| `processing` | object | No       | Processing metadata           |
 
 ### ReadingV2 Sub-Schemas
 
@@ -371,10 +372,10 @@ interface IReadingV2 extends Document {
 
 ```typescript
 interface IReadingMetadata {
-  device_id: string;              // Device identifier
-  type: ReadingType;              // Reading type
-  unit: ReadingUnit;              // Measurement unit
-  source: ReadingSource;          // Data source
+  device_id: string; // Device identifier
+  type: ReadingType; // Reading type
+  unit: ReadingUnit; // Measurement unit
+  source: ReadingSource; // Data source
 }
 ```
 
@@ -384,9 +385,21 @@ interface IReadingMetadata {
 
 ```typescript
 type ReadingType =
-  | 'temperature' | 'humidity' | 'occupancy' | 'power' | 'co2'
-  | 'pressure' | 'light' | 'motion' | 'air_quality' | 'water_flow'
-  | 'gas' | 'vibration' | 'voltage' | 'current' | 'energy';
+  | 'temperature'
+  | 'humidity'
+  | 'occupancy'
+  | 'power'
+  | 'co2'
+  | 'pressure'
+  | 'light'
+  | 'motion'
+  | 'air_quality'
+  | 'water_flow'
+  | 'gas'
+  | 'vibration'
+  | 'voltage'
+  | 'current'
+  | 'energy';
 ```
 
 #### Reading Units
@@ -394,25 +407,43 @@ type ReadingType =
 ```typescript
 type ReadingUnit =
   // Temperature
-  | 'celsius' | 'fahrenheit' | 'kelvin'
+  | 'celsius'
+  | 'fahrenheit'
+  | 'kelvin'
   // Percentage
   | 'percent'
   // Gas/Air quality
-  | 'ppm' | 'ppb' | 'ug_m3'
+  | 'ppm'
+  | 'ppb'
+  | 'ug_m3'
   // Pressure
-  | 'pascal' | 'hpa' | 'bar' | 'psi'
+  | 'pascal'
+  | 'hpa'
+  | 'bar'
+  | 'psi'
   // Power/Energy
-  | 'watts' | 'kilowatts' | 'watt_hours' | 'kilowatt_hours'
+  | 'watts'
+  | 'kilowatts'
+  | 'watt_hours'
+  | 'kilowatt_hours'
   // Electrical
-  | 'volts' | 'millivolts' | 'amperes' | 'milliamperes'
+  | 'volts'
+  | 'millivolts'
+  | 'amperes'
+  | 'milliamperes'
   // Light
-  | 'lux' | 'lumens'
+  | 'lux'
+  | 'lumens'
   // Flow
-  | 'liters_per_minute' | 'gallons_per_minute' | 'cubic_meters_per_hour'
+  | 'liters_per_minute'
+  | 'gallons_per_minute'
+  | 'cubic_meters_per_hour'
   // Count/Boolean
-  | 'count' | 'boolean'
+  | 'count'
+  | 'boolean'
   // Generic
-  | 'raw' | 'unknown';
+  | 'raw'
+  | 'unknown';
 ```
 
 #### Reading Sources
@@ -425,11 +456,11 @@ type ReadingSource = 'sensor' | 'simulation' | 'manual' | 'calibration';
 
 ```typescript
 interface IReadingQuality {
-  is_valid: boolean;              // Passed validation (default: true)
-  confidence_score?: number;      // 0-1 confidence score
-  validation_flags?: string[];    // Validation issues
-  is_anomaly: boolean;            // Anomaly flag (default: false)
-  anomaly_score?: number;         // 0-1 anomaly score
+  is_valid: boolean; // Passed validation (default: true)
+  confidence_score?: number; // 0-1 confidence score
+  validation_flags?: string[]; // Validation issues
+  is_anomaly: boolean; // Anomaly flag (default: false)
+  anomaly_score?: number; // 0-1 anomaly score
 }
 ```
 
@@ -437,9 +468,9 @@ interface IReadingQuality {
 
 ```typescript
 interface IReadingContext {
-  battery_level?: number;         // Device battery at reading time
-  signal_strength?: number;       // Signal strength at reading time
-  ambient_temp?: number;          // Ambient temperature for calibration
+  battery_level?: number; // Device battery at reading time
+  signal_strength?: number; // Signal strength at reading time
+  ambient_temp?: number; // Ambient temperature for calibration
 }
 ```
 
@@ -447,9 +478,9 @@ interface IReadingContext {
 
 ```typescript
 interface IReadingProcessing {
-  raw_value?: number;             // Original uncalibrated value
-  calibration_offset?: number;    // Calibration offset applied
-  ingested_at: Date;              // Server ingestion timestamp
+  raw_value?: number; // Original uncalibrated value
+  calibration_offset?: number; // Calibration offset applied
+  ingested_at: Date; // Server ingestion timestamp
 }
 ```
 
@@ -457,12 +488,12 @@ interface IReadingProcessing {
 
 The `metadata` field is the bucketing key for MongoDB's timeseries collection. **Keep it LOW CARDINALITY**:
 
-| Field | Cardinality | Notes |
-|-------|-------------|-------|
-| `device_id` | Medium | ~500 unique values |
-| `type` | Low | ~15 enum values |
-| `unit` | Low | ~25 enum values |
-| `source` | Very Low | 4 enum values |
+| Field       | Cardinality | Notes              |
+| ----------- | ----------- | ------------------ |
+| `device_id` | Medium      | ~500 unique values |
+| `type`      | Low         | ~15 enum values    |
+| `unit`      | Low         | ~25 enum values    |
+| `source`    | Very Low    | 4 enum values      |
 
 > **DO NOT ADD** high-cardinality fields like timestamps, UUIDs, or free-text to metadata.
 
@@ -543,7 +574,7 @@ const readings = await ReadingV2.getForDeviceInRange(
 const anomalies = await ReadingV2.getAnomalies(undefined, {
   startTime: new Date(Date.now() - 86400000),
   minScore: 0.8,
-  limit: 50
+  limit: 50,
 });
 
 // Bulk insert
@@ -551,8 +582,8 @@ await ReadingV2.bulkInsertReadings([
   {
     metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' },
     timestamp: new Date(),
-    value: 22.5
-  }
+    value: 22.5,
+  },
 ]);
 ```
 
@@ -570,42 +601,41 @@ All API inputs are validated using Zod schemas located in `lib/validations/v2/`.
 
 ```typescript
 const createDeviceSchema = z.object({
-  _id: deviceIdSchema,                    // Required: Custom ID
-  serial_number: serialNumberSchema,      // Required: Unique serial
-  manufacturer: manufacturerSchema,       // Required
-  device_model: modelNameSchema,          // Required
-  firmware_version: firmwareVersionSchema,// Required
-  type: deviceTypeSchema,                 // Required: Enum
-  configuration: deviceConfigurationSchema,// Required
-  location: deviceLocationSchema,         // Required
+  _id: deviceIdSchema, // Required: Custom ID
+  serial_number: serialNumberSchema, // Required: Unique serial
+  manufacturer: manufacturerSchema, // Required
+  device_model: modelNameSchema, // Required
+  firmware_version: firmwareVersionSchema, // Required
+  type: deviceTypeSchema, // Required: Enum
+  configuration: deviceConfigurationSchema, // Required
+  location: deviceLocationSchema, // Required
   metadata: deviceMetadataSchema.optional(),
   status: deviceStatusSchema.default('active'),
   status_reason: z.string().max(200).optional(),
   compliance: deviceComplianceSchema.optional(),
   health: deviceHealthSchema.optional(),
-  audit: deviceAuditSchema.optional()
+  audit: deviceAuditSchema.optional(),
 });
 ```
 
 #### Update Device Schema
 
 ```typescript
-const updateDeviceSchema = z.object({
-  serial_number: serialNumberSchema.optional(),
-  manufacturer: manufacturerSchema.optional(),
-  device_model: modelNameSchema.optional(),
-  firmware_version: firmwareVersionSchema.optional(),
-  configuration: deviceConfigurationSchema.partial().optional(),
-  location: deviceLocationSchema.partial().optional(),
-  metadata: deviceMetadataSchema.partial().optional(),
-  status: deviceStatusSchema.optional(),
-  status_reason: z.string().max(200).optional(),
-  compliance: deviceComplianceSchema.partial().optional(),
-  health: deviceHealthSchema.partial().optional()
-}).refine(
-  data => Object.keys(data).length > 0,
-  'At least one field must be provided for update'
-);
+const updateDeviceSchema = z
+  .object({
+    serial_number: serialNumberSchema.optional(),
+    manufacturer: manufacturerSchema.optional(),
+    device_model: modelNameSchema.optional(),
+    firmware_version: firmwareVersionSchema.optional(),
+    configuration: deviceConfigurationSchema.partial().optional(),
+    location: deviceLocationSchema.partial().optional(),
+    metadata: deviceMetadataSchema.partial().optional(),
+    status: deviceStatusSchema.optional(),
+    status_reason: z.string().max(200).optional(),
+    compliance: deviceComplianceSchema.partial().optional(),
+    health: deviceHealthSchema.partial().optional(),
+  })
+  .refine(data => Object.keys(data).length > 0, 'At least one field must be provided for update');
 ```
 
 #### List Devices Query Schema
@@ -660,12 +690,12 @@ const listDevicesQuerySchema = z.object({
 
 ```typescript
 const createReadingSchema = z.object({
-  metadata: readingMetadataSchema,        // Required
-  timestamp: pastDateSchema,              // Required: Cannot be future
-  value: z.number(),                      // Required
+  metadata: readingMetadataSchema, // Required
+  timestamp: pastDateSchema, // Required: Cannot be future
+  value: z.number(), // Required
   quality: readingQualitySchema.optional(),
   context: readingContextSchema.optional(),
-  processing: readingProcessingSchema.optional()
+  processing: readingProcessingSchema.optional(),
 });
 ```
 
@@ -673,17 +703,18 @@ const createReadingSchema = z.object({
 
 ```typescript
 const bulkIngestReadingsSchema = z.object({
-  readings: z.array(bulkReadingItemSchema)
+  readings: z
+    .array(bulkReadingItemSchema)
     .min(1, 'At least one reading is required')
     .max(10000, 'Cannot ingest more than 10,000 readings at once'),
   idempotency_key: z.string().uuid().optional(),
-  batch_source: z.string().max(100).optional()
+  batch_source: z.string().max(100).optional(),
 });
 
 const bulkReadingItemSchema = z.object({
-  device_id: deviceIdSchema,              // Required
-  type: readingTypeSchema,                // Required
-  unit: readingUnitSchema.optional(),     // Auto-detected if omitted
+  device_id: deviceIdSchema, // Required
+  type: readingTypeSchema, // Required
+  unit: readingUnitSchema.optional(), // Auto-detected if omitted
   source: readingSourceSchema.default('sensor'),
   timestamp: z.union([z.date(), z.string().datetime(), z.number()]),
   value: z.number(),
@@ -691,47 +722,52 @@ const bulkReadingItemSchema = z.object({
   battery_level: batteryLevelSchema.optional(),
   signal_strength: signalStrengthSchema.optional(),
   raw_value: z.number().optional(),
-  calibration_offset: z.number().optional()
+  calibration_offset: z.number().optional(),
 });
 ```
 
 #### List Readings Query Schema
 
 ```typescript
-const listReadingsQuerySchema = z.object({
-  // Pagination
-  page: z.number().int().min(1).default(1),
-  limit: z.number().int().min(1).max(100).default(20),
+const listReadingsQuerySchema = z
+  .object({
+    // Pagination
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(20),
 
-  // Sorting
-  sortBy: z.enum(['timestamp', 'value', 'anomaly_score', 'confidence_score']).optional(),
-  sortDirection: z.enum(['asc', 'desc']).default('desc'),
+    // Sorting
+    sortBy: z.enum(['timestamp', 'value', 'anomaly_score', 'confidence_score']).optional(),
+    sortDirection: z.enum(['asc', 'desc']).default('desc'),
 
-  // Filters
-  device_id: z.union([deviceIdSchema, z.array(deviceIdSchema)]).optional(),
-  type: z.union([readingTypeSchema, z.array(readingTypeSchema)]).optional(),
-  source: z.union([readingSourceSchema, z.array(readingSourceSchema)]).optional(),
+    // Filters
+    device_id: z.union([deviceIdSchema, z.array(deviceIdSchema)]).optional(),
+    type: z.union([readingTypeSchema, z.array(readingTypeSchema)]).optional(),
+    source: z.union([readingSourceSchema, z.array(readingSourceSchema)]).optional(),
 
-  // Time range
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
+    // Time range
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
 
-  // Quality filters
-  is_valid: z.boolean().optional(),
-  is_anomaly: z.boolean().optional(),
-  min_confidence: z.number().optional(),
-  min_anomaly_score: z.number().optional(),
+    // Quality filters
+    is_valid: z.boolean().optional(),
+    is_anomaly: z.boolean().optional(),
+    min_confidence: z.number().optional(),
+    min_anomaly_score: z.number().optional(),
 
-  // Value range
-  min_value: z.number().optional(),
-  max_value: z.number().optional(),
+    // Value range
+    min_value: z.number().optional(),
+    max_value: z.number().optional(),
 
-  // Field projection
-  fields: z.string().transform(v => v.split(',')).optional()
-}).refine(
-  data => data.device_id || data.startDate,
-  'Either device_id or startDate must be provided'
-);
+    // Field projection
+    fields: z
+      .string()
+      .transform(v => v.split(','))
+      .optional(),
+  })
+  .refine(
+    data => data.device_id || data.startDate,
+    'Either device_id or startDate must be provided'
+  );
 ```
 
 ---
@@ -745,7 +781,7 @@ Devices are linked to readings via `metadata.device_id`:
 ```typescript
 // Get all readings for a device
 const readings = await ReadingV2.find({
-  'metadata.device_id': device._id
+  'metadata.device_id': device._id,
 });
 
 // Get device for a reading
@@ -772,11 +808,13 @@ const isDeleted = !!device.audit.deleted_at;
 These fields cannot be changed after document creation:
 
 **DeviceV2**:
+
 - `_id` - Custom device ID
 - `audit.created_at` - Creation timestamp
 - `audit.created_by` - Creator identifier
 
 **ReadingV2**:
+
 - All fields in `metadata` (timeseries bucketing key)
 - `timestamp` (timeseries timeField)
 
@@ -792,11 +830,11 @@ These fields cannot be changed after document creation:
 
 ### Unique Constraints
 
-| Collection | Field | Constraint |
-|------------|-------|------------|
-| devices_v2 | `_id` | Unique (custom string ID) |
-| devices_v2 | `serial_number` | Unique |
-| readings_v2 | `_id` | Unique (auto-generated ObjectId) |
+| Collection  | Field           | Constraint                       |
+| ----------- | --------------- | -------------------------------- |
+| devices_v2  | `_id`           | Unique (custom string ID)        |
+| devices_v2  | `serial_number` | Unique                           |
+| readings_v2 | `_id`           | Unique (auto-generated ObjectId) |
 
 ---
 
@@ -804,18 +842,18 @@ These fields cannot be changed after document creation:
 
 ### V1 to V2 Field Mappings
 
-| V1 Field | V2 Field | Notes |
-|----------|----------|-------|
+| V1 Field   | V2 Field            | Notes                                                       |
+| ---------- | ------------------- | ----------------------------------------------------------- |
 | `location` | `location` (nested) | Now structured: `building_id`, `floor`, `room_name`, `zone` |
-| `type` | `type` | Same |
-| `model` | `device_model` | Renamed (avoid Mongoose conflict) |
-| `status` | `status` | Same enum values |
-| N/A | `serial_number` | New required field |
-| N/A | `manufacturer` | New required field |
-| N/A | `health` | New nested object |
-| N/A | `compliance` | New nested object |
-| `lastSeen` | `health.last_seen` | Moved to health sub-document |
-| N/A | `audit` | New audit trail |
+| `type`     | `type`              | Same                                                        |
+| `model`    | `device_model`      | Renamed (avoid Mongoose conflict)                           |
+| `status`   | `status`            | Same enum values                                            |
+| N/A        | `serial_number`     | New required field                                          |
+| N/A        | `manufacturer`      | New required field                                          |
+| N/A        | `health`            | New nested object                                           |
+| N/A        | `compliance`        | New nested object                                           |
+| `lastSeen` | `health.last_seen`  | Moved to health sub-document                                |
+| N/A        | `audit`             | New audit trail                                             |
 
 ### Migration Steps
 
@@ -861,7 +899,7 @@ These fields cannot be changed after document creation:
 ```typescript
 // Always use custom string ID
 const device = await DeviceV2.create({
-  _id: 'device_501',  // NOT: new mongoose.Types.ObjectId()
+  _id: 'device_501', // NOT: new mongoose.Types.ObjectId()
   serial_number: 'SN-2026-501',
   // ... other fields
 });
@@ -876,7 +914,7 @@ const devices = await DeviceV2.findActive({ status: 'active' });
 // Or manually filter
 const devices = await DeviceV2.find({
   status: 'active',
-  'audit.deleted_at': { $exists: false }
+  'audit.deleted_at': { $exists: false },
 });
 ```
 
@@ -888,8 +926,8 @@ const readings = await ReadingV2.find({
   'metadata.device_id': 'device_001',
   timestamp: {
     $gte: new Date('2026-01-01'),
-    $lte: new Date('2026-01-02')
-  }
+    $lte: new Date('2026-01-02'),
+  },
 }).sort({ timestamp: -1 });
 
 // Use maxTimeMS to prevent long-running queries
@@ -941,14 +979,14 @@ const DeviceV2 =
 const criticalDevices = await DeviceV2.findActive({
   $and: [
     { 'health.last_seen': { $lt: new Date(Date.now() - 5 * 60 * 1000) } },
-    { 'health.battery_level': { $lt: 20 } }
-  ]
+    { 'health.battery_level': { $lt: 20 } },
+  ],
 });
 
 // Search devices by tag and department
 const devices = await DeviceV2.findActive({
   'metadata.tags': { $in: ['hvac', 'critical'] },
-  'metadata.department': 'facilities'
+  'metadata.department': 'facilities',
 });
 ```
 
@@ -958,13 +996,13 @@ const devices = await DeviceV2.findActive({
 // Device count by status
 const statusCounts = await DeviceV2.aggregate([
   { $match: { 'audit.deleted_at': { $exists: false } } },
-  { $group: { _id: '$status', count: { $sum: 1 } } }
+  { $group: { _id: '$status', count: { $sum: 1 } } },
 ]);
 
 // Average reading value by type
 const avgByType = await ReadingV2.aggregate([
   { $match: { 'quality.is_valid': true } },
-  { $group: { _id: '$metadata.type', avg: { $avg: '$value' } } }
+  { $group: { _id: '$metadata.type', avg: { $avg: '$value' } } },
 ]);
 
 // Anomaly trends by hour
@@ -974,13 +1012,13 @@ const trends = await ReadingV2.aggregate([
     $group: {
       _id: { $dateToString: { format: '%Y-%m-%dT%H:00:00', date: '$timestamp' } },
       count: { $sum: 1 },
-      avg_score: { $avg: '$quality.anomaly_score' }
-    }
+      avg_score: { $avg: '$quality.anomaly_score' },
+    },
   },
-  { $sort: { _id: 1 } }
+  { $sort: { _id: 1 } },
 ]);
 ```
 
 ---
 
-*Last Updated: 2026-01-05*
+_Last Updated: 2026-01-05_

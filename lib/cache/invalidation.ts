@@ -38,11 +38,7 @@ export async function invalidateDevice(deviceId: string): Promise<void> {
 
     logger.debug('Device cache invalidated', { deviceId });
   } catch (error) {
-    logger.warn(
-      'Device cache invalidation failed',
-      { deviceId },
-      error as Error
-    );
+    logger.warn('Device cache invalidation failed', { deviceId }, error as Error);
   }
 }
 
@@ -118,11 +114,7 @@ export async function invalidateDeviceReadings(deviceIds: string[]): Promise<voi
 
     logger.debug('Device readings cache invalidated', { deviceCount: deviceIds.length });
   } catch (error) {
-    logger.warn(
-      'Device readings cache invalidation failed',
-      { deviceIds },
-      error as Error
-    );
+    logger.warn('Device readings cache invalidation failed', { deviceIds }, error as Error);
   }
 }
 

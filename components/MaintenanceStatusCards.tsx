@@ -23,10 +23,10 @@ export default function MaintenanceStatusCards({
   uptimePercentage,
   loading = false,
 }: MaintenanceStatusCardsProps) {
-  if (loading) 
+  if (loading)
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
+        {[1, 2, 3].map(i => (
           <Card key={i} className="bg-card border-border">
             <CardContent className="p-6">
               <div className="animate-pulse">
@@ -39,7 +39,6 @@ export default function MaintenanceStatusCards({
         ))}
       </div>
     );
-  
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -60,13 +59,9 @@ export default function MaintenanceStatusCards({
             )}
           </div>
           <div className="mt-4">
-            <span className="text-4xl font-bold text-foreground">
-              {criticalCount}
-            </span>
+            <span className="text-4xl font-bold text-foreground">{criticalCount}</span>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Critical Attention Needed
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Critical Attention Needed</p>
         </CardContent>
       </Card>
 
@@ -85,13 +80,9 @@ export default function MaintenanceStatusCards({
             </Badge>
           </div>
           <div className="mt-4">
-            <span className="text-4xl font-bold text-foreground">
-              {dueForServiceCount}
-            </span>
+            <span className="text-4xl font-bold text-foreground">{dueForServiceCount}</span>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Due for Service
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Due for Service</p>
         </CardContent>
       </Card>
 
@@ -112,13 +103,9 @@ export default function MaintenanceStatusCards({
             )}
           </div>
           <div className="mt-4">
-            <span className="text-4xl font-bold text-foreground">
-              {healthyCount}
-            </span>
+            <span className="text-4xl font-bold text-foreground">{healthyCount}</span>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Healthy Devices
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Healthy Devices</p>
         </CardContent>
       </Card>
     </div>

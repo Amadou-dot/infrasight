@@ -1,10 +1,7 @@
 import dbConnect from '@/lib/db';
 import { pusherServer } from '@/lib/pusher';
 import DeviceV2 from '@/models/v2/DeviceV2';
-import ReadingV2, {
-  type ReadingType,
-  type ReadingUnit,
-} from '@/models/v2/ReadingV2';
+import ReadingV2, { type ReadingType, type ReadingUnit } from '@/models/v2/ReadingV2';
 import { NextResponse } from 'next/server';
 
 // ============================================================================
@@ -50,25 +47,19 @@ function generateValueForType(type: ReadingType): GeneratedReading {
 
     case 'occupancy':
       // Normal: 0-50 people, Anomaly: 80-150
-      value = isAnomaly
-        ? 80 + Math.floor(Math.random() * 70)
-        : Math.floor(Math.random() * 50);
+      value = isAnomaly ? 80 + Math.floor(Math.random() * 70) : Math.floor(Math.random() * 50);
       unit = 'count';
       break;
 
     case 'power':
       // Normal: 100-5000W, Anomaly: 8000-15000W
-      value = isAnomaly
-        ? 8000 + Math.random() * 7000
-        : 100 + Math.random() * 4900;
+      value = isAnomaly ? 8000 + Math.random() * 7000 : 100 + Math.random() * 4900;
       unit = 'watts';
       break;
 
     case 'co2':
       // Normal: 400-1000ppm, Anomaly: 1500-3000ppm
-      value = isAnomaly
-        ? 1500 + Math.random() * 1500
-        : 400 + Math.random() * 600;
+      value = isAnomaly ? 1500 + Math.random() * 1500 : 400 + Math.random() * 600;
       unit = 'ppm';
       break;
 
@@ -199,13 +190,9 @@ async function generateReadings() {
   const timestamp = new Date();
 
   for (const device of devices) {
-    const { value, unit, isAnomaly } = generateValueForType(
-      device.type as ReadingType
-    );
+    const { value, unit, isAnomaly } = generateValueForType(device.type as ReadingType);
     const rawValue = value + (Math.random() * 1 - 0.5); // Slight variation for raw value
-    const calibrationOffset = parseFloat(
-      (Math.random() * 0.5 - 0.25).toFixed(2)
-    );
+    const calibrationOffset = parseFloat((Math.random() * 0.5 - 0.25).toFixed(2));
 
     readings.push({
       metadata: {
@@ -264,9 +251,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Simulation error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Simulation failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Simulation failed' }, { status: 500 });
   }
 }

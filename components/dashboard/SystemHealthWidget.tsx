@@ -7,9 +7,7 @@ interface SystemHealthWidgetProps {
   onFilterClick?: (filter: 'online' | 'issues') => void;
 }
 
-export default function SystemHealthWidget({
-  onFilterClick,
-}: SystemHealthWidgetProps) {
+export default function SystemHealthWidget({ onFilterClick }: SystemHealthWidgetProps) {
   const { data: health, isLoading, error: fetchError } = useHealthAnalytics();
   const error = fetchError ? 'Failed to load health data' : null;
 
@@ -51,8 +49,7 @@ export default function SystemHealthWidget({
       </div>
     );
 
-
-  if (error) 
+  if (error)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <h3 className="text-lg font-semibold text-foreground mb-4">System Health</h3>
@@ -61,7 +58,6 @@ export default function SystemHealthWidget({
         </div>
       </div>
     );
-  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">
@@ -98,10 +94,7 @@ export default function SystemHealthWidget({
           {/* Center content */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-4xl font-bold text-foreground">{healthScore}%</span>
-            <span
-              className="text-sm font-medium"
-              style={{ color: getHealthColor(healthScore) }}
-            >
+            <span className="text-sm font-medium" style={{ color: getHealthColor(healthScore) }}>
               {getHealthLabel(healthScore)}
             </span>
           </div>
@@ -117,9 +110,7 @@ export default function SystemHealthWidget({
           <CheckCircle2 className="h-5 w-5 text-cyan-500" />
           <div>
             <p className="text-xs text-muted-foreground">Online</p>
-            <p className="text-lg font-bold text-foreground">
-              {activeDevices.toLocaleString()}
-            </p>
+            <p className="text-lg font-bold text-foreground">{activeDevices.toLocaleString()}</p>
           </div>
         </button>
         <button
@@ -129,9 +120,7 @@ export default function SystemHealthWidget({
           <AlertTriangle className="h-5 w-5 text-amber-500" />
           <div>
             <p className="text-xs text-muted-foreground">Issues</p>
-            <p className="text-lg font-bold text-foreground">
-              {issuesCount.toLocaleString()}
-            </p>
+            <p className="text-lg font-bold text-foreground">{issuesCount.toLocaleString()}</p>
           </div>
         </button>
       </div>

@@ -137,11 +137,21 @@ export const lastErrorSchema = z.object({
  * Device health schema
  */
 export const deviceHealthSchema = z.object({
-  last_seen: z.date().default(() => new Date()).describe('Last communication timestamp'),
-  uptime_percentage: z.number().min(0).max(100).default(100).describe('Calculated uptime percentage'),
+  last_seen: z
+    .date()
+    .default(() => new Date())
+    .describe('Last communication timestamp'),
+  uptime_percentage: z
+    .number()
+    .min(0)
+    .max(100)
+    .default(100)
+    .describe('Calculated uptime percentage'),
   error_count: z.number().int().min(0).default(0).describe('Total error count'),
   last_error: lastErrorSchema.optional().describe('Most recent error details'),
-  battery_level: batteryLevelSchema.optional().describe('Battery level (for battery-powered devices)'),
+  battery_level: batteryLevelSchema
+    .optional()
+    .describe('Battery level (for battery-powered devices)'),
   signal_strength: signalStrengthSchema.optional().describe('Signal strength'),
 });
 
@@ -149,8 +159,13 @@ export const deviceHealthSchema = z.object({
  * Device compliance schema
  */
 export const deviceComplianceSchema = z.object({
-  requires_encryption: z.boolean().default(false).describe('Whether device data requires encryption'),
-  data_classification: dataClassificationSchema.default('internal').describe('Data classification level'),
+  requires_encryption: z
+    .boolean()
+    .default(false)
+    .describe('Whether device data requires encryption'),
+  data_classification: dataClassificationSchema
+    .default('internal')
+    .describe('Data classification level'),
   retention_days: retentionDaysSchema.default(90).describe('Data retention period in days'),
 });
 
@@ -169,33 +184,33 @@ export const createDeviceSchema = z.object({
   device_model: modelNameSchema,
   firmware_version: firmwareVersionSchema,
   type: deviceTypeSchema,
-  
+
   // Required configuration
   configuration: deviceConfigurationSchema,
-  
+
   // Required location
   location: deviceLocationSchema,
-  
+
   // Optional metadata with defaults
   metadata: deviceMetadataSchema.optional().default({
     tags: [],
     department: 'unknown',
   }),
-  
+
   // Status (defaults to active)
   status: deviceStatusSchema.default('active'),
   status_reason: z.string().max(200, 'Status reason must be 200 characters or less').optional(),
-  
+
   // Optional compliance (with defaults)
   compliance: deviceComplianceSchema.optional().default({
     requires_encryption: false,
     data_classification: 'internal',
     retention_days: 90,
   }),
-  
+
   // Health will be auto-initialized on creation
   health: deviceHealthSchema.optional(),
-  
+
   // Audit will be auto-populated
   audit: deviceAuditSchema.optional(),
 });
@@ -215,30 +230,27 @@ export const updateDeviceSchema = z
     manufacturer: manufacturerSchema.optional(),
     device_model: modelNameSchema.optional(),
     firmware_version: firmwareVersionSchema.optional(),
-    
+
     // Configuration updates
     configuration: deviceConfigurationSchema.partial().optional(),
-    
+
     // Location updates
     location: deviceLocationSchema.partial().optional(),
-    
+
     // Metadata updates
     metadata: deviceMetadataSchema.partial().optional(),
-    
+
     // Status transition
     status: deviceStatusSchema.optional(),
     status_reason: z.string().max(200).optional(),
-    
+
     // Compliance updates
     compliance: deviceComplianceSchema.partial().optional(),
-    
+
     // Health updates (usually system-managed, but can be manually set)
     health: deviceHealthSchema.partial().optional(),
   })
-  .refine(
-    (data) => Object.keys(data).length > 0,
-    'At least one field must be provided for update'
-  );
+  .refine(data => Object.keys(data).length > 0, 'At least one field must be provided for update');
 
 // ============================================================================
 // DEVICE QUERY SCHEMAS (GET)
@@ -267,75 +279,66 @@ export const listDevicesQuerySchema = z
   .object({
     // Pagination
     ...paginationSchema.shape,
-    
+
     // Sorting
     ...createSortSchema(deviceSortFields).shape,
-    
+
     // Filtering by status
     status: z
       .union([
         deviceStatusSchema,
         z.array(deviceStatusSchema),
-        z.string().transform((val) => val.split(',') as z.infer<typeof deviceStatusSchema>[]),
+        z.string().transform(val => val.split(',') as z.infer<typeof deviceStatusSchema>[]),
       ])
       .optional(),
-    
+
     // Filtering by type
     type: z
       .union([
         deviceTypeSchema,
         z.array(deviceTypeSchema),
-        z.string().transform((val) => val.split(',') as z.infer<typeof deviceTypeSchema>[]),
+        z.string().transform(val => val.split(',') as z.infer<typeof deviceTypeSchema>[]),
       ])
       .optional(),
-    
+
     // Location filters
     building_id: buildingIdSchema.optional(),
-    floor: z.union([floorSchema, z.string().transform((v) => parseInt(v, 10))]).optional(),
+    floor: z.union([floorSchema, z.string().transform(v => parseInt(v, 10))]).optional(),
     zone: zoneSchema.optional(),
-    
+
     // Metadata filters
     department: departmentSchema.optional(),
-    tags: z
-      .union([
-        z.array(z.string()),
-        z.string().transform((val) => val.split(',')),
-      ])
-      .optional(),
+    tags: z.union([z.array(z.string()), z.string().transform(val => val.split(','))]).optional(),
     manufacturer: manufacturerSchema.optional(),
-    
+
     // Health filters
-    min_battery: z.union([z.number(), z.string().transform((v) => parseInt(v, 10))]).optional(),
-    max_battery: z.union([z.number(), z.string().transform((v) => parseInt(v, 10))]).optional(),
+    min_battery: z.union([z.number(), z.string().transform(v => parseInt(v, 10))]).optional(),
+    max_battery: z.union([z.number(), z.string().transform(v => parseInt(v, 10))]).optional(),
     offline_threshold_minutes: z
-      .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
+      .union([z.number(), z.string().transform(v => parseInt(v, 10))])
       .default(5)
       .describe('Consider device offline if last_seen is older than this many minutes'),
-    
+
     // Soft delete filter
-    include_deleted: z
-      .union([z.boolean(), z.string().transform((v) => v === 'true')])
-      .default(false),
-    only_deleted: z
-      .union([z.boolean(), z.string().transform((v) => v === 'true')])
-      .default(false),
-    
+    include_deleted: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(false),
+    only_deleted: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(false),
+
     // Date range for created_at or updated_at
     ...dateRangeSchema.shape,
     date_filter_field: z.enum(['created_at', 'updated_at', 'last_seen']).optional(),
-    
+
     // Field projection
     fields: z
       .string()
-      .transform((val) => val.split(','))
+      .transform(val => val.split(','))
       .optional()
       .describe('Comma-separated list of fields to include'),
-    
+
     // Search
     search: z.string().max(100).optional().describe('Search in serial_number, room_name, or tags'),
   })
   .refine(
-    (data) => !(data.include_deleted && data.only_deleted),
+    data => !(data.include_deleted && data.only_deleted),
     'Cannot use both include_deleted and only_deleted'
   );
 
@@ -346,16 +349,14 @@ export const getDeviceQuerySchema = z.object({
   // Field projection
   fields: z
     .string()
-    .transform((val) => val.split(','))
+    .transform(val => val.split(','))
     .optional(),
-  
+
   // Include related data
   include_recent_readings: z
-    .union([z.boolean(), z.string().transform((v) => v === 'true')])
+    .union([z.boolean(), z.string().transform(v => v === 'true')])
     .default(false),
-  readings_limit: z
-    .union([z.number(), z.string().transform((v) => parseInt(v, 10))])
-    .default(10),
+  readings_limit: z.union([z.number(), z.string().transform(v => parseInt(v, 10))]).default(10),
 });
 
 /**
@@ -364,13 +365,13 @@ export const getDeviceQuerySchema = z.object({
 export const deviceHistoryQuerySchema = z.object({
   // Pagination
   ...paginationSchema.shape,
-  
+
   // Date range
   ...dateRangeSchema.shape,
-  
+
   // Filter by action type
   action: z.enum(['created', 'updated', 'deleted']).optional(),
-  
+
   // Filter by user
   user: userIdentifierSchema.optional(),
 });

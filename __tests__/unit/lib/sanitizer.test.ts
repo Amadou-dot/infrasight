@@ -52,8 +52,7 @@ describe('Sanitizer Utilities', () => {
 
     it('should escape HTML characters', () => {
       const input = '<script>alert("xss")</script>';
-      const expected =
-        '&lt;script&gt;alert(&quot;xss&quot;)&lt;&#x2F;script&gt;';
+      const expected = '&lt;script&gt;alert(&quot;xss&quot;)&lt;&#x2F;script&gt;';
       expect(sanitizeString(input, { escapeHtml: true })).toBe(expected);
     });
 
@@ -64,9 +63,7 @@ describe('Sanitizer Utilities', () => {
     });
 
     it('should convert to lowercase', () => {
-      expect(sanitizeString('HELLO World', { lowercase: true })).toBe(
-        'hello world'
-      );
+      expect(sanitizeString('HELLO World', { lowercase: true })).toBe('hello world');
     });
 
     it('should throw error for empty string when allowEmpty=false', () => {
@@ -147,9 +144,7 @@ describe('Sanitizer Utilities', () => {
 
     it('should normalize whitespace', () => {
       expect(sanitizeSearchQuery('  hello   world  ')).toBe('hello world');
-      expect(sanitizeSearchQuery('test\t\nmulti\nline')).toBe(
-        'test multi line'
-      );
+      expect(sanitizeSearchQuery('test\t\nmulti\nline')).toBe('test multi line');
     });
 
     it('should return empty string for non-string input', () => {
@@ -241,12 +236,8 @@ describe('Sanitizer Utilities', () => {
 
       expect(result.name).toBe('test');
       // Check that dangerous keys are not in the object's own properties
-      expect(Object.prototype.hasOwnProperty.call(result, '__proto__')).toBe(
-        false
-      );
-      expect(Object.prototype.hasOwnProperty.call(result, 'constructor')).toBe(
-        false
-      );
+      expect(Object.prototype.hasOwnProperty.call(result, '__proto__')).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(result, 'constructor')).toBe(false);
     });
 
     it('should sanitize string values', () => {
@@ -355,10 +346,7 @@ describe('Sanitizer Utilities', () => {
 
       // Depth 3 should not be sanitized
       expect(
-        (
-          (result.level1 as { level2: { level3: { value: string } } }).level2
-            .level3.value as string
-        )
+        (result.level1 as { level2: { level3: { value: string } } }).level2.level3.value as string
       ).toBe('  test  ');
     });
 
@@ -633,9 +621,7 @@ describe('Sanitizer Utilities', () => {
 
     it('should return default value when parsing fails', () => {
       const defaultDate = new Date('2024-01-01');
-      expect(sanitizeDate('invalid', { default: defaultDate })).toEqual(
-        defaultDate
-      );
+      expect(sanitizeDate('invalid', { default: defaultDate })).toEqual(defaultDate);
     });
   });
 

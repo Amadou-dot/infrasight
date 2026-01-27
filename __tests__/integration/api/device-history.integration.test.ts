@@ -15,10 +15,7 @@ import { GET } from '@/app/api/v2/devices/[id]/history/route';
 /**
  * Helper to create a mock NextRequest for GET requests
  */
-function createMockGetRequest(
-  id: string,
-  searchParams: Record<string, string> = {}
-): NextRequest {
+function createMockGetRequest(id: string, searchParams: Record<string, string> = {}): NextRequest {
   const url = new URL(`http://localhost:3000/api/v2/devices/${id}/history`);
   Object.entries(searchParams).forEach(([key, value]) => {
     url.searchParams.set(key, value);
@@ -37,7 +34,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 /**
  * Sleep helper for timestamp differentiation
  */
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('Device History API Integration Tests', () => {
   beforeEach(() => {
@@ -98,8 +95,8 @@ describe('Device History API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         expect(data.data.length).toBe(2);
-        expect(data.data.some((h) => h.action === 'created')).toBe(true);
-        expect(data.data.some((h) => h.action === 'updated')).toBe(true);
+        expect(data.data.some(h => h.action === 'created')).toBe(true);
+        expect(data.data.some(h => h.action === 'updated')).toBe(true);
       });
 
       it('should include deletion history when device is deleted', async () => {
@@ -118,7 +115,7 @@ describe('Device History API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(data.data.some((h) => h.action === 'deleted')).toBe(true);
+        expect(data.data.some(h => h.action === 'deleted')).toBe(true);
       });
 
       it('should return history sorted by timestamp descending', async () => {
@@ -148,16 +145,15 @@ describe('Device History API Integration Tests', () => {
         expect(data.data.length).toBe(3);
 
         // Verify all actions are present
-        const actions = data.data.map((h) => h.action);
+        const actions = data.data.map(h => h.action);
         expect(actions).toContain('created');
         expect(actions).toContain('updated');
         expect(actions).toContain('deleted');
 
         // Verify timestamps are in descending order
-        const timestamps = data.data.map((h) => new Date(h.timestamp).getTime());
+        const timestamps = data.data.map(h => new Date(h.timestamp).getTime());
         for (let i = 0; i < timestamps.length - 1; i++)
           expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i + 1]);
-
       });
     });
 
@@ -411,9 +407,7 @@ describe('Device History API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        const createdEntry = data.data.find((h) =>
-          'action' in h ? h.action === 'created' : false
-        );
+        const createdEntry = data.data.find(h => ('action' in h ? h.action === 'created' : false));
         expect(createdEntry?.changes).toBeDefined();
       });
     });

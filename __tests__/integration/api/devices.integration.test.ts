@@ -21,9 +21,7 @@ import { GET, POST } from '@/app/api/v2/devices/route';
 /**
  * Helper to create a mock NextRequest for GET requests
  */
-function createMockGetRequest(
-  searchParams: Record<string, string> = {}
-): NextRequest {
+function createMockGetRequest(searchParams: Record<string, string> = {}): NextRequest {
   const url = new URL('http://localhost:3000/api/v2/devices');
   Object.entries(searchParams).forEach(([key, value]) => {
     url.searchParams.set(key, value);
@@ -81,9 +79,8 @@ describe('Devices API Integration Tests', () => {
       it('should return list of devices', async () => {
         // Create test devices
         const devices = createDeviceInputs(3);
-        for (let i = 0; i < devices.length; i++) 
-          devices[i]._id = `device_list_${i}`;
-        
+        for (let i = 0; i < devices.length; i++) devices[i]._id = `device_list_${i}`;
+
         await DeviceV2.insertMany(devices);
 
         const request = createMockGetRequest();
@@ -103,9 +100,8 @@ describe('Devices API Integration Tests', () => {
       it('should return devices with default pagination', async () => {
         // Create more devices than default limit
         const devices = createDeviceInputs(25);
-        for (let i = 0; i < devices.length; i++) 
-          devices[i]._id = `device_pagination_${i}`;
-        
+        for (let i = 0; i < devices.length; i++) devices[i]._id = `device_pagination_${i}`;
+
         await DeviceV2.insertMany(devices);
 
         const request = createMockGetRequest();
@@ -221,7 +217,7 @@ describe('Devices API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         expect(data.data.length).toBe(2);
-        expect(data.data.every((d) => d.status === 'active')).toBe(true);
+        expect(data.data.every(d => d.status === 'active')).toBe(true);
       });
 
       it('should filter by type', async () => {
@@ -234,7 +230,7 @@ describe('Devices API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         expect(data.data.length).toBe(1);
-        expect(data.data.every((d) => d.type === 'humidity')).toBe(true);
+        expect(data.data.every(d => d.type === 'humidity')).toBe(true);
       });
 
       it('should filter by building_id', async () => {
@@ -247,9 +243,7 @@ describe('Devices API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         expect(data.data.length).toBe(3);
-        expect(
-          data.data.every((d) => d.location.building_id === 'b1')
-        ).toBe(true);
+        expect(data.data.every(d => d.location.building_id === 'b1')).toBe(true);
       });
 
       it('should filter by floor', async () => {
@@ -262,7 +256,7 @@ describe('Devices API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         expect(data.data.length).toBe(3);
-        expect(data.data.every((d) => d.location.floor === 1)).toBe(true);
+        expect(data.data.every(d => d.location.floor === 1)).toBe(true);
       });
 
       it('should combine multiple filters', async () => {

@@ -28,12 +28,14 @@
 ## Features
 
 ### Core Monitoring
+
 - **Real-Time Updates**: Live sensor data via Pusher WebSocket connections
 - **Device Health Tracking**: Monitor status, uptime, battery levels, and signal strength
 - **Floor Plan Visualization**: Interactive floor plans with device status indicators
 - **Multi-Sensor Support**: Temperature, humidity, CO2, power, occupancy, and more
 
 ### V2 Enhancements
+
 - **90-Day Data Retention**: Automatic TTL-based cleanup of historical readings
 - **Comprehensive Audit Trails**: Complete change history for all devices
 - **Device Health Scoring**: Calculated health metrics with predictive indicators
@@ -42,6 +44,7 @@
 - **Enhanced Anomaly Detection**: ML-based anomaly scoring and trends
 
 ### Security & Performance
+
 - **Rate Limiting**: Configurable limits for API protection
 - **Caching**: Redis-backed response caching
 - **Zod Validation**: Type-safe input validation on all endpoints
@@ -52,29 +55,29 @@
 
 ## Tech Stack
 
-| Category | Technologies |
-|----------|-------------|
-| **Frontend** | [Next.js 15](https://nextjs.org/) with [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/) |
-| **Backend** | [MongoDB](https://www.mongodb.com/) with [Mongoose](https://mongoosejs.com/) (timeseries collections) |
-| **Validation** | [Zod](https://zod.dev/) for schema validation |
-| **Real-Time** | [Pusher](https://pusher.com/) for WebSocket connections |
-| **Caching** | [Redis](https://redis.io/) / [Upstash](https://upstash.com/) |
-| **UI Components** | [Radix UI](https://www.radix-ui.com/), [shadcn/ui](https://ui.shadcn.com/) |
-| **Charts** | [Recharts](https://recharts.org/) for data visualization |
-| **Monitoring** | [Sentry](https://sentry.io/) for error tracking |
+| Category          | Technologies                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**      | [Next.js 15](https://nextjs.org/) with [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/) |
+| **Backend**       | [MongoDB](https://www.mongodb.com/) with [Mongoose](https://mongoosejs.com/) (timeseries collections)                                                          |
+| **Validation**    | [Zod](https://zod.dev/) for schema validation                                                                                                                  |
+| **Real-Time**     | [Pusher](https://pusher.com/) for WebSocket connections                                                                                                        |
+| **Caching**       | [Redis](https://redis.io/) / [Upstash](https://upstash.com/)                                                                                                   |
+| **UI Components** | [Radix UI](https://www.radix-ui.com/), [shadcn/ui](https://ui.shadcn.com/)                                                                                     |
+| **Charts**        | [Recharts](https://recharts.org/) for data visualization                                                                                                       |
+| **Monitoring**    | [Sentry](https://sentry.io/) for error tracking                                                                                                                |
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [API Documentation](./docs/api-v2.md) | Complete V2 API reference with examples |
-| [Data Models](./docs/models-v2.md) | MongoDB schemas, indexes, and constraints |
-| [Environment Setup](./docs/environment.md) | Configuration and environment variables |
-| [Testing Guide](./docs/testing-v2.md) | Testing strategy and implementation |
-| [Test Coverage Setup](./docs/TEST_COVERAGE_SETUP.md) | Coverage reporting and branch protection |
-| [Operational Runbook](./docs/runbook.md) | Monitoring, debugging, and incident response |
+| Document                                             | Description                                  |
+| ---------------------------------------------------- | -------------------------------------------- |
+| [API Documentation](./docs/api-v2.md)                | Complete V2 API reference with examples      |
+| [Data Models](./docs/models-v2.md)                   | MongoDB schemas, indexes, and constraints    |
+| [Environment Setup](./docs/environment.md)           | Configuration and environment variables      |
+| [Testing Guide](./docs/testing-v2.md)                | Testing strategy and implementation          |
+| [Test Coverage Setup](./docs/TEST_COVERAGE_SETUP.md) | Coverage reporting and branch protection     |
+| [Operational Runbook](./docs/runbook.md)             | Monitoring, debugging, and incident response |
 
 ---
 
@@ -101,11 +104,13 @@ pnpm install
 ### Environment Setup
 
 1. Copy the example environment file:
+
 ```bash
 cp example.env .env.local
 ```
 
 2. Configure required variables in `.env.local`:
+
 ```env
 # MongoDB Connection
 MONGODB_URI=mongodb://localhost:27017/infrasight
@@ -142,21 +147,21 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ## Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start development server with Turbopack |
-| `pnpm build` | Build for production |
-| `pnpm start` | Start production server |
-| `pnpm seed` | Populate database with test data |
-| `pnpm simulate` | Generate real-time simulated readings |
-| `pnpm create-indexes-v2` | Create MongoDB indexes |
-| `pnpm verify-indexes` | Verify index configuration |
-| `pnpm test` | Run all tests |
-| `pnpm test:coverage` | Run tests with coverage report |
-| `pnpm test:unit` | Run unit tests only |
-| `pnpm test:integration` | Run integration tests only |
-| `pnpm test:e2e` | Run end-to-end tests with Playwright |
-| `pnpm lint` | Run ESLint |
+| Command                  | Description                             |
+| ------------------------ | --------------------------------------- |
+| `pnpm dev`               | Start development server with Turbopack |
+| `pnpm build`             | Build for production                    |
+| `pnpm start`             | Start production server                 |
+| `pnpm seed`              | Populate database with test data        |
+| `pnpm simulate`          | Generate real-time simulated readings   |
+| `pnpm create-indexes-v2` | Create MongoDB indexes                  |
+| `pnpm verify-indexes`    | Verify index configuration              |
+| `pnpm test`              | Run all tests                           |
+| `pnpm test:coverage`     | Run tests with coverage report          |
+| `pnpm test:unit`         | Run unit tests only                     |
+| `pnpm test:integration`  | Run integration tests only              |
+| `pnpm test:e2e`          | Run end-to-end tests with Playwright    |
+| `pnpm lint`              | Run ESLint                              |
 
 ---
 
@@ -197,26 +202,26 @@ infrasight/
 
 ### Core Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/devices` | List devices with filtering |
-| POST | `/api/v2/devices` | Create a new device |
-| GET | `/api/v2/devices/:id` | Get device details |
-| PATCH | `/api/v2/devices/:id` | Update a device |
-| DELETE | `/api/v2/devices/:id` | Soft delete a device |
-| GET | `/api/v2/readings` | Query readings |
-| POST | `/api/v2/readings/ingest` | Bulk ingest readings |
-| GET | `/api/v2/readings/latest` | Get latest readings |
+| Method | Endpoint                  | Description                 |
+| ------ | ------------------------- | --------------------------- |
+| GET    | `/api/v2/devices`         | List devices with filtering |
+| POST   | `/api/v2/devices`         | Create a new device         |
+| GET    | `/api/v2/devices/:id`     | Get device details          |
+| PATCH  | `/api/v2/devices/:id`     | Update a device             |
+| DELETE | `/api/v2/devices/:id`     | Soft delete a device        |
+| GET    | `/api/v2/readings`        | Query readings              |
+| POST   | `/api/v2/readings/ingest` | Bulk ingest readings        |
+| GET    | `/api/v2/readings/latest` | Get latest readings         |
 
 ### Analytics Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/analytics/health` | Device health metrics |
-| GET | `/api/v2/analytics/energy` | Energy consumption |
-| GET | `/api/v2/analytics/anomalies` | Anomaly detection |
-| GET | `/api/v2/analytics/maintenance-forecast` | Maintenance predictions |
-| GET | `/api/v2/analytics/temperature-correlation` | Temperature analysis |
+| Method | Endpoint                                    | Description             |
+| ------ | ------------------------------------------- | ----------------------- |
+| GET    | `/api/v2/analytics/health`                  | Device health metrics   |
+| GET    | `/api/v2/analytics/energy`                  | Energy consumption      |
+| GET    | `/api/v2/analytics/anomalies`               | Anomaly detection       |
+| GET    | `/api/v2/analytics/maintenance-forecast`    | Maintenance predictions |
+| GET    | `/api/v2/analytics/temperature-correlation` | Temperature analysis    |
 
 See [API Documentation](./docs/api-v2.md) for complete reference.
 

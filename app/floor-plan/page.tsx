@@ -17,13 +17,13 @@ export default function FloorPlanPage() {
 
   // Fetch metadata with React Query
   const { data: metadata } = useMetadata();
-  const buildings = metadata?.buildings || [];
+  const buildings = useMemo(() => metadata?.buildings || [], [metadata?.buildings]);
 
-  // Auto-select first building if available
+  // Auto-select first building if available - intentional initialization
   useEffect(() => {
-    if (buildings.length > 0 && selectedBuilding === 'all') {
+    if (buildings.length > 0 && selectedBuilding === 'all')
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: auto-select first building on load
       setSelectedBuilding(buildings[0].building);
-    }
   }, [buildings, selectedBuilding]);
 
   // Get floors for the selected building
@@ -44,37 +44,37 @@ export default function FloorPlanPage() {
   };
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-black p-4 md:p-8'>
+    <div className="min-h-screen bg-gray-50 dark:bg-black p-4 md:p-8">
       <ToastContainer
-        position='bottom-center'
+        position="bottom-center"
         autoClose={false}
         pauseOnFocusLoss
         pauseOnHover
-        theme='colored'
+        theme="colored"
       />
 
       {/* Header */}
-      <header className='mb-6 md:mb-8'>
-        <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
+      <header className="mb-6 md:mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className='flex items-center gap-3 mb-2'>
-              <Map className='h-8 w-8 text-green-600 dark:text-green-400' />
-              <h1 className='text-2xl md:text-3xl font-bold text-gray-900 dark:text-white'>
+            <div className="flex items-center gap-3 mb-2">
+              <Map className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
                 Floor Plan
               </h1>
             </div>
-            <p className='text-gray-500 dark:text-gray-400'>
+            <p className="text-gray-500 dark:text-gray-400">
               Spatial view of devices across building floors
             </p>
           </div>
 
           {/* Building & Floor Selectors */}
-          <div className='flex items-center gap-4'>
+          <div className="flex items-center gap-4">
             {/* Building Selector */}
             <Select
-              label='Building'
+              label="Building"
               value={selectedBuilding as string}
-              onValueChange={(val) => {
+              onValueChange={val => {
                 setSelectedBuilding(val);
                 setSelectedFloor('all');
               }}
@@ -89,11 +89,9 @@ export default function FloorPlanPage() {
 
             {/* Floor Selector */}
             <Select
-              label='Floor'
+              label="Floor"
               value={String(selectedFloor)}
-              onValueChange={(val) =>
-                setSelectedFloor(val === 'all' ? 'all' : parseInt(val))
-              }
+              onValueChange={val => setSelectedFloor(val === 'all' ? 'all' : parseInt(val))}
               options={[
                 { value: 'all', label: 'All Floors' },
                 ...availableFloors.map(f => ({
@@ -107,7 +105,7 @@ export default function FloorPlanPage() {
       </header>
 
       {/* Floor Plan - Full Width */}
-      <div className='grid grid-cols-1 gap-6'>
+      <div className="grid grid-cols-1 gap-6">
         <FloorPlan
           selectedFloor={selectedFloor}
           selectedBuilding={selectedBuilding}

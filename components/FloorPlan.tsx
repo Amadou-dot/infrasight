@@ -50,19 +50,15 @@ export default function FloorPlan({
   const alertedDevices = useRef<Set<string>>(new Set());
 
   // UI State
-  const [collapsedFloors, setCollapsedFloors] = useState<Set<number>>(
-    new Set()
-  );
+  const [collapsedFloors, setCollapsedFloors] = useState<Set<number>>(new Set());
   const [showIssuesOnly, setShowIssuesOnly] = useState(false);
   const [initializedCollapse, setInitializedCollapse] = useState(false);
 
   const toggleFloor = (floor: number) => {
     const newCollapsed = new Set(collapsedFloors);
-    if (newCollapsed.has(floor)) 
-      newCollapsed.delete(floor);
-     else 
-      newCollapsed.add(floor);
-    
+    if (newCollapsed.has(floor)) newCollapsed.delete(floor);
+    else newCollapsed.add(floor);
+
     setCollapsedFloors(newCollapsed);
   };
 
@@ -72,9 +68,7 @@ export default function FloorPlan({
         setLoading(true);
         // Fetch all devices (up to 100 per page)
         const response = await v2Api.devices.list({ limit: 100 });
-        if (response.success) 
-          setDevices(response.data);
-        
+        if (response.success) setDevices(response.data);
       } catch (error) {
         console.error('Error fetching devices:', error);
       } finally {
@@ -90,31 +84,32 @@ export default function FloorPlan({
       try {
         // Get device IDs for the v2 readings API
         const deviceIds = devices.map(d => d._id);
-        
+
         // Fetch in batches of 50 to avoid URL length limits
         const batchSize = 50;
         const allReadings: Record<string, Reading> = {};
-        
+
         for (let i = 0; i < deviceIds.length; i += batchSize) {
           const batch = deviceIds.slice(i, i + batchSize);
           const params = new URLSearchParams();
           batch.forEach(id => params.append('device_ids', id));
-          
+
           const res = await fetch(`/api/v2/readings/latest?${params.toString()}`);
           const data = await res.json();
-          
-          if (data.success && data.data?.readings) 
-            data.data.readings.forEach((r: { device_id: string; value: number; timestamp: string; type: string }) => {
-              allReadings[r.device_id] = {
-                _id: r.device_id,
-                value: r.value,
-                timestamp: r.timestamp,
-                type: r.type,
-              };
-            });
-          
+
+          if (data.success && data.data?.readings)
+            data.data.readings.forEach(
+              (r: { device_id: string; value: number; timestamp: string; type: string }) => {
+                allReadings[r.device_id] = {
+                  _id: r.device_id,
+                  value: r.value,
+                  timestamp: r.timestamp,
+                  type: r.type,
+                };
+              }
+            );
         }
-        
+
         setReadings(allReadings);
       } catch (error) {
         console.error('Error fetching latest readings:', error);
@@ -158,12 +153,10 @@ export default function FloorPlan({
         const criticalThreshold = device.configuration?.threshold_critical;
         const warningThreshold = device.configuration?.threshold_warning;
         const roomName = device.location?.room_name || device._id;
-        
+
         if (criticalThreshold && reading.value > criticalThreshold) {
           if (!alertedDevices.current.has(device._id + '_critical')) {
-            toast.error(
-              `CRITICAL: ${roomName} is ${reading.value}°F!`
-            );
+            toast.error(`CRITICAL: ${roomName} is ${reading.value}°F!`);
             alertedDevices.current.add(device._id + '_critical');
             alertedDevices.current.delete(device._id + '_warning');
           }
@@ -172,9 +165,7 @@ export default function FloorPlan({
             !alertedDevices.current.has(device._id + '_warning') &&
             !alertedDevices.current.has(device._id + '_critical')
           ) {
-            toast.warn(
-              `WARNING: ${roomName} is ${reading.value}°F`
-            );
+            toast.warn(`WARNING: ${roomName} is ${reading.value}°F`);
             alertedDevices.current.add(device._id + '_warning');
           }
         } else {
@@ -188,15 +179,15 @@ export default function FloorPlan({
   const getDeviceIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case 'temperature':
-        return <Thermometer className='w-5 h-5' />;
+        return <Thermometer className="w-5 h-5" />;
       case 'humidity':
-        return <Droplet className='w-5 h-5' />;
+        return <Droplet className="w-5 h-5" />;
       case 'power':
-        return <Zap className='w-5 h-5' />;
+        return <Zap className="w-5 h-5" />;
       case 'occupancy':
-        return <Users className='w-5 h-5' />;
+        return <Users className="w-5 h-5" />;
       default:
-        return <Activity className='w-5 h-5' />;
+        return <Activity className="w-5 h-5" />;
     }
   };
 
@@ -209,48 +200,39 @@ export default function FloorPlan({
   };
 
   const getStatusInfo = (device: DeviceV2Response, value: number | undefined) => {
-    if (value === undefined) 
+    if (value === undefined)
       return {
-        color:
-          'bg-gray-100 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700',
+        color: 'bg-gray-100 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700',
         icon: null,
         text: 'Offline',
       };
-    
 
     // Default thresholds if not temp (simplified logic)
-    const isCritical =
-      value > (device.configuration?.threshold_critical || 9999);
+    const isCritical = value > (device.configuration?.threshold_critical || 9999);
     const isWarning = value > (device.configuration?.threshold_warning || 9999);
 
-    if (isCritical) 
+    if (isCritical)
       return {
         color:
           'bg-red-50 border-red-200 ring-1 ring-red-200 dark:bg-red-950 dark:border-red-900 dark:ring-red-900',
-        icon: (
-          <AlertTriangle className='w-4 h-4 text-red-500 dark:text-red-400' />
-        ),
+        icon: <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" />,
         text: 'Critical',
         textColor: 'text-red-700 dark:text-red-200',
       };
-    
-    if (isWarning) 
+
+    if (isWarning)
       return {
         color:
           'bg-yellow-50 border-yellow-200 ring-1 ring-yellow-200 dark:bg-yellow-950 dark:border-yellow-900 dark:ring-yellow-900',
-        icon: (
-          <AlertTriangle className='w-4 h-4 text-yellow-500 dark:text-yellow-400' />
-        ),
+        icon: <AlertTriangle className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />,
         text: 'Warning',
         textColor: 'text-yellow-700 dark:text-yellow-200',
       };
-    
+
     return {
       color:
         'bg-white border-gray-200 hover:border-blue-300 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:border-blue-500',
-      icon: (
-        <CheckCircle className='w-4 h-4 text-green-500 dark:text-green-400' />
-      ),
+      icon: <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-400" />,
       text: 'Normal',
       textColor: 'text-gray-600 dark:text-gray-300',
     };
@@ -258,16 +240,18 @@ export default function FloorPlan({
 
   const groupedDevices = useMemo(() => {
     if (!devices || devices.length === 0) return {};
-    
+
     // Filter by building first
-    let filtered = selectedBuilding === 'all'
-      ? devices
-      : devices.filter(d => d.location?.building_id === selectedBuilding);
-    
+    let filtered =
+      selectedBuilding === 'all'
+        ? devices
+        : devices.filter(d => d.location?.building_id === selectedBuilding);
+
     // Then filter by floor
-    filtered = selectedFloor === 'all'
-      ? filtered
-      : filtered.filter(d => d.location?.floor === selectedFloor);
+    filtered =
+      selectedFloor === 'all'
+        ? filtered
+        : filtered.filter(d => d.location?.floor === selectedFloor);
 
     const grouped: Record<number, DeviceV2Response[]> = {};
     filtered.forEach(d => {
@@ -294,15 +278,15 @@ export default function FloorPlan({
   }, [sortedFloors, initializedCollapse]);
 
   return (
-    <div className='w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm min-h-[500px] h-[calc(100vh-16rem)] flex flex-col'>
-          <div className='flex justify-between items-center mb-4'>
-        <div className='flex items-center gap-4'>
-          <h3 className='text-lg font-semibold'>Live Device Status</h3>
-          <label className='flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200 cursor-pointer select-none'>
-            <div className='relative inline-flex items-center cursor-pointer'>
+    <div className="w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm min-h-125 h-[calc(100vh-16rem)] flex flex-col">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-4">
+          <h3 className="text-lg font-semibold">Live Device Status</h3>
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200 cursor-pointer select-none">
+            <div className="relative inline-flex items-center cursor-pointer">
               <input
-                type='checkbox'
-                className='sr-only peer'
+                type="checkbox"
+                className="sr-only peer"
                 checked={showIssuesOnly}
                 onChange={e => setShowIssuesOnly(e.target.checked)}
               />
@@ -311,12 +295,12 @@ export default function FloorPlan({
             Show Issues Only
           </label>
         </div>
-        <span className='text-xs text-gray-400 dark:text-gray-300'>
+        <span className="text-xs text-gray-400 dark:text-gray-300">
           {Object.keys(readings).length > 0 ? 'Live' : 'Connecting...'}
         </span>
       </div>
 
-      <div className='flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar'>
+      <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
         {sortedFloors.map(floor => {
           const floorDevices = groupedDevices[floor].filter(d => {
             if (!showIssuesOnly) return true;
@@ -332,27 +316,30 @@ export default function FloorPlan({
           return (
             <div
               key={floor}
-              className='border border-gray-100 dark:border-none rounded-lg overflow-hidden'>
+              className="border border-gray-100 dark:border-none rounded-lg overflow-hidden"
+            >
               <div
-                className='bg-gray-50 dark:bg-zinc-950 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors'
-                onClick={() => toggleFloor(floor)}>
-                <h4 className='text-sm font-medium text-gray-700 dark:text-gray-200'>
+                className="bg-gray-50 dark:bg-zinc-950 px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors"
+                onClick={() => toggleFloor(floor)}
+              >
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">
                   Floor {floor}{' '}
-                  <span className='text-gray-400 font-normal ml-2'>
+                  <span className="text-gray-400 font-normal ml-2">
                     ({floorDevices.length} devices)
                   </span>
                 </h4>
                 <span
                   className={`text-gray-400 transform transition-transform ${
                     isCollapsed ? '-rotate-90' : 'rotate-0'
-                  }`}>
+                  }`}
+                >
                   ▼
                 </span>
               </div>
 
               {!isCollapsed && (
-                <div className='p-3 bg-white dark:bg-zinc-900'>
-                  <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3'>
+                <div className="p-3 bg-white dark:bg-zinc-900">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {floorDevices.map(device => {
                       const reading = readings[device._id];
                       const status = getStatusInfo(device, reading?.value);
@@ -362,31 +349,26 @@ export default function FloorPlan({
                         <div
                           key={device._id}
                           onClick={() => {
-                            if (onDeviceDetailClick) 
-                              onDeviceDetailClick(device._id);
-                             else if (onDeviceClick) 
-                              onDeviceClick(roomName);
-                            
+                            if (onDeviceDetailClick) onDeviceDetailClick(device._id);
+                            else if (onDeviceClick) onDeviceClick(roomName);
                           }}
-                          className={`p-3 rounded-lg border transition-all duration-200 ${status.color} flex flex-col gap-2 cursor-pointer hover:shadow-md`}>
-                          <div className='flex justify-between items-start'>
-                            <div className='flex items-center gap-2 text-gray-600 dark:text-gray-400'>
+                          className={`p-3 rounded-lg border transition-all duration-200 ${status.color} flex flex-col gap-2 cursor-pointer hover:shadow-md`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                               {getDeviceIcon(device.type)}
-                              <span className='text-xs font-medium truncate max-w-20'>
+                              <span className="text-xs font-medium truncate max-w-20">
                                 {roomName}
                               </span>
                             </div>
                             {status.icon}
                           </div>
 
-                          <div className='mt-1'>
-                            <div className='text-2xl font-bold text-gray-900 dark:text-white'>
-                              {reading
-                                ? getFormattedValue(device, reading.value)
-                                : '--'}
+                          <div className="mt-1">
+                            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                              {reading ? getFormattedValue(device, reading.value) : '--'}
                             </div>
-                            <div
-                              className={`text-xs ${status.textColor} font-medium`}>
+                            <div className={`text-xs ${status.textColor} font-medium`}>
                               {device.type}
                             </div>
                           </div>
@@ -401,7 +383,7 @@ export default function FloorPlan({
         })}
 
         {sortedFloors.length === 0 && (
-          <div className='flex items-center justify-center h-full text-gray-400'>
+          <div className="flex items-center justify-center h-full text-gray-400">
             No devices found.
           </div>
         )}

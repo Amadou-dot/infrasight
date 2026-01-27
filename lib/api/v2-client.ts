@@ -52,11 +52,8 @@ function buildQueryString(params: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
 
-    if (Array.isArray(value)) 
-      value.forEach((v) => searchParams.append(key, String(v)));
-     else 
-      searchParams.append(key, String(value));
-    
+    if (Array.isArray(value)) value.forEach(v => searchParams.append(key, String(v)));
+    else searchParams.append(key, String(value));
   }
 
   const query = searchParams.toString();
@@ -82,7 +79,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
  * Sleep utility for retry logic
  */
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -95,17 +92,12 @@ async function fetchWithRetry(
 ): Promise<Response> {
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) 
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++)
     try {
       const response = await fetch(url, options);
 
       // If successful or non-retryable error, return
-      if (
-        response.ok ||
-        !config.retryableStatuses.includes(response.status)
-      ) 
-        return response;
-      
+      if (response.ok || !config.retryableStatuses.includes(response.status)) return response;
 
       // If retryable error and not last attempt, retry
       if (attempt < config.maxRetries) {
@@ -123,7 +115,6 @@ async function fetchWithRetry(
         continue;
       }
     }
-  
 
   throw lastError || new Error('Request failed after retries');
 }
@@ -131,11 +122,7 @@ async function fetchWithRetry(
 /**
  * Generic API call handler
  */
-async function apiCall<T>(
-  endpoint: string,
-  options: RequestInit = {},
-  retry = true
-): Promise<T> {
+async function apiCall<T>(endpoint: string, options: RequestInit = {}, retry = true): Promise<T> {
   try {
     const response = retry
       ? await fetchWithRetry(endpoint, options)
@@ -155,9 +142,7 @@ async function apiCall<T>(
 
     return data;
   } catch (error) {
-    if (error instanceof ApiClientError) 
-      throw error;
-    
+    if (error instanceof ApiClientError) throw error;
 
     throw new ApiClientError(
       500,
@@ -175,9 +160,7 @@ export const deviceApi = {
   /**
    * List devices with optional filters
    */
-  async list(
-    query: ListDevicesQuery = {}
-  ): Promise<PaginatedResponse<DeviceV2Response>> {
+  async list(query: ListDevicesQuery = {}): Promise<PaginatedResponse<DeviceV2Response>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/devices${queryString}`);
   },
@@ -245,9 +228,7 @@ export const readingsApi = {
   /**
    * List readings with filters
    */
-  async list(
-    query: ListReadingsQuery = {}
-  ): Promise<PaginatedResponse<ReadingV2Response>> {
+  async list(query: ListReadingsQuery = {}): Promise<PaginatedResponse<ReadingV2Response>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/readings${queryString}`);
   },
@@ -432,9 +413,7 @@ export const analyticsApi = {
   /**
    * Get energy analytics
    */
-  async energy(
-    query: EnergyAnalyticsQuery = {}
-  ): Promise<ApiSuccessResponse<EnergyDataPoint[]>> {
+  async energy(query: EnergyAnalyticsQuery = {}): Promise<ApiSuccessResponse<EnergyDataPoint[]>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/analytics/energy${queryString}`);
   },
@@ -449,13 +428,15 @@ export const analyticsApi = {
   /**
    * Get anomaly data
    */
-  async anomalies(query: {
-    deviceId?: string;
-    startDate?: string;
-    endDate?: string;
-    minScore?: number;
-    limit?: number;
-  } = {}): Promise<ApiSuccessResponse<AnomalyResponse>> {
+  async anomalies(
+    query: {
+      deviceId?: string;
+      startDate?: string;
+      endDate?: string;
+      minScore?: number;
+      limit?: number;
+    } = {}
+  ): Promise<ApiSuccessResponse<AnomalyResponse>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/analytics/anomalies${queryString}`);
   },
@@ -585,14 +566,16 @@ export const auditApi = {
   /**
    * Query audit logs
    */
-  async list(query: {
-    userId?: string;
-    actionType?: string;
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    limit?: number;
-  } = {}): Promise<PaginatedResponse<AuditLogEntry>> {
+  async list(
+    query: {
+      userId?: string;
+      actionType?: string;
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    } = {}
+  ): Promise<PaginatedResponse<AuditLogEntry>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/audit${queryString}`);
   },

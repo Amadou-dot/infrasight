@@ -40,7 +40,7 @@ function createMockGetRequest(
 /**
  * Helper to create a mock NextRequest for POST requests
  */
-function createMockPostRequest(path: string, body: unknown): NextRequest {
+function _createMockPostRequest(path: string, body: unknown): NextRequest {
   return new NextRequest(`http://localhost:3000${path}`, {
     method: 'POST',
     headers: {
@@ -273,7 +273,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(data.data.every((r) => r.metadata.device_id === 'device_001')).toBe(true);
+        expect(data.data.every(r => r.metadata.device_id === 'device_001')).toBe(true);
       });
 
       it('should filter by multiple device_ids', async () => {
@@ -289,7 +289,7 @@ describe('Readings API Integration Tests', () => {
         expect(response.status).toBe(200);
         expect(
           data.data.every(
-            (r) => r.metadata.device_id === 'device_001' || r.metadata.device_id === 'device_002'
+            r => r.metadata.device_id === 'device_001' || r.metadata.device_id === 'device_002'
           )
         ).toBe(true);
       });
@@ -306,7 +306,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(data.data.every((r) => r.metadata.type === 'humidity')).toBe(true);
+        expect(data.data.every(r => r.metadata.type === 'humidity')).toBe(true);
       });
 
       it('should filter by source', async () => {
@@ -336,7 +336,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(data.data.every((r) => r.quality.is_valid === false)).toBe(true);
+        expect(data.data.every(r => r.quality.is_valid === false)).toBe(true);
       });
 
       it('should filter by is_anomaly', async () => {
@@ -351,7 +351,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(data.data.every((r) => r.quality.is_anomaly === true)).toBe(true);
+        expect(data.data.every(r => r.quality.is_anomaly === true)).toBe(true);
       });
 
       it('should filter by value range', async () => {
@@ -367,7 +367,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(data.data.every((r) => r.value >= 23 && r.value <= 25)).toBe(true);
+        expect(data.data.every(r => r.value >= 23 && r.value <= 25)).toBe(true);
       });
 
       it('should combine multiple filters', async () => {
@@ -387,9 +387,7 @@ describe('Readings API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         expect(
-          data.data.every(
-            (r) => r.metadata.type === 'temperature' && r.quality.is_valid === true
-          )
+          data.data.every(r => r.metadata.type === 'temperature' && r.quality.is_valid === true)
         ).toBe(true);
       });
     });
@@ -399,14 +397,13 @@ describe('Readings API Integration Tests', () => {
         const baseTime = Date.now();
 
         // Create readings at different times
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 10; i++)
           await ReadingV2.create(
             createReadingV2Input('device_001', {
               timestamp: new Date(baseTime - i * 60 * 60 * 1000), // 1 hour apart
               value: 20 + i,
             })
           );
-        }
       });
 
       it('should filter by startDate', async () => {
@@ -422,9 +419,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(
-          data.data.every((r) => new Date(r.timestamp) >= startDate)
-        ).toBe(true);
+        expect(data.data.every(r => new Date(r.timestamp) >= startDate)).toBe(true);
       });
 
       it('should filter by endDate', async () => {
@@ -440,9 +435,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(
-          data.data.every((r) => new Date(r.timestamp) <= endDate)
-        ).toBe(true);
+        expect(data.data.every(r => new Date(r.timestamp) <= endDate)).toBe(true);
       });
 
       it('should filter by date range', async () => {
@@ -462,7 +455,7 @@ describe('Readings API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         expect(
-          data.data.every((r) => {
+          data.data.every(r => {
             const ts = new Date(r.timestamp);
             return ts >= startDate && ts <= endDate;
           })
@@ -502,11 +495,10 @@ describe('Readings API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         // Check that timestamps are in descending order
-        for (let i = 1; i < data.data.length; i++) {
+        for (let i = 1; i < data.data.length; i++)
           expect(new Date(data.data[i - 1].timestamp).getTime()).toBeGreaterThanOrEqual(
             new Date(data.data[i].timestamp).getTime()
           );
-        }
       });
 
       it('should sort by timestamp ascending', async () => {
@@ -523,11 +515,10 @@ describe('Readings API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         // Check that timestamps are in ascending order
-        for (let i = 1; i < data.data.length; i++) {
+        for (let i = 1; i < data.data.length; i++)
           expect(new Date(data.data[i - 1].timestamp).getTime()).toBeLessThanOrEqual(
             new Date(data.data[i].timestamp).getTime()
           );
-        }
       });
 
       it('should sort by value', async () => {
@@ -544,9 +535,8 @@ describe('Readings API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         // Check that values are in ascending order
-        for (let i = 1; i < data.data.length; i++) {
+        for (let i = 1; i < data.data.length; i++)
           expect(data.data[i - 1].value).toBeLessThanOrEqual(data.data[i].value);
-        }
       });
     });
 
@@ -662,7 +652,7 @@ describe('Readings API Integration Tests', () => {
         expect(response.status).toBe(200);
 
         // Should have both temperature and humidity readings
-        const types = new Set(data.data.readings.map((r) => r.type));
+        const types = new Set(data.data.readings.map(r => r.type));
         expect(types.size).toBeGreaterThanOrEqual(1);
       });
     });
@@ -684,7 +674,7 @@ describe('Readings API Integration Tests', () => {
         }>(response);
 
         expect(response.status).toBe(200);
-        expect(data.data.readings.every((r) => r.type === 'temperature')).toBe(true);
+        expect(data.data.readings.every(r => r.type === 'temperature')).toBe(true);
       });
 
       it('should exclude invalid readings by default', async () => {
@@ -754,7 +744,7 @@ describe('Readings API Integration Tests', () => {
         const baseTime = Date.now();
 
         // Add more readings for quality metrics calculation
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 20; i++)
           await ReadingV2.create(
             createReadingV2Input('device_001', {
               timestamp: new Date(baseTime - i * 60 * 60 * 1000),
@@ -766,7 +756,6 @@ describe('Readings API Integration Tests', () => {
               },
             })
           );
-        }
       });
 
       it('should include quality metrics when requested', async () => {
@@ -842,8 +831,8 @@ describe('Readings API Integration Tests', () => {
         const combinedReadings = [...payload1.readings, ...payload2.readings];
 
         expect(combinedReadings.length).toBe(10);
-        expect(combinedReadings.filter((r) => r.device_id === 'device_001').length).toBe(5);
-        expect(combinedReadings.filter((r) => r.device_id === 'device_002').length).toBe(5);
+        expect(combinedReadings.filter(r => r.device_id === 'device_001').length).toBe(5);
+        expect(combinedReadings.filter(r => r.device_id === 'device_002').length).toBe(5);
       });
     });
 

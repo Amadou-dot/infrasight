@@ -22,14 +22,8 @@ import {
 import { validateQuery, validateInput } from '@/lib/validations/validator';
 import { sanitizeSearchQuery } from '@/lib/validations/sanitizer';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
-import {
-  jsonSuccess,
-  jsonPaginated,
-} from '@/lib/api/response';
-import {
-  getOffsetPaginationParams,
-  calculateOffsetPagination,
-} from '@/lib/api/pagination';
+import { jsonSuccess, jsonPaginated } from '@/lib/api/response';
+import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
 
 // Phase 5 imports
 import { withRateLimit } from '@/lib/ratelimit';
@@ -64,7 +58,6 @@ export async function GET(request: NextRequest) {
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-
 
     const query = validationResult.data as ListDevicesQuery;
 
@@ -208,11 +201,7 @@ export async function GET(request: NextRequest) {
     ]);
 
         // Calculate pagination info
-        const paginationInfo = calculateOffsetPagination(
-          total,
-          pagination.page,
-          pagination.limit
-        );
+        const paginationInfo = calculateOffsetPagination(total, pagination.page, pagination.limit);
 
         return { devices, paginationInfo };
       },
@@ -277,7 +266,6 @@ async function handleCreateDevice(request: NextRequest) {
         { field: 'serial_number', value: deviceData.serial_number }
       );
 
-
     // Check for duplicate ID
     const existingId = await DeviceV2.findById(deviceData._id).lean();
     if (existingId)
@@ -287,7 +275,6 @@ async function handleCreateDevice(request: NextRequest) {
         `Device with ID '${deviceData._id}' already exists`,
         { field: '_id', value: deviceData._id }
       );
-
 
     // Create device with audit metadata
     const deviceDoc: Partial<IDeviceV2> = {
@@ -337,8 +324,5 @@ async function handleCreateDevice(request: NextRequest) {
 
 // Export with middleware: Rate Limiting -> Request Validation -> Handler
 export const POST = withRateLimit(
-  withRequestValidation(
-    handleCreateDevice,
-    ValidationPresets.jsonApi
-  )
+  withRequestValidation(handleCreateDevice, ValidationPresets.jsonApi)
 );

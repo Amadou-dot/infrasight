@@ -4,15 +4,7 @@ import { v2Api } from '@/lib/api/v2-client';
 import { useAnomalies } from '@/lib/query/hooks';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 interface ChartDataPoint {
   time: string;
@@ -24,9 +16,7 @@ interface AnomalyDetectionChartProps {
   hours?: number;
 }
 
-export default function AnomalyDetectionChart({
-  hours = 6,
-}: AnomalyDetectionChartProps) {
+export default function AnomalyDetectionChart({ hours = 6 }: AnomalyDetectionChartProps) {
   // Calculate time range - memoize to prevent infinite re-renders
   // Round to nearest minute to avoid constant changes
   const { startDateISO, endDateISO, startDate } = useMemo(() => {
@@ -43,7 +33,11 @@ export default function AnomalyDetectionChart({
   }, [hours]);
 
   // Fetch anomalies with React Query
-  const { data: anomaliesData, isLoading, error: fetchError } = useAnomalies({
+  const {
+    data: anomaliesData,
+    isLoading,
+    error: fetchError,
+  } = useAnomalies({
     startDate: startDateISO,
     endDate: endDateISO,
     limit: 1000,
@@ -76,23 +70,23 @@ export default function AnomalyDetectionChart({
 
     const anomalies = anomaliesData.anomalies || [];
 
-        // Create hourly buckets using epoch hour as key for reliable matching
-        const hourlyBuckets: Map<number, { time: string; normal: number; anomaly: number }> = new Map();
+    // Create hourly buckets using epoch hour as key for reliable matching
+    const hourlyBuckets: Map<number, { time: string; normal: number; anomaly: number }> = new Map();
 
-        // Initialize buckets for each hour (including current hour)
-        for (let i = 0; i <= hours; i++) {
-          const bucketTime = new Date(startDate.getTime() + i * 60 * 60 * 1000);
-          // Use epoch hour as key (floor to hour)
-          const epochHour = Math.floor(bucketTime.getTime() / (60 * 60 * 1000));
-          const timeLabel = bucketTime.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-          hourlyBuckets.set(epochHour, { time: timeLabel, normal: 0, anomaly: 0 });
-        }
+    // Initialize buckets for each hour (including current hour)
+    for (let i = 0; i <= hours; i++) {
+      const bucketTime = new Date(startDate.getTime() + i * 60 * 60 * 1000);
+      // Use epoch hour as key (floor to hour)
+      const epochHour = Math.floor(bucketTime.getTime() / (60 * 60 * 1000));
+      const timeLabel = bucketTime.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      hourlyBuckets.set(epochHour, { time: timeLabel, normal: 0, anomaly: 0 });
+    }
 
     // Count anomalies per hour
-    anomalies.forEach((a) => {
+    anomalies.forEach(a => {
       const timestamp = new Date(a.timestamp);
       const epochHour = Math.floor(timestamp.getTime() / (60 * 60 * 1000));
 
@@ -106,7 +100,7 @@ export default function AnomalyDetectionChart({
     const bucketCount = hourlyBuckets.size;
     const avgNormalPerHour = Math.floor(totalNormal / bucketCount);
 
-    hourlyBuckets.forEach((bucket) => {
+    hourlyBuckets.forEach(bucket => {
       bucket.normal = avgNormalPerHour;
     });
 
@@ -123,14 +117,12 @@ export default function AnomalyDetectionChart({
     return chartData;
   }, [anomaliesData, totalReadings, hours, startDate]);
 
-  if (isLoading) 
+  if (isLoading)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">
-              Anomaly Detection
-            </h3>
+            <h3 className="text-lg font-semibold text-foreground">Anomaly Detection</h3>
             <p className="text-sm text-muted-foreground">
               Network traffic analysis over last {hours} hours
             </p>
@@ -141,16 +133,13 @@ export default function AnomalyDetectionChart({
         </div>
       </div>
     );
-  
 
-  if (error) 
+  if (error)
     return (
       <div className="bg-card border border-border rounded-xl p-6 h-full">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">
-              Anomaly Detection
-            </h3>
+            <h3 className="text-lg font-semibold text-foreground">Anomaly Detection</h3>
             <p className="text-sm text-muted-foreground">
               Network traffic analysis over last {hours} hours
             </p>
@@ -161,7 +150,6 @@ export default function AnomalyDetectionChart({
         </div>
       </div>
     );
-  
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col">
@@ -186,12 +174,9 @@ export default function AnomalyDetectionChart({
       </div>
 
       {/* Chart */}
-      <div className="h-[250px] w-full">
+      <div className="h-62.5 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={data}
-            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-          >
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis
               dataKey="time"
@@ -199,11 +184,7 @@ export default function AnomalyDetectionChart({
               tickLine={false}
               tick={{ fill: '#a1a1aa', fontSize: 12 }}
             />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#a1a1aa', fontSize: 12 }}
-            />
+            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#a1a1aa', fontSize: 12 }} />
             <Tooltip
               contentStyle={{
                 backgroundColor: 'hsl(var(--card))',
@@ -215,18 +196,8 @@ export default function AnomalyDetectionChart({
               itemStyle={{ color: 'hsl(var(--foreground))' }}
               cursor={{ fill: 'hsl(var(--muted) / 0.3)' }}
             />
-            <Bar
-              dataKey="normal"
-              fill="#06b6d4"
-              radius={[4, 4, 0, 0]}
-              name="Normal"
-            />
-            <Bar
-              dataKey="anomaly"
-              fill="#ef4444"
-              radius={[4, 4, 0, 0]}
-              name="Anomaly"
-            />
+            <Bar dataKey="normal" fill="#06b6d4" radius={[4, 4, 0, 0]} name="Normal" />
+            <Bar dataKey="anomaly" fill="#ef4444" radius={[4, 4, 0, 0]} name="Anomaly" />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -62,10 +62,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Validate query parameters
-    const validationResult = validateQuery(
-      searchParams,
-      anomalyAnalyticsQuerySchema
-    );
+    const validationResult = validateQuery(searchParams, anomalyAnalyticsQuerySchema);
     if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
@@ -94,164 +91,152 @@ export async function GET(request: NextRequest) {
     const response = await getOrSet(
       cacheKey,
       async () => {
-
-    // Extract pagination (analytics endpoints allow higher limits)
-    const pagination = getOffsetPaginationParams(
-      {
-        page: query.page,
-        limit: query.limit,
-      },
-      { maxLimit: MAX_ANALYTICS_PAGE_SIZE }
-    );
-
-    // Build match stage
-    const matchStage: Record<string, unknown> = {
-      'quality.is_anomaly': true,
-    };
-
-    // Device filter
-    if (query.device_id) {
-      const deviceIds = Array.isArray(query.device_id)
-        ? query.device_id
-        : [query.device_id];
-      matchStage['metadata.device_id'] =
-        deviceIds.length === 1 ? deviceIds[0] : { $in: deviceIds };
-    }
-
-    // Type filter
-    if (query.type) {
-      const types = Array.isArray(query.type) ? query.type : [query.type];
-      matchStage['metadata.type'] =
-        types.length === 1 ? types[0] : { $in: types };
-    }
-
-    // Time range filter
-    if (query.startDate || query.endDate) {
-      matchStage.timestamp = {};
-      if (query.startDate)
-        (matchStage.timestamp as Record<string, Date>).$gte = new Date(
-          query.startDate
+        // Extract pagination (analytics endpoints allow higher limits)
+        const pagination = getOffsetPaginationParams(
+          {
+            page: query.page,
+            limit: query.limit,
+          },
+          { maxLimit: MAX_ANALYTICS_PAGE_SIZE }
         );
 
-      if (query.endDate)
-        (matchStage.timestamp as Record<string, Date>).$lte = new Date(
-          query.endDate
-        );
-    }
+        // Build match stage
+        const matchStage: Record<string, unknown> = {
+          'quality.is_anomaly': true,
+        };
 
-    // Minimum anomaly score filter
-    if (query.min_score !== undefined)
-      matchStage['quality.anomaly_score'] = { $gte: query.min_score };
+        // Device filter
+        if (query.device_id) {
+          const deviceIds = Array.isArray(query.device_id) ? query.device_id : [query.device_id];
+          matchStage['metadata.device_id'] =
+            deviceIds.length === 1 ? deviceIds[0] : { $in: deviceIds };
+        }
 
-    // Build sort
-    const sortOrder = query.sortDirection === 'asc' ? 1 : -1;
-    const sortField = query.sortBy || 'timestamp';
-    const sortFieldMap: Record<string, string> = {
-      timestamp: 'timestamp',
-      anomaly_score: 'quality.anomaly_score',
-      value: 'value',
-    };
-    const sort: Record<string, 1 | -1> = {
-      [sortFieldMap[sortField] || sortField]: sortOrder,
-    };
+        // Type filter
+        if (query.type) {
+          const types = Array.isArray(query.type) ? query.type : [query.type];
+          matchStage['metadata.type'] = types.length === 1 ? types[0] : { $in: types };
+        }
 
-    // Get total count and paginated anomalies
-    const [anomalies, total] = await Promise.all([
-      ReadingV2.find(matchStage)
-        .sort(sort)
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .maxTimeMS(5000)
-        .lean(),
-      ReadingV2.countDocuments(matchStage).maxTimeMS(5000),
-    ]);
+        // Time range filter
+        if (query.startDate || query.endDate) {
+          matchStage.timestamp = {};
+          if (query.startDate)
+            (matchStage.timestamp as Record<string, Date>).$gte = new Date(query.startDate);
 
-    // Calculate pagination info
-    const paginationInfo = calculateOffsetPagination(
-      total,
-      pagination.page,
-      pagination.limit
-    );
+          if (query.endDate)
+            (matchStage.timestamp as Record<string, Date>).$lte = new Date(query.endDate);
+        }
 
-    // Get anomaly trends if bucket_granularity is specified
-    let trends = null;
-    if (query.bucket_granularity) {
-      const dateFormat = getDateFormat(query.bucket_granularity);
+        // Minimum anomaly score filter
+        if (query.min_score !== undefined)
+          matchStage['quality.anomaly_score'] = { $gte: query.min_score };
 
-      const trendPipeline = [
-        { $match: matchStage },
-        {
-          $group: {
-            _id: {
-              time_bucket: {
-                $dateToString: { format: dateFormat, date: '$timestamp' },
+        // Build sort
+        const sortOrder = query.sortDirection === 'asc' ? 1 : -1;
+        const sortField = query.sortBy || 'timestamp';
+        const sortFieldMap: Record<string, string> = {
+          timestamp: 'timestamp',
+          anomaly_score: 'quality.anomaly_score',
+          value: 'value',
+        };
+        const sort: Record<string, 1 | -1> = {
+          [sortFieldMap[sortField] || sortField]: sortOrder,
+        };
+
+        // Get total count and paginated anomalies
+        const [anomalies, total] = await Promise.all([
+          ReadingV2.find(matchStage)
+            .sort(sort)
+            .skip(pagination.skip)
+            .limit(pagination.limit)
+            .maxTimeMS(5000)
+            .lean(),
+          ReadingV2.countDocuments(matchStage).maxTimeMS(5000),
+        ]);
+
+        // Calculate pagination info
+        const paginationInfo = calculateOffsetPagination(total, pagination.page, pagination.limit);
+
+        // Get anomaly trends if bucket_granularity is specified
+        let trends = null;
+        if (query.bucket_granularity) {
+          const dateFormat = getDateFormat(query.bucket_granularity);
+
+          const trendPipeline = [
+            { $match: matchStage },
+            {
+              $group: {
+                _id: {
+                  time_bucket: {
+                    $dateToString: { format: dateFormat, date: '$timestamp' },
+                  },
+                },
+                count: { $sum: 1 },
+                avg_score: { $avg: '$quality.anomaly_score' },
+                max_score: { $max: '$quality.anomaly_score' },
               },
             },
-            count: { $sum: 1 },
-            avg_score: { $avg: '$quality.anomaly_score' },
-            max_score: { $max: '$quality.anomaly_score' },
+            {
+              $project: {
+                _id: 0,
+                time_bucket: '$_id.time_bucket',
+                count: 1,
+                avg_score: { $round: ['$avg_score', 3] },
+                max_score: { $round: ['$max_score', 3] },
+              },
+            },
+            { $sort: { time_bucket: 1 as const } },
+          ];
+
+          trends = await ReadingV2.aggregate(trendPipeline).option({ maxTimeMS: 5000 });
+        }
+
+        // Get anomaly breakdown by device
+        const deviceBreakdown = await ReadingV2.aggregate([
+          { $match: matchStage },
+          {
+            $group: {
+              _id: '$metadata.device_id',
+              count: { $sum: 1 },
+              avg_score: { $avg: '$quality.anomaly_score' },
+              latest_timestamp: { $max: '$timestamp' },
+            },
           },
-        },
-        {
-          $project: {
-            _id: 0,
-            time_bucket: '$_id.time_bucket',
-            count: 1,
-            avg_score: { $round: ['$avg_score', 3] },
-            max_score: { $round: ['$max_score', 3] },
+          {
+            $project: {
+              _id: 0,
+              device_id: '$_id',
+              count: 1,
+              avg_score: { $round: ['$avg_score', 3] },
+              latest_timestamp: 1,
+            },
           },
-        },
-        { $sort: { time_bucket: 1 as const } },
-      ];
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ]).option({ maxTimeMS: 5000 });
 
-      trends = await ReadingV2.aggregate(trendPipeline).option({ maxTimeMS: 5000 });
-    }
-
-    // Get anomaly breakdown by device
-    const deviceBreakdown = await ReadingV2.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: '$metadata.device_id',
-          count: { $sum: 1 },
-          avg_score: { $avg: '$quality.anomaly_score' },
-          latest_timestamp: { $max: '$timestamp' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          device_id: '$_id',
-          count: 1,
-          avg_score: { $round: ['$avg_score', 3] },
-          latest_timestamp: 1,
-        },
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
-    ]).option({ maxTimeMS: 5000 });
-
-    // Get anomaly breakdown by type
-    const typeBreakdown = await ReadingV2.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: '$metadata.type',
-          count: { $sum: 1 },
-          avg_score: { $avg: '$quality.anomaly_score' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          type: '$_id',
-          count: 1,
-          avg_score: { $round: ['$avg_score', 3] },
-        },
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
-    ]).option({ maxTimeMS: 5000 });
+        // Get anomaly breakdown by type
+        const typeBreakdown = await ReadingV2.aggregate([
+          { $match: matchStage },
+          {
+            $group: {
+              _id: '$metadata.type',
+              count: { $sum: 1 },
+              avg_score: { $avg: '$quality.anomaly_score' },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              type: '$_id',
+              count: 1,
+              avg_score: { $round: ['$avg_score', 3] },
+            },
+          },
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ]).option({ maxTimeMS: 5000 });
 
         return {
           anomalies,

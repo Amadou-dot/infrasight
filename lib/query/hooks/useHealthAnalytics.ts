@@ -10,7 +10,7 @@ interface UseHealthAnalyticsOptions {
 }
 
 export function useHealthAnalytics(
-  options: UseHealthAnalyticsOptions = {},
+  _options: UseHealthAnalyticsOptions = {},
   config?: QueryConfig<HealthMetrics>
 ) {
   return useQuery({

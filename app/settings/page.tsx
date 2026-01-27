@@ -2,6 +2,7 @@
 
 import { useUser, useClerk } from '@clerk/nextjs';
 import { useTheme } from 'next-themes';
+import Image from 'next/image';
 import {
   User,
   Mail,
@@ -21,7 +22,7 @@ export default function SettingsPage() {
   const { signOut, openUserProfile } = useClerk();
   const { theme, setTheme } = useTheme();
 
-  if (!isLoaded) {
+  if (!isLoaded)
     return (
       <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
@@ -32,11 +33,8 @@ export default function SettingsPage() {
         </div>
       </div>
     );
-  }
 
-  const primaryEmail = user?.emailAddresses.find(
-    (email) => email.id === user.primaryEmailAddressId
-  );
+  const primaryEmail = user?.emailAddresses.find(email => email.id === user.primaryEmailAddressId);
 
   const formatDate = (date: Date | null | undefined) => {
     if (!date) return 'N/A';
@@ -51,12 +49,8 @@ export default function SettingsPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <header>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
-            Settings
-          </h1>
-          <p className="text-muted-foreground">
-            Manage your account settings and preferences
-          </p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">Settings</h1>
+          <p className="text-muted-foreground">Manage your account settings and preferences</p>
         </header>
 
         {/* Profile Section */}
@@ -68,11 +62,13 @@ export default function SettingsPage() {
 
           <div className="flex flex-col sm:flex-row gap-6">
             {/* Avatar */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               {user?.imageUrl ? (
-                <img
+                <Image
                   src={user.imageUrl}
                   alt={user.fullName || 'Profile'}
+                  width={96}
+                  height={96}
                   className="h-24 w-24 rounded-full border-2 border-border"
                 />
               ) : (
@@ -86,9 +82,7 @@ export default function SettingsPage() {
             <div className="flex-1 space-y-4">
               <div>
                 <label className="text-sm text-muted-foreground">Full Name</label>
-                <p className="text-foreground font-medium">
-                  {user?.fullName || 'Not set'}
-                </p>
+                <p className="text-foreground font-medium">{user?.fullName || 'Not set'}</p>
               </div>
 
               <div>

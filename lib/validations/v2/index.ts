@@ -1,6 +1,6 @@
 /**
  * V2 Validation Schemas
- * 
+ *
  * Comprehensive Zod validation schemas for V2 API operations.
  * These schemas are used for:
  * - Request body validation (POST, PATCH)

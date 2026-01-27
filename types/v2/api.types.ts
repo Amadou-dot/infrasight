@@ -106,17 +106,17 @@ export type ErrorCode =
  * HTTP status codes used in the API
  */
 export type HttpStatusCode =
-  | 200  // OK
-  | 201  // Created
-  | 204  // No Content
-  | 400  // Bad Request
-  | 401  // Unauthorized
-  | 403  // Forbidden
-  | 404  // Not Found
-  | 409  // Conflict
-  | 422  // Unprocessable Entity
-  | 429  // Too Many Requests
-  | 500  // Internal Server Error
+  | 200 // OK
+  | 201 // Created
+  | 204 // No Content
+  | 400 // Bad Request
+  | 401 // Unauthorized
+  | 403 // Forbidden
+  | 404 // Not Found
+  | 409 // Conflict
+  | 422 // Unprocessable Entity
+  | 429 // Too Many Requests
+  | 500 // Internal Server Error
   | 503; // Service Unavailable
 
 // ============================================================================
@@ -459,18 +459,14 @@ export interface AuditLogResponse {
 /**
  * Type guard for success responses
  */
-export function isSuccessResponse<T>(
-  response: ApiResponse<T>
-): response is ApiSuccessResponse<T> {
+export function isSuccessResponse<T>(response: ApiResponse<T>): response is ApiSuccessResponse<T> {
   return response.success === true;
 }
 
 /**
  * Type guard for error responses
  */
-export function isErrorResponse<T>(
-  response: ApiResponse<T>
-): response is ApiErrorResponse {
+export function isErrorResponse<T>(response: ApiResponse<T>): response is ApiErrorResponse {
   return response.success === false;
 }
 

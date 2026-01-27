@@ -1,6 +1,6 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { FlatCompat } from '@eslint/eslintrc';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,83 +10,83 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...compat.extends('next/core-web-vitals', 'next/typescript', 'prettier'),
   {
     ignores: [
-      "node_modules/**",
-      ".next/**",
-      "out/**",
-      "build/**",
-      "next-env.d.ts",
+      'node_modules/**',
+      '.next/**',
+      'out/**',
+      'build/**',
+      'next-env.d.ts',
       // Deprecated v1 code - not maintained
-      "**/v1 (deprecated)/**",
-      "**/_v1-deprecated/**",
-      "**/deprecated/**",
+      '**/v1 (deprecated)/**',
+      '**/_v1-deprecated/**',
+      '**/deprecated/**',
     ],
   },
   {
     // Stricter rules for consistent codebase
     rules: {
       // Enforce consistent code style
-      "prefer-const": "error",
-      "no-var": "error",
-      "eqeqeq": ["error", "always", { null: "ignore" }],
-      "curly": ["error", "multi"],
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+      'prefer-const': 'error',
+      'no-var': 'error',
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      curly: ['error', 'multi'],
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
 
       // Prevent common mistakes
-      "no-unused-expressions": "error",
-      "no-duplicate-imports": "error",
-      "no-template-curly-in-string": "warn",
+      'no-unused-expressions': 'error',
+      'no-duplicate-imports': 'error',
+      'no-template-curly-in-string': 'warn',
 
       // TypeScript specific
-      "@typescript-eslint/no-unused-vars": [
-        "error",
+      '@typescript-eslint/no-unused-vars': [
+        'error',
         {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
-      "@typescript-eslint/no-explicit-any": "error",
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
-      "@typescript-eslint/no-import-type-side-effects": "error",
+      '@typescript-eslint/no-import-type-side-effects': 'error',
 
       // Import organization
-      "import/no-anonymous-default-export": "warn",
-      "import/first": "error",
-      "import/newline-after-import": "error",
-      "import/no-duplicates": "error",
+      'import/no-anonymous-default-export': 'warn',
+      'import/first': 'error',
+      'import/newline-after-import': 'error',
+      'import/no-duplicates': 'error',
 
       // React specific
-      "react/self-closing-comp": "error",
-      "react/jsx-boolean-value": ["error", "never"],
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      'react/self-closing-comp': 'error',
+      'react/jsx-boolean-value': ['error', 'never'],
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   {
     // Allow console.log in scripts (CLI tools)
-    files: ["scripts/**/*.ts"],
+    files: ['scripts/**/*.ts'],
     rules: {
-      "no-console": "off",
+      'no-console': 'off',
     },
   },
   {
     // Allow console.log in test setup files
-    files: ["__tests__/setup/**/*.ts"],
+    files: ['__tests__/setup/**/*.ts'],
     rules: {
-      "no-console": "off",
+      'no-console': 'off',
     },
   },
   {
     // Allow console.log in monitoring and logging utilities
-    files: ["lib/monitoring/**/*.ts", "lib/redis/**/*.ts"],
+    files: ['lib/monitoring/**/*.ts', 'lib/redis/**/*.ts'],
     rules: {
-      "no-console": "off",
+      'no-console': 'off',
     },
   },
 ];

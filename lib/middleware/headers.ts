@@ -25,10 +25,7 @@ const MUTATION_METHODS = ['POST', 'PUT', 'PATCH'];
  *
  * @throws ApiError if required headers are missing or invalid
  */
-export function validateHeaders(
-  request: Request,
-  options: HeaderValidationOptions = {}
-): void {
+export function validateHeaders(request: Request, options: HeaderValidationOptions = {}): void {
   const {
     requireContentType = true,
     allowedContentTypes = ['application/json'],
@@ -41,7 +38,7 @@ export function validateHeaders(
   if (requireContentType && MUTATION_METHODS.includes(method)) {
     const contentType = request.headers.get('content-type');
 
-    if (!contentType) 
+    if (!contentType)
       throw new ApiError(
         ErrorCodes.BAD_REQUEST,
         400,
@@ -51,16 +48,15 @@ export function validateHeaders(
           expected: allowedContentTypes.join(' or '),
         }
       );
-    
 
     // Normalize content type (strip charset and other params)
     const normalizedContentType = contentType.split(';')[0].trim().toLowerCase();
 
     const isAllowed = allowedContentTypes.some(
-      (allowed) => normalizedContentType === allowed.toLowerCase()
+      allowed => normalizedContentType === allowed.toLowerCase()
     );
 
-    if (!isAllowed) 
+    if (!isAllowed)
       throw new ApiError(
         ErrorCodes.BAD_REQUEST,
         415, // Unsupported Media Type
@@ -70,20 +66,15 @@ export function validateHeaders(
           expected: allowedContentTypes.join(' or '),
         }
       );
-    
   }
 
   // Check additional required headers
   for (const header of requiredHeaders) {
     const value = request.headers.get(header);
-    if (!value) 
-      throw new ApiError(
-        ErrorCodes.BAD_REQUEST,
-        400,
-        `Missing required header: ${header}`,
-        { header }
-      );
-    
+    if (!value)
+      throw new ApiError(ErrorCodes.BAD_REQUEST, 400, `Missing required header: ${header}`, {
+        header,
+      });
   }
 }
 

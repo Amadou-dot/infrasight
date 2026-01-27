@@ -76,9 +76,7 @@ export function calculateDeviceSeverity(device: DeviceV2Response): SeverityResul
   }
 
   // If already critical, return early
-  if (severity === 'critical') 
-    return { severity, reasons };
-  
+  if (severity === 'critical') return { severity, reasons };
 
   // Warning conditions
   if (device.status === 'maintenance') {
@@ -113,7 +111,7 @@ export function calculateDeviceSeverity(device: DeviceV2Response): SeverityResul
   if (device.health.last_seen) {
     const hoursSinceLastSeen =
       (new Date().getTime() - new Date(device.health.last_seen).getTime()) / (1000 * 60 * 60);
-    
+
     if (hoursSinceLastSeen > 1 && device.status !== 'offline') {
       severity = 'warning';
       const minutes = Math.floor(hoursSinceLastSeen * 60);
@@ -133,12 +131,11 @@ export function calculateDeviceSeverity(device: DeviceV2Response): SeverityResul
   }
 
   // If no issues found, it's healthy
-  if (reasons.length === 0) 
+  if (reasons.length === 0)
     reasons.push({
       code: 'HEALTHY',
       message: 'All systems normal',
     });
-  
 
   return { severity, reasons };
 }
@@ -221,7 +218,7 @@ export function getDaysUntil(date: string | Date): number {
  */
 export function formatRelativeDate(date: string | Date): string {
   const days = getDaysUntil(date);
-  
+
   if (days < 0) {
     const absDays = Math.abs(days);
     if (absDays === 0) return 'today';
@@ -258,7 +255,7 @@ export function categorizeDevicesBySeverity(devices: DeviceV2Response[]): {
   const warning: DeviceV2Response[] = [];
   const healthy: DeviceV2Response[] = [];
 
-  devices.forEach((device) => {
+  devices.forEach(device => {
     const { severity } = calculateDeviceSeverity(device);
     switch (severity) {
       case 'critical':

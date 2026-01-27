@@ -46,12 +46,14 @@ Operational procedures for monitoring, debugging, maintenance, and incident resp
 ### Data Flow
 
 1. **Sensor Data Ingestion**:
+
    ```
    IoT Sensors -> POST /api/v2/readings/ingest -> MongoDB (readings_v2)
                                                -> Pusher (real-time)
    ```
 
 2. **Dashboard Display**:
+
    ```
    Browser -> GET /api/v2/devices -> MongoDB (devices_v2)
            -> Subscribe Pusher -> Live updates
@@ -64,12 +66,12 @@ Operational procedures for monitoring, debugging, maintenance, and incident resp
 
 ### Critical Dependencies
 
-| Service | Purpose | Failure Impact |
-|---------|---------|----------------|
-| MongoDB | Primary data store | Complete system failure |
-| Pusher | Real-time updates | Live updates disabled |
-| Redis | Rate limiting & caching | Rate limiting disabled, slower responses |
-| Sentry | Error tracking | No error visibility |
+| Service | Purpose                 | Failure Impact                           |
+| ------- | ----------------------- | ---------------------------------------- |
+| MongoDB | Primary data store      | Complete system failure                  |
+| Pusher  | Real-time updates       | Live updates disabled                    |
+| Redis   | Rate limiting & caching | Rate limiting disabled, slower responses |
+| Sentry  | Error tracking          | No error visibility                      |
 
 ---
 
@@ -77,39 +79,39 @@ Operational procedures for monitoring, debugging, maintenance, and incident resp
 
 ### Health Check Endpoints
 
-| Endpoint | Purpose | Expected Response |
-|----------|---------|-------------------|
+| Endpoint                       | Purpose               | Expected Response    |
+| ------------------------------ | --------------------- | -------------------- |
 | `GET /api/v2/analytics/health` | Device health metrics | 200 with health data |
-| `GET /api/v2/metadata` | System metadata | 200 with metadata |
+| `GET /api/v2/metadata`         | System metadata       | 200 with metadata    |
 
 ### Key Metrics to Monitor
 
 #### Application Metrics
 
-| Metric | Warning Threshold | Critical Threshold | Action |
-|--------|------------------|-------------------|--------|
-| API Response Time (p95) | > 500ms | > 2000ms | Check database indexes |
-| Error Rate | > 1% | > 5% | Check Sentry for details |
-| Active Device Count | < 90% of expected | < 80% of expected | Check offline devices |
-| Reading Ingestion Rate | < 80% of expected | < 50% of expected | Check sensor connectivity |
-| Memory Usage | > 70% | > 90% | Check for memory leaks |
+| Metric                  | Warning Threshold | Critical Threshold | Action                    |
+| ----------------------- | ----------------- | ------------------ | ------------------------- |
+| API Response Time (p95) | > 500ms           | > 2000ms           | Check database indexes    |
+| Error Rate              | > 1%              | > 5%               | Check Sentry for details  |
+| Active Device Count     | < 90% of expected | < 80% of expected  | Check offline devices     |
+| Reading Ingestion Rate  | < 80% of expected | < 50% of expected  | Check sensor connectivity |
+| Memory Usage            | > 70%             | > 90%              | Check for memory leaks    |
 
 #### Database Metrics
 
-| Metric | Warning Threshold | Critical Threshold | Action |
-|--------|------------------|-------------------|--------|
-| Connection Pool Usage | > 80% | > 95% | Scale connections |
-| Query Execution Time | > 100ms avg | > 500ms avg | Review slow queries |
-| Collection Size | > 80% of capacity | > 95% of capacity | Archive old data |
-| Index Miss Rate | > 10% | > 30% | Add missing indexes |
+| Metric                | Warning Threshold | Critical Threshold | Action              |
+| --------------------- | ----------------- | ------------------ | ------------------- |
+| Connection Pool Usage | > 80%             | > 95%              | Scale connections   |
+| Query Execution Time  | > 100ms avg       | > 500ms avg        | Review slow queries |
+| Collection Size       | > 80% of capacity | > 95% of capacity  | Archive old data    |
+| Index Miss Rate       | > 10%             | > 30%              | Add missing indexes |
 
 #### Real-time Metrics
 
-| Metric | Warning Threshold | Critical Threshold | Action |
-|--------|------------------|-------------------|--------|
-| Pusher Connection Count | > 80% of limit | > 95% of limit | Scale Pusher plan |
-| Message Rate | > 80% of limit | > 95% of limit | Throttle broadcasts |
-| Connection Errors | > 1/min | > 10/min | Check Pusher status |
+| Metric                  | Warning Threshold | Critical Threshold | Action              |
+| ----------------------- | ----------------- | ------------------ | ------------------- |
+| Pusher Connection Count | > 80% of limit    | > 95% of limit     | Scale Pusher plan   |
+| Message Rate            | > 80% of limit    | > 95% of limit     | Throttle broadcasts |
+| Connection Errors       | > 1/min           | > 10/min           | Check Pusher status |
 
 ### Health Check Script
 
@@ -196,12 +198,12 @@ mongosh --eval "
 
 **Resolution**:
 
-| Finding | Resolution |
-|---------|------------|
-| `audit.deleted_at` exists | Device was soft-deleted. Restore if needed. |
-| No recent readings | Check sensor connectivity and ingestion endpoint. |
-| `last_seen` is recent | Device is reporting; check Pusher subscription. |
-| Status is "error" | Check `health.last_error` for details. |
+| Finding                   | Resolution                                        |
+| ------------------------- | ------------------------------------------------- |
+| `audit.deleted_at` exists | Device was soft-deleted. Restore if needed.       |
+| No recent readings        | Check sensor connectivity and ingestion endpoint. |
+| `last_seen` is recent     | Device is reporting; check Pusher subscription.   |
+| Status is "error"         | Check `health.last_error` for details.            |
 
 ### High Error Rates
 
@@ -225,12 +227,12 @@ mongosh --eval "db.serverStatus().connections"
 
 **Common Causes and Resolutions**:
 
-| Error Pattern | Cause | Resolution |
-|--------------|-------|------------|
-| `VALIDATION_ERROR` | Invalid API requests | Check client-side validation |
-| `DATABASE_ERROR` | MongoDB issues | Check connection, indexes |
-| `CONNECTION_ERROR` | Network issues | Verify network, DNS |
-| `RATE_LIMIT_EXCEEDED` | Too many requests | Adjust rate limits or scale |
+| Error Pattern         | Cause                | Resolution                   |
+| --------------------- | -------------------- | ---------------------------- |
+| `VALIDATION_ERROR`    | Invalid API requests | Check client-side validation |
+| `DATABASE_ERROR`      | MongoDB issues       | Check connection, indexes    |
+| `CONNECTION_ERROR`    | Network issues       | Verify network, DNS          |
+| `RATE_LIMIT_EXCEEDED` | Too many requests    | Adjust rate limits or scale  |
 
 ### Performance Issues
 
@@ -266,12 +268,12 @@ mongosh --eval "
 
 **Resolution**:
 
-| Finding | Resolution |
-|---------|------------|
-| Full collection scan | Add appropriate index |
-| Large result sets | Add pagination, limit results |
-| Index not used | Restructure query to use index |
-| Large documents | Consider field projection |
+| Finding              | Resolution                     |
+| -------------------- | ------------------------------ |
+| Full collection scan | Add appropriate index          |
+| Large result sets    | Add pagination, limit results  |
+| Index not used       | Restructure query to use index |
+| Large documents      | Consider field projection      |
 
 ### Real-time Not Working
 
@@ -280,12 +282,16 @@ mongosh --eval "
 **Debugging Steps**:
 
 1. **Check browser console**:
+
    ```javascript
    // Look for Pusher connection status
-   Pusher.log = function(msg) { console.log(msg); };
+   Pusher.log = function (msg) {
+     console.log(msg);
+   };
    ```
 
 2. **Verify Pusher credentials**:
+
    ```bash
    echo "NEXT_PUBLIC_PUSHER_KEY: $NEXT_PUBLIC_PUSHER_KEY"
    echo "NEXT_PUBLIC_PUSHER_CLUSTER: $NEXT_PUBLIC_PUSHER_CLUSTER"
@@ -301,12 +307,12 @@ mongosh --eval "
 
 **Resolution**:
 
-| Finding | Resolution |
-|---------|------------|
-| Connection refused | Check Pusher credentials |
-| Events not received | Verify channel and event names |
-| CORS errors | Check Pusher cluster configuration |
-| Rate limited | Scale Pusher plan |
+| Finding             | Resolution                         |
+| ------------------- | ---------------------------------- |
+| Connection refused  | Check Pusher credentials           |
+| Events not received | Verify channel and event names     |
+| CORS errors         | Check Pusher cluster configuration |
+| Rate limited        | Scale Pusher plan                  |
 
 ---
 
@@ -430,12 +436,12 @@ Configure log rotation for production:
 
 ### Severity Levels
 
-| Level | Description | Response Time | Examples |
-|-------|-------------|---------------|----------|
-| P0 (Critical) | System down, data loss | < 15 minutes | Database unreachable, data corruption |
-| P1 (High) | Major feature broken | < 1 hour | Real-time updates not working |
-| P2 (Medium) | Minor feature broken | < 4 hours | Specific API endpoint failing |
-| P3 (Low) | Cosmetic issues | < 24 hours | UI display issues |
+| Level         | Description            | Response Time | Examples                              |
+| ------------- | ---------------------- | ------------- | ------------------------------------- |
+| P0 (Critical) | System down, data loss | < 15 minutes  | Database unreachable, data corruption |
+| P1 (High)     | Major feature broken   | < 1 hour      | Real-time updates not working         |
+| P2 (Medium)   | Minor feature broken   | < 4 hours     | Specific API endpoint failing         |
+| P3 (Low)      | Cosmetic issues        | < 24 hours    | UI display issues                     |
 
 ### Incident Response Workflow
 
@@ -588,12 +594,14 @@ pnpm create-indexes-v2
 ### Scheduled Maintenance Window
 
 **Pre-Maintenance Checklist**:
+
 - [ ] Notify users of maintenance window
 - [ ] Create database backup
 - [ ] Verify rollback procedure
 - [ ] Have support team on standby
 
 **Post-Maintenance Checklist**:
+
 - [ ] Verify all services are running
 - [ ] Check health endpoints
 - [ ] Verify real-time updates
@@ -656,6 +664,7 @@ pnpm build
    - [npm Security](https://www.npmjs.com/advisories)
 
 2. Run security audit:
+
    ```bash
    pnpm audit
    ```
@@ -671,14 +680,14 @@ pnpm build
 
 ### Quick Reference
 
-| Symptom | First Check | Second Check | Resolution |
-|---------|-------------|--------------|------------|
-| 500 errors | Sentry issues | MongoDB status | Review logs, check connections |
-| Slow responses | MongoDB slow queries | Index usage | Add indexes, optimize queries |
-| No real-time | Browser console | Pusher debug | Verify credentials, channel names |
-| Devices offline | `last_seen` timestamp | Ingestion endpoint | Check sensor connectivity |
-| High memory | Application logs | Heap usage | Check for memory leaks |
-| Rate limited | Rate limit logs | Redis status | Adjust limits or scale |
+| Symptom         | First Check           | Second Check       | Resolution                        |
+| --------------- | --------------------- | ------------------ | --------------------------------- |
+| 500 errors      | Sentry issues         | MongoDB status     | Review logs, check connections    |
+| Slow responses  | MongoDB slow queries  | Index usage        | Add indexes, optimize queries     |
+| No real-time    | Browser console       | Pusher debug       | Verify credentials, channel names |
+| Devices offline | `last_seen` timestamp | Ingestion endpoint | Check sensor connectivity         |
+| High memory     | Application logs      | Heap usage         | Check for memory leaks            |
+| Rate limited    | Rate limit logs       | Redis status       | Adjust limits or scale            |
 
 ### MongoDB Troubleshooting
 
@@ -748,13 +757,13 @@ nslookup <hostname>
 
 ## Emergency Contacts
 
-| Role | Contact | Escalation |
-|------|---------|------------|
-| Primary On-Call | [Name] | [Phone/Slack] |
-| Secondary On-Call | [Name] | [Phone/Slack] |
-| Database Admin | [Name] | [Phone/Slack] |
-| Infrastructure Lead | [Name] | [Phone/Slack] |
-| Engineering Manager | [Name] | [Phone/Slack] |
+| Role                | Contact | Escalation    |
+| ------------------- | ------- | ------------- |
+| Primary On-Call     | [Name]  | [Phone/Slack] |
+| Secondary On-Call   | [Name]  | [Phone/Slack] |
+| Database Admin      | [Name]  | [Phone/Slack] |
+| Infrastructure Lead | [Name]  | [Phone/Slack] |
+| Engineering Manager | [Name]  | [Phone/Slack] |
 
 ---
 
@@ -791,4 +800,4 @@ free -m
 
 ---
 
-*Last Updated: 2026-01-05*
+_Last Updated: 2026-01-05_

@@ -23,22 +23,19 @@ export default function AuditLogViewer({
 }: AuditLogViewerProps) {
   const [filter, setFilter] = useState<'all' | 'created' | 'updated' | 'deleted'>('all');
 
-  const filteredEntries = entries.filter((entry) => {
+  const filteredEntries = entries.filter(entry => {
     if (filter === 'all') return true;
     return entry.action.toLowerCase().includes(filter);
   });
 
   const getActionBadge = (action: string) => {
     const lowerAction = action.toLowerCase();
-    if (lowerAction.includes('create')) 
-      return <Badge className="bg-green-500">Created</Badge>;
-    
-    if (lowerAction.includes('update')) 
-      return <Badge className="bg-blue-500">Updated</Badge>;
-    
-    if (lowerAction.includes('delete')) 
-      return <Badge variant="destructive">Deleted</Badge>;
-    
+    if (lowerAction.includes('create')) return <Badge className="bg-green-500">Created</Badge>;
+
+    if (lowerAction.includes('update')) return <Badge className="bg-blue-500">Updated</Badge>;
+
+    if (lowerAction.includes('delete')) return <Badge variant="destructive">Deleted</Badge>;
+
     return <Badge variant="secondary">{action}</Badge>;
   };
 
@@ -53,13 +50,12 @@ export default function AuditLogViewer({
     });
   };
 
-  if (loading) 
+  if (loading)
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     );
-  
 
   return (
     <div className="space-y-4">
@@ -120,9 +116,7 @@ export default function AuditLogViewer({
               className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700"
             >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex-1">
-                  {getActionBadge(entry.action)}
-                </div>
+                <div className="flex-1">{getActionBadge(entry.action)}</div>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {formatTimestamp(entry.timestamp)}
                 </span>
@@ -131,9 +125,7 @@ export default function AuditLogViewer({
               <div className="space-y-1">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   By:{' '}
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    {entry.user}
-                  </span>
+                  <span className="font-medium text-gray-900 dark:text-white">{entry.user}</span>
                 </p>
 
                 {entry.changes && Object.keys(entry.changes).length > 0 && (

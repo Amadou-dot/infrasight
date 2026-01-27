@@ -11,13 +11,9 @@ const isE2ETestingMode = process.env.E2E_TESTING === 'true';
 
 export default clerkMiddleware(async (auth, request) => {
   // Skip auth protection in E2E testing mode
-  if (isE2ETestingMode) {
-    return;
-  }
+  if (isE2ETestingMode) return;
 
-  if (!isPublicRoute(request)) {
-    await auth.protect();
-  }
+  if (!isPublicRoute(request)) await auth.protect();
 });
 
 export const config = {

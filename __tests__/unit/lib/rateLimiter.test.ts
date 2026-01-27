@@ -9,7 +9,6 @@ import {
   checkMultipleRateLimits,
   resetRateLimit,
   getRateLimitStatus,
-  type RateLimitResult,
 } from '@/lib/ratelimit/limiter';
 import type { RateLimitConfig } from '@/lib/ratelimit/config';
 import * as redisModule from '@/lib/redis/client';
@@ -245,7 +244,8 @@ describe('Rate Limiter', () => {
         zcard: jest.fn().mockReturnThis(),
         zadd: jest.fn().mockReturnThis(),
         expire: jest.fn().mockReturnThis(),
-        exec: jest.fn()
+        exec: jest
+          .fn()
           .mockResolvedValueOnce([
             [null, 0],
             [null, 5], // First limit: 5 requests (allowed)
@@ -280,7 +280,8 @@ describe('Rate Limiter', () => {
         zcard: jest.fn().mockReturnThis(),
         zadd: jest.fn().mockReturnThis(),
         expire: jest.fn().mockReturnThis(),
-        exec: jest.fn()
+        exec: jest
+          .fn()
           .mockResolvedValueOnce([
             [null, 0],
             [null, 5], // 5/100 = 5% usage

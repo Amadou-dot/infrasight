@@ -128,14 +128,13 @@ async function handleIngest(request: NextRequest) {
     const data = validationResult.data as BulkIngestReadingsInput;
 
     // Enforce max readings limit
-    if (data.readings.length > MAX_READINGS_PER_REQUEST) 
+    if (data.readings.length > MAX_READINGS_PER_REQUEST)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         `Cannot ingest more than ${MAX_READINGS_PER_REQUEST} readings in a single request`,
         { received: String(data.readings.length), max: String(MAX_READINGS_PER_REQUEST) }
       );
-    
 
     // Check idempotency (simple in-memory check - in production use Redis)
     // For now, we'll skip idempotency check implementation
@@ -146,7 +145,7 @@ async function handleIngest(request: NextRequest) {
       { _id: { $in: deviceIds }, 'audit.deleted_at': { $exists: false } },
       { _id: 1 }
     ).lean();
-    
+
     const existingDeviceIds = new Set(existingDevices.map(d => d._id));
     const missingDevices = deviceIds.filter(id => !existingDeviceIds.has(id));
 
@@ -159,10 +158,10 @@ async function handleIngest(request: NextRequest) {
 
     // Process readings and collect errors for missing devices
     const validReadings: Partial<IReadingV2>[] = [];
-    
+
     for (let i = 0; i < data.readings.length; i++) {
       const item = data.readings[i];
-      
+
       // Check if device exists
       if (missingDevices.includes(item.device_id)) {
         results.rejected++;
@@ -189,14 +188,14 @@ async function handleIngest(request: NextRequest) {
     }
 
     // Batch insert valid readings
-    if (validReadings.length > 0) 
+    if (validReadings.length > 0)
       // Process in batches to avoid overwhelming the database
       for (let i = 0; i < validReadings.length; i += BATCH_SIZE) {
         const batch = validReadings.slice(i, i + BATCH_SIZE);
-        
+
         try {
-          const insertResult = await ReadingV2.insertMany(batch, { 
-            ordered: false // Continue on error
+          const insertResult = await ReadingV2.insertMany(batch, {
+            ordered: false, // Continue on error
           });
           const successfulInsertsInBatch = insertResult.length;
           results.inserted += successfulInsertsInBatch;
@@ -217,7 +216,7 @@ async function handleIngest(request: NextRequest) {
             successfulInsertsInBatch = bulkError.insertedDocs?.length || 0;
             results.inserted += successfulInsertsInBatch;
           }
-          
+
           // Count failures
           const batchFailures = batch.length - successfulInsertsInBatch;
           if (batchFailures > 0) {
@@ -230,7 +229,6 @@ async function handleIngest(request: NextRequest) {
           }
         }
       }
-    
 
     // Update device health.last_seen for all ingested devices
     if (results.inserted > 0) {

@@ -17,15 +17,12 @@ interface RedisCache {
 }
 
 declare global {
-   
   var redis: RedisCache | undefined;
 }
 
 let cached = global.redis;
 
-if (!cached) 
-  cached = global.redis = { client: null, isConnected: false, connectionPromise: null };
-
+if (!cached) cached = global.redis = { client: null, isConnected: false, connectionPromise: null };
 
 /**
  * Get or create Redis client singleton
@@ -34,25 +31,20 @@ if (!cached)
 export function getRedisClient(): Redis | null {
   const redisUrl = process.env.REDIS_URL;
 
-  if (!redisUrl) 
+  if (!redisUrl)
     // Silent in production - logged once at startup
     return null;
-  
 
-  if (cached!.client && cached!.isConnected) 
-    return cached!.client;
-  
+  if (cached!.client && cached!.isConnected) return cached!.client;
 
   // Return existing client even if reconnecting
-  if (cached!.client) 
-    return cached!.client;
-  
+  if (cached!.client) return cached!.client;
 
   try {
     // Upstash-compatible configuration
     const client = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
-      retryStrategy: (times) => {
+      retryStrategy: times => {
         if (times > 3) {
           console.error('[Redis] Max reconnection attempts reached');
           return null; // Stop retrying
@@ -62,9 +54,10 @@ export function getRedisClient(): Redis | null {
       enableReadyCheck: true,
       lazyConnect: true,
       // TLS configuration for Upstash
-      tls: process.env.REDIS_TLS === 'true' || redisUrl.startsWith('rediss://')
-        ? { rejectUnauthorized: false }
-        : undefined,
+      tls:
+        process.env.REDIS_TLS === 'true' || redisUrl.startsWith('rediss://')
+          ? { rejectUnauthorized: false }
+          : undefined,
       // Connection timeouts
       connectTimeout: 10000,
       commandTimeout: 5000,
@@ -79,11 +72,10 @@ export function getRedisClient(): Redis | null {
       cached!.isConnected = true;
     });
 
-    client.on('error', (error) => {
+    client.on('error', error => {
       // Only log non-connection errors or first connection error
-      if (!error.message.includes('ECONNREFUSED')) 
-        console.error('[Redis] Error:', error.message);
-      
+      if (!error.message.includes('ECONNREFUSED')) console.error('[Redis] Error:', error.message);
+
       cached!.isConnected = false;
     });
 
@@ -98,7 +90,7 @@ export function getRedisClient(): Redis | null {
     cached!.client = client;
 
     // Initiate connection (non-blocking)
-    cached!.connectionPromise = client.connect().catch((error) => {
+    cached!.connectionPromise = client.connect().catch(error => {
       console.warn('[Redis] Initial connection failed:', error.message);
       cached!.isConnected = false;
     });
@@ -128,16 +120,14 @@ export async function waitForRedis(timeoutMs = 5000): Promise<boolean> {
   if (cached!.isConnected) return true;
 
   // Wait for connection with timeout
-  const timeout = new Promise<boolean>((resolve) => {
+  const timeout = new Promise<boolean>(resolve => {
     setTimeout(() => resolve(false), timeoutMs);
   });
 
-  const connected = new Promise<boolean>((resolve) => {
-    if (cached!.connectionPromise) 
+  const connected = new Promise<boolean>(resolve => {
+    if (cached!.connectionPromise)
       cached!.connectionPromise.then(() => resolve(cached!.isConnected));
-     else 
-      resolve(false);
-    
+    else resolve(false);
   });
 
   return Promise.race([connected, timeout]);
@@ -169,9 +159,7 @@ export async function safeRedisCommand<T>(
   command: (client: Redis) => Promise<T>
 ): Promise<T | null> {
   const client = getRedisClient();
-  if (!client || !isRedisAvailable()) 
-    return null;
-  
+  if (!client || !isRedisAvailable()) return null;
 
   try {
     return await command(client);

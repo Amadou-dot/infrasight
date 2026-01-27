@@ -7,6 +7,20 @@
 import type { IDeviceV2, DeviceType, DeviceStatus } from '@/models/v2/DeviceV2';
 
 // ============================================================================
+// READING V2 FACTORIES (Matches ReadingV2 Model)
+// ============================================================================
+
+import type {
+  ReadingType as ReadingTypeV2,
+  ReadingUnit,
+  ReadingSource as ReadingSourceV2,
+  IReadingMetadata,
+  IReadingQuality,
+  IReadingContext,
+  IReadingProcessing,
+} from '@/models/v2/ReadingV2';
+
+// ============================================================================
 // DEVICE FACTORIES
 // ============================================================================
 
@@ -15,7 +29,7 @@ import type { IDeviceV2, DeviceType, DeviceStatus } from '@/models/v2/DeviceV2';
  */
 let deviceCounter = 0;
 let _readingCounter = 0;
-let readingV2Counter = 0;
+const _readingV2Counter = 0;
 
 /**
  * Reset counters (for test isolation)
@@ -106,9 +120,7 @@ export interface DeviceInput extends Omit<IDeviceV2, 'audit' | 'health'> {
 /**
  * Create a valid device input for testing (matches DeviceV2 model structure)
  */
-export function createDeviceInput(
-  overrides: Partial<DeviceInput> = {}
-): DeviceInput {
+export function createDeviceInput(overrides: Partial<DeviceInput> = {}): DeviceInput {
   deviceCounter += 1;
   const id = `device_test_${Date.now()}_${deviceCounter}`;
 
@@ -270,14 +282,13 @@ export function createReadingInputs(
   const readings: ReadingInput[] = [];
   const baseTime = Date.now();
 
-  for (let i = 0; i < count; i++) 
+  for (let i = 0; i < count; i++)
     readings.push(
       createReadingInput(deviceId, {
         ...overrides,
         timestamp: new Date(baseTime - i * 60000).toISOString(), // 1 minute apart
       })
     );
-  
 
   return readings;
 }
@@ -339,9 +350,7 @@ export function createTimeSeriesReadings(
 /**
  * Create bulk ingest payload
  */
-export function createBulkIngestPayload(
-  readings: ReadingInput[]
-): { readings: ReadingInput[] } {
+export function createBulkIngestPayload(readings: ReadingInput[]): { readings: ReadingInput[] } {
   return { readings };
 }
 
@@ -354,9 +363,8 @@ export function createMultiDeviceReadings(
 ): ReadingInput[] {
   const allReadings: ReadingInput[] = [];
 
-  for (const deviceId of deviceIds) 
+  for (const deviceId of deviceIds)
     allReadings.push(...createReadingInputs(deviceId, readingsPerDevice));
-  
 
   return allReadings;
 }
@@ -375,11 +383,9 @@ export const INVALID_DEVICE_INPUTS = {
     return rest;
   },
 
-  emptySerialNumber: (): DeviceInput =>
-    createDeviceInput({ serial_number: '' }),
+  emptySerialNumber: (): DeviceInput => createDeviceInput({ serial_number: '' }),
 
-  invalidType: (): DeviceInput =>
-    createDeviceInput({ type: 'invalid_type' as DeviceType }),
+  invalidType: (): DeviceInput => createDeviceInput({ type: 'invalid_type' as DeviceType }),
 
   missingLocation: (): Partial<DeviceInput> => {
     const input = createDeviceInput();
@@ -424,27 +430,11 @@ export const INVALID_READING_INPUTS = {
       timestamp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     }),
 
-  invalidValue: (): ReadingInput =>
-    createReadingInput('device_001', { value: NaN }),
+  invalidValue: (): ReadingInput => createReadingInput('device_001', { value: NaN }),
 
   invalidSource: (): ReadingInput =>
     createReadingInput('device_001', { source: 'invalid' as ReadingSource }),
 };
-
-// ============================================================================
-// READING V2 FACTORIES (Matches ReadingV2 Model)
-// ============================================================================
-
-import type {
-  IReadingV2,
-  ReadingType as ReadingTypeV2,
-  ReadingUnit,
-  ReadingSource as ReadingSourceV2,
-  IReadingMetadata,
-  IReadingQuality,
-  IReadingContext,
-  IReadingProcessing,
-} from '@/models/v2/ReadingV2';
 
 /**
  * Valid reading types for V2 testing (matches ReadingV2 model)
@@ -567,7 +557,7 @@ export function createReadingV2Inputs(
   const readings: ReadingV2Input[] = [];
   const baseTime = Date.now();
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < count; i++)
     readings.push(
       createReadingV2Input(deviceId, {
         ...overrides,
@@ -575,7 +565,6 @@ export function createReadingV2Inputs(
         value: overrides.value ?? 22 + i * 0.5,
       })
     );
-  }
 
   return readings;
 }
@@ -676,7 +665,7 @@ export function createBulkIngestPayloadV2(deviceId: string, count: number = 10) 
   const readings = [];
   const baseTime = Date.now();
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < count; i++)
     readings.push({
       device_id: deviceId,
       type: 'temperature' as const,
@@ -685,8 +674,6 @@ export function createBulkIngestPayloadV2(deviceId: string, count: number = 10) 
       timestamp: new Date(baseTime - i * 60000),
       value: 22 + Math.random() * 5,
     });
-  }
 
   return { readings };
 }
-

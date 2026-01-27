@@ -24,13 +24,9 @@ export function isSentryConfigured(): boolean {
 export async function initSentry(): Promise<boolean> {
   const dsn = process.env.SENTRY_DSN;
 
-  if (!dsn) 
-    return false;
-  
+  if (!dsn) return false;
 
-  if (sentryInitialized) 
-    return true;
-  
+  if (sentryInitialized) return true;
 
   try {
     // Dynamic import for optional Sentry dependency
@@ -46,13 +42,11 @@ export async function initSentry(): Promise<boolean> {
       // Filter out known operational errors
       beforeSend(event) {
         // Don't send rate limit errors to Sentry (expected behavior)
-        if (event.exception?.values?.[0]?.value?.includes('RATE_LIMIT')) 
-          return null;
-        
+        if (event.exception?.values?.[0]?.value?.includes('RATE_LIMIT')) return null;
+
         // Don't send validation errors (user input issues)
-        if (event.exception?.values?.[0]?.value?.includes('VALIDATION_ERROR')) 
-          return null;
-        
+        if (event.exception?.values?.[0]?.value?.includes('VALIDATION_ERROR')) return null;
+
         return event;
       },
     });
@@ -73,9 +67,7 @@ export function captureException(
   error: Error,
   context?: Record<string, unknown>
 ): string | undefined {
-  if (!Sentry || !sentryInitialized) 
-    return undefined;
-  
+  if (!Sentry || !sentryInitialized) return undefined;
 
   return Sentry.captureException(error, {
     extra: context,
@@ -90,9 +82,7 @@ export function captureMessage(
   level: 'info' | 'warning' | 'error' = 'info',
   context?: Record<string, unknown>
 ): string | undefined {
-  if (!Sentry || !sentryInitialized) 
-    return undefined;
-  
+  if (!Sentry || !sentryInitialized) return undefined;
 
   return Sentry.captureMessage(message, {
     level,
@@ -109,9 +99,7 @@ export function addBreadcrumb(
   data?: Record<string, unknown>,
   level: 'debug' | 'info' | 'warning' | 'error' = 'info'
 ): void {
-  if (!Sentry || !sentryInitialized) 
-    return;
-  
+  if (!Sentry || !sentryInitialized) return;
 
   Sentry.addBreadcrumb({
     message,
@@ -124,15 +112,15 @@ export function addBreadcrumb(
 /**
  * Set user context for error tracking
  */
-export function setUser(user: {
-  id?: string;
-  email?: string;
-  username?: string;
-  [key: string]: unknown;
-} | null): void {
-  if (!Sentry || !sentryInitialized) 
-    return;
-  
+export function setUser(
+  user: {
+    id?: string;
+    email?: string;
+    username?: string;
+    [key: string]: unknown;
+  } | null
+): void {
+  if (!Sentry || !sentryInitialized) return;
 
   Sentry.setUser(user);
 }
@@ -141,9 +129,7 @@ export function setUser(user: {
  * Set additional context tags
  */
 export function setTag(key: string, value: string): void {
-  if (!Sentry || !sentryInitialized) 
-    return;
-  
+  if (!Sentry || !sentryInitialized) return;
 
   Sentry.setTag(key, value);
 }
@@ -152,9 +138,7 @@ export function setTag(key: string, value: string): void {
  * Set extra context data
  */
 export function setExtra(key: string, value: unknown): void {
-  if (!Sentry || !sentryInitialized) 
-    return;
-  
+  if (!Sentry || !sentryInitialized) return;
 
   Sentry.setExtra(key, value);
 }
@@ -162,13 +146,8 @@ export function setExtra(key: string, value: unknown): void {
 /**
  * Start a new transaction for performance monitoring
  */
-export function startTransaction(
-  name: string,
-  op: string
-): { finish: () => void } | undefined {
-  if (!Sentry || !sentryInitialized) 
-    return undefined;
-  
+export function startTransaction(name: string, op: string): { finish: () => void } | undefined {
+  if (!Sentry || !sentryInitialized) return undefined;
 
   const transaction = Sentry.startInactiveSpan({
     name,

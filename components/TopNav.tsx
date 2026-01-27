@@ -2,15 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard,
-  Monitor,
-  Wrench,
-  BarChart3,
-  Map,
-  Menu,
-  X
-} from 'lucide-react';
+import { LayoutDashboard, Monitor, Wrench, BarChart3, Map, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { Logo } from '@/components/logo';
 import { cn } from '@/lib/utils';
@@ -38,15 +30,13 @@ export default function TopNav() {
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2">
               <Logo className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground hidden sm:block">
-                Infrasight
-              </span>
+              <span className="text-xl font-bold text-foreground hidden sm:block">Infrasight</span>
             </Link>
           </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => {
+            {navItems.map(item => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
               return (
@@ -74,7 +64,9 @@ export default function TopNav() {
             </SignedIn>
             <SignedOut>
               <SignInButton mode="modal">
-                <Button variant="outline" size="sm">Sign In</Button>
+                <Button variant="outline" size="sm">
+                  Sign In
+                </Button>
               </SignInButton>
             </SignedOut>
 
@@ -85,11 +77,7 @@ export default function TopNav() {
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               <span className="sr-only">Open main menu</span>
-              {mobileMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
@@ -98,7 +86,7 @@ export default function TopNav() {
         {mobileMenuOpen && (
           <div className="md:hidden pb-4 border-t border-border mt-2 pt-4">
             <div className="flex flex-col gap-1">
-              {navItems.map((item) => {
+              {navItems.map(item => {
                 const isActive = pathname === item.href;
                 const Icon = item.icon;
                 return (

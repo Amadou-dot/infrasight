@@ -60,7 +60,7 @@ export interface ValidationOptions {
  * Converts Zod errors to structured ValidationError array
  */
 export function formatZodErrors(error: ZodError): ValidationError[] {
-  return error.issues.map((issue) => {
+  return error.issues.map(issue => {
     const path = issue.path.join('.');
 
     const validationError: ValidationError = {
@@ -72,22 +72,15 @@ export function formatZodErrors(error: ZodError): ValidationError[] {
     // Add expected/received for specific error types
     if (issue.code === 'invalid_type') {
       validationError.expected = issue.expected;
-      validationError.received = typeof issue.input === 'string' 
-        ? issue.input 
-        : String(issue.input);
+      validationError.received =
+        typeof issue.input === 'string' ? issue.input : String(issue.input);
     } else if (issue.code === 'invalid_value') {
-      if ('values' in issue) 
-        validationError.expected = (issue.values as string[])?.join(', ');
-      
-      if ('input' in issue) 
-        validationError.received = String(issue.input);
-      
-    } else if (issue.code === 'too_small' || issue.code === 'too_big') 
+      if ('values' in issue) validationError.expected = (issue.values as string[])?.join(', ');
+
+      if ('input' in issue) validationError.received = String(issue.input);
+    } else if (issue.code === 'too_small' || issue.code === 'too_big')
       validationError.expected =
-        issue.code === 'too_small'
-          ? `at least ${issue.minimum}`
-          : `at most ${issue.maximum}`;
-    
+        issue.code === 'too_small' ? `at least ${issue.minimum}` : `at most ${issue.maximum}`;
 
     return validationError;
   });
@@ -96,13 +89,8 @@ export function formatZodErrors(error: ZodError): ValidationError[] {
 /**
  * Creates a human-readable error message from validation errors
  */
-export function formatErrorMessage(
-  errors: ValidationError[],
-  context?: string
-): string {
-  if (errors.length === 0) 
-    return 'Validation failed';
-  
+export function formatErrorMessage(errors: ValidationError[], context?: string): string {
+  if (errors.length === 0) return 'Validation failed';
 
   if (errors.length === 1) {
     const error = errors[0];
@@ -115,7 +103,7 @@ export function formatErrorMessage(
   const prefix = context ? `${context} ` : '';
   const messages = errors
     .slice(0, 3)
-    .map((e) => (e.path && e.path !== 'root' ? `${e.path}: ${e.message}` : e.message));
+    .map(e => (e.path && e.path !== 'root' ? `${e.path}: ${e.message}` : e.message));
 
   const remaining = errors.length - 3;
   const suffix = remaining > 0 ? ` (and ${remaining} more)` : '';
@@ -131,7 +119,7 @@ function createErrorMetadata(errors: ValidationError[]): ApiErrorMetadata {
 
   return {
     field: firstError?.path !== 'root' ? firstError?.path : undefined,
-    errors: errors.map((e) => ({
+    errors: errors.map(e => ({
       path: e.path,
       message: e.message,
       code: e.code,
@@ -170,25 +158,21 @@ export function validateInput<T>(
   try {
     // Sanitize input if requested
     let processedData = data;
-    if (sanitize && typeof data === 'object' && data !== null) 
+    if (sanitize && typeof data === 'object' && data !== null)
       processedData = sanitizeInput(data as Record<string, unknown>, {
         removeMongoOperators: true,
         sanitizeStrings: true,
       });
-    
 
     // Apply strip unknown if requested
     let effectiveSchema = schema;
-    if (stripUnknown && schema instanceof z.ZodObject) 
+    if (stripUnknown && schema instanceof z.ZodObject)
       effectiveSchema = schema.strip() as unknown as ZodSchema<T>;
-    
 
     // Parse with Zod
     const result = effectiveSchema.safeParse(processedData);
 
-    if (result.success) 
-      return { success: true, data: result.data };
-    
+    if (result.success) return { success: true, data: result.data };
 
     return {
       success: false,
@@ -225,14 +209,13 @@ export function validateOrThrow<T>(
 ): T {
   const result = validateInput(data, schema, options);
 
-  if (!result.success) 
+  if (!result.success)
     throw new ApiError(
       ErrorCodes.VALIDATION_ERROR,
       400,
       formatErrorMessage(result.errors, options.context),
       createErrorMetadata(result.errors)
     );
-  
 
   return result.data;
 }
@@ -258,32 +241,25 @@ export function validateQuery<T>(
 ): ValidationResult<T> {
   // Extract URLSearchParams
   let searchParams: URLSearchParams;
-  if (urlOrSearchParams instanceof URLSearchParams) 
-    searchParams = urlOrSearchParams;
-   else if (urlOrSearchParams instanceof URL) 
-    searchParams = urlOrSearchParams.searchParams;
-   else 
+  if (urlOrSearchParams instanceof URLSearchParams) searchParams = urlOrSearchParams;
+  else if (urlOrSearchParams instanceof URL) searchParams = urlOrSearchParams.searchParams;
+  else
     try {
       searchParams = new URL(urlOrSearchParams).searchParams;
     } catch {
       searchParams = new URLSearchParams(urlOrSearchParams);
     }
-  
 
   // Convert to object
   const queryObject: Record<string, string | string[]> = {};
   for (const [key, value] of searchParams.entries()) {
     const existing = queryObject[key];
-    if (existing !== undefined) 
-      // Handle multiple values for same key
-      if (Array.isArray(existing)) 
+    if (existing !== undefined)
+      if (Array.isArray(existing))
+        // Handle multiple values for same key
         existing.push(value);
-       else 
-        queryObject[key] = [existing, value];
-      
-     else 
-      queryObject[key] = value;
-    
+      else queryObject[key] = [existing, value];
+    else queryObject[key] = value;
   }
 
   return validateInput(queryObject, schema, {
@@ -302,14 +278,13 @@ export function validateQueryOrThrow<T>(
 ): T {
   const result = validateQuery(urlOrSearchParams, schema, options);
 
-  if (!result.success) 
+  if (!result.success)
     throw new ApiError(
       ErrorCodes.INVALID_QUERY_PARAM,
       400,
       formatErrorMessage(result.errors, 'Query parameter'),
       createErrorMetadata(result.errors)
     );
-  
 
   return result.data;
 }
@@ -338,7 +313,7 @@ export async function validateBody<T>(
     });
   } catch (error) {
     // JSON parsing error
-    if (error instanceof SyntaxError) 
+    if (error instanceof SyntaxError)
       return {
         success: false,
         errors: [
@@ -349,7 +324,6 @@ export async function validateBody<T>(
           },
         ],
       };
-    
 
     return {
       success: false,
@@ -377,9 +351,7 @@ export async function validateBodyOrThrow<T>(
   if (!result.success) {
     const firstError = result.errors[0];
     const errorCode =
-      firstError?.code === 'invalid_json'
-        ? ErrorCodes.INVALID_BODY
-        : ErrorCodes.VALIDATION_ERROR;
+      firstError?.code === 'invalid_json' ? ErrorCodes.INVALID_BODY : ErrorCodes.VALIDATION_ERROR;
 
     throw new ApiError(
       errorCode,
@@ -406,12 +378,10 @@ export function validateValue<T>(
 ): ValidationResult<T> {
   const result = schema.safeParse(value);
 
-  if (result.success) 
-    return { success: true, data: result.data };
-  
+  if (result.success) return { success: true, data: result.data };
 
   // Override path with fieldName if provided
-  const errors = formatZodErrors(result.error).map((error) => ({
+  const errors = formatZodErrors(result.error).map(error => ({
     ...error,
     path: fieldName ?? error.path,
   }));
@@ -435,17 +405,14 @@ export function createSchema<T>(
 ): ZodSchema<T> {
   let modified: ZodSchema<T> = schema;
 
-  if (options.partial && schema instanceof z.ZodObject) 
+  if (options.partial && schema instanceof z.ZodObject)
     modified = schema.partial() as unknown as ZodSchema<T>;
-  
 
-  if (options.strip && schema instanceof z.ZodObject) 
+  if (options.strip && schema instanceof z.ZodObject)
     modified = schema.strip() as unknown as ZodSchema<T>;
-  
 
-  if (options.required && schema instanceof z.ZodObject) 
+  if (options.required && schema instanceof z.ZodObject)
     modified = schema.required() as unknown as ZodSchema<T>;
-  
 
   return modified;
 }

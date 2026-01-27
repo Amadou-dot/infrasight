@@ -30,7 +30,9 @@ interface TemperatureCorrelationPanelProps {
 // COMPONENT
 // ============================================================================
 
-export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCorrelationPanelProps) {
+export default function TemperatureCorrelationPanel({
+  deviceId,
+}: TemperatureCorrelationPanelProps) {
   const [correlation, setCorrelation] = useState<TemperatureCorrelationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,19 +69,22 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
       case 'environmental':
         return {
           icon: <AlertTriangle className="h-5 w-5" />,
-          colorClass: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-500',
+          colorClass:
+            'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-500',
           badge: 'secondary' as const,
         };
       case 'normal':
         return {
           icon: <CheckCircle className="h-5 w-5" />,
-          colorClass: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-500',
+          colorClass:
+            'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-500',
           badge: 'secondary' as const,
         };
       default:
         return {
           icon: <Thermometer className="h-5 w-5" />,
-          colorClass: 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-gray-500',
+          colorClass:
+            'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-gray-500',
           badge: 'secondary' as const,
         };
     }
@@ -115,7 +120,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
     : [];
 
   // Loading state
-  if (loading) 
+  if (loading)
     return (
       <Card>
         <CardHeader>
@@ -131,10 +136,9 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
         </CardContent>
       </Card>
     );
-  
 
   // Error state
-  if (error || !correlation) 
+  if (error || !correlation)
     return (
       <Card>
         <CardHeader>
@@ -156,7 +160,6 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
         </CardContent>
       </Card>
     );
-  
 
   const diagnosisStyle = getDiagnosisStyle(correlation.diagnosis);
   const currentDeviceTemp =
@@ -183,7 +186,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Device Temperature</p>
             <p className="text-2xl font-bold">{currentDeviceTemp.toFixed(1)}°C</p>
-            <div className="h-2 bg-gradient-to-r from-blue-200 via-amber-200 to-red-500 rounded-full">
+            <div className="h-2 bg-linear-to-r from-blue-200 via-amber-200 to-red-500 rounded-full">
               <div
                 className="h-full bg-red-600 rounded-full"
                 style={{ width: `${Math.min((currentDeviceTemp / 100) * 100, 100)}%` }}
@@ -193,7 +196,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Ambient Temperature</p>
             <p className="text-2xl font-bold">{currentAmbientTemp.toFixed(1)}°C</p>
-            <div className="h-2 bg-gradient-to-r from-blue-200 via-amber-200 to-red-500 rounded-full">
+            <div className="h-2 bg-linear-to-r from-blue-200 via-amber-200 to-red-500 rounded-full">
               <div
                 className="h-full bg-blue-600 rounded-full"
                 style={{ width: `${Math.min((currentAmbientTemp / 100) * 100, 100)}%` }}
@@ -251,9 +254,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">
               Correlation Score:{' '}
-              <span className="font-medium">
-                {correlation.correlation_score.toFixed(2)}
-              </span>
+              <span className="font-medium">{correlation.correlation_score.toFixed(2)}</span>
             </span>
           </div>
         )}
@@ -281,10 +282,7 @@ export default function TemperatureCorrelationPanel({ deviceId }: TemperatureCor
             </p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {correlation.threshold_breaches.slice(0, 3).map((breach, index) => (
-                <div
-                  key={index}
-                  className="text-xs text-muted-foreground flex items-center gap-2"
-                >
+                <div key={index} className="text-xs text-muted-foreground flex items-center gap-2">
                   <span>
                     {new Date(breach.timestamp).toLocaleString('en-US', {
                       month: 'short',

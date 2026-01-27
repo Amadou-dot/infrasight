@@ -58,7 +58,7 @@ export async function checkRateLimit(
 
   const key = `ratelimit:${config.name}:${identifier}`;
   const now = Date.now();
-  const windowStart = now - (config.windowSeconds * 1000);
+  const windowStart = now - config.windowSeconds * 1000;
 
   try {
     // Use pipeline for atomic operations
@@ -78,9 +78,7 @@ export async function checkRateLimit(
 
     const results = await pipeline.exec();
 
-    if (!results) 
-      throw new Error('Pipeline returned null');
-    
+    if (!results) throw new Error('Pipeline returned null');
 
     // Get current count from zcard (index 1 in pipeline)
     const currentCount = (results[1]?.[1] as number) || 0;
@@ -104,11 +102,7 @@ export async function checkRateLimit(
       retryAfter: allowed ? undefined : resetIn,
     };
   } catch (error) {
-    logger.error(
-      'Rate limit check failed',
-      { identifier, config: config.name },
-      error as Error
-    );
+    logger.error('Rate limit check failed', { identifier, config: config.name }, error as Error);
 
     // Fail open - allow request if Redis operation fails
     return {
@@ -131,7 +125,7 @@ export async function checkRateLimit(
 export async function checkMultipleRateLimits(
   limits: Array<{ identifier: string; config: RateLimitConfig }>
 ): Promise<RateLimitResult> {
-  if (limits.length === 0) 
+  if (limits.length === 0)
     return {
       allowed: true,
       current: 0,
@@ -139,7 +133,6 @@ export async function checkMultipleRateLimits(
       resetIn: 0,
       remaining: Infinity,
     };
-  
 
   // Check all limits in parallel
   const results = await Promise.all(
@@ -148,9 +141,7 @@ export async function checkMultipleRateLimits(
 
   // Find the first denied result
   const denied = results.find(r => !r.allowed);
-  if (denied) 
-    return denied;
-  
+  if (denied) return denied;
 
   // All allowed - return the one with highest usage ratio
   return results.reduce((prev, curr) => {
@@ -163,25 +154,16 @@ export async function checkMultipleRateLimits(
 /**
  * Reset rate limit for an identifier (for testing or admin operations)
  */
-export async function resetRateLimit(
-  identifier: string,
-  configName: string
-): Promise<boolean> {
+export async function resetRateLimit(identifier: string, configName: string): Promise<boolean> {
   const redis = getRedisClient();
-  if (!redis || !isRedisAvailable()) 
-    return false;
-  
+  if (!redis || !isRedisAvailable()) return false;
 
   try {
     const key = `ratelimit:${configName}:${identifier}`;
     await redis.del(key);
     return true;
   } catch (error) {
-    logger.error(
-      'Failed to reset rate limit',
-      { identifier, config: configName },
-      error as Error
-    );
+    logger.error('Failed to reset rate limit', { identifier, config: configName }, error as Error);
     return false;
   }
 }
@@ -195,7 +177,7 @@ export async function getRateLimitStatus(
 ): Promise<RateLimitResult> {
   const redis = getRedisClient();
 
-  if (!redis || !isRedisAvailable()) 
+  if (!redis || !isRedisAvailable())
     return {
       allowed: true,
       current: 0,
@@ -203,11 +185,10 @@ export async function getRateLimitStatus(
       resetIn: 0,
       remaining: config.max,
     };
-  
 
   const key = `ratelimit:${config.name}:${identifier}`;
   const now = Date.now();
-  const windowStart = now - (config.windowSeconds * 1000);
+  const windowStart = now - config.windowSeconds * 1000;
 
   try {
     // Clean up and count in pipeline

@@ -8,11 +8,7 @@
 import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
-import {
-  createDeviceInput,
-  createReadingV2Input,
-  resetCounters,
-} from '../../setup/factories';
+import { createDeviceInput, createReadingV2Input, resetCounters } from '../../setup/factories';
 
 // Import the route handlers
 import { GET, PATCH, DELETE } from '@/app/api/v2/devices/[id]/route';
@@ -20,10 +16,7 @@ import { GET, PATCH, DELETE } from '@/app/api/v2/devices/[id]/route';
 /**
  * Helper to create a mock NextRequest for GET requests
  */
-function createMockGetRequest(
-  id: string,
-  searchParams: Record<string, string> = {}
-): NextRequest {
+function createMockGetRequest(id: string, searchParams: Record<string, string> = {}): NextRequest {
   const url = new URL(`http://localhost:3000/api/v2/devices/${id}`);
   Object.entries(searchParams).forEach(([key, value]) => {
     url.searchParams.set(key, value);
@@ -122,9 +115,7 @@ describe('Single Device API Integration Tests', () => {
         await DeviceV2.create(deviceData);
 
         // Create 20 readings
-        const readings = Array.from({ length: 20 }, () =>
-          createReadingV2Input('get_device_limit')
-        );
+        const readings = Array.from({ length: 20 }, () => createReadingV2Input('get_device_limit'));
         await ReadingV2.insertMany(readings);
 
         const request = createMockGetRequest('get_device_limit', {
@@ -225,10 +216,7 @@ describe('Single Device API Integration Tests', () => {
         await DeviceV2.create(deviceData);
 
         const updateData = { serial_number: 'NEW-SERIAL-001' };
-        const request = createMockPatchRequest(
-          'patch_device_serial',
-          updateData
-        );
+        const request = createMockPatchRequest('patch_device_serial', updateData);
         const params = Promise.resolve({ id: 'patch_device_serial' });
         const response = await PATCH(request, { params });
         const data = await parseResponse<{
@@ -250,10 +238,7 @@ describe('Single Device API Integration Tests', () => {
             threshold_critical: 40,
           },
         };
-        const request = createMockPatchRequest(
-          'patch_device_config',
-          updateData
-        );
+        const request = createMockPatchRequest('patch_device_config', updateData);
         const params = Promise.resolve({ id: 'patch_device_config' });
         const response = await PATCH(request, { params });
         const data = await parseResponse<{
@@ -275,10 +260,7 @@ describe('Single Device API Integration Tests', () => {
             room_name: 'Room 501',
           },
         };
-        const request = createMockPatchRequest(
-          'patch_device_location',
-          updateData
-        );
+        const request = createMockPatchRequest('patch_device_location', updateData);
         const params = Promise.resolve({ id: 'patch_device_location' });
         const response = await PATCH(request, { params });
         const data = await parseResponse<{
@@ -302,10 +284,7 @@ describe('Single Device API Integration Tests', () => {
             sampling_interval: 120,
           },
         };
-        const request = createMockPatchRequest(
-          'patch_device_multi',
-          updateData
-        );
+        const request = createMockPatchRequest('patch_device_multi', updateData);
         const params = Promise.resolve({ id: 'patch_device_multi' });
         const response = await PATCH(request, { params });
         const data = await parseResponse<{
@@ -357,10 +336,7 @@ describe('Single Device API Integration Tests', () => {
         await DeviceV2.create(deviceData);
 
         const updateData = { status: 'invalid_status' };
-        const request = createMockPatchRequest(
-          'patch_device_status',
-          updateData
-        );
+        const request = createMockPatchRequest('patch_device_status', updateData);
         const params = Promise.resolve({ id: 'patch_device_status' });
         const response = await PATCH(request, { params });
 
@@ -372,10 +348,7 @@ describe('Single Device API Integration Tests', () => {
         await DeviceV2.create(deviceData);
 
         const updateData = { firmware_version: 'invalid' };
-        const request = createMockPatchRequest(
-          'patch_device_firmware',
-          updateData
-        );
+        const request = createMockPatchRequest('patch_device_firmware', updateData);
         const params = Promise.resolve({ id: 'patch_device_firmware' });
         const response = await PATCH(request, { params });
 
@@ -386,10 +359,7 @@ describe('Single Device API Integration Tests', () => {
     describe('Error Cases', () => {
       it('should return 404 for non-existent device', async () => {
         const updateData = { status: 'maintenance' as const };
-        const request = createMockPatchRequest(
-          'nonexistent_device',
-          updateData
-        );
+        const request = createMockPatchRequest('nonexistent_device', updateData);
         const params = Promise.resolve({ id: 'nonexistent_device' });
         const response = await PATCH(request, { params });
 
@@ -402,10 +372,7 @@ describe('Single Device API Integration Tests', () => {
         await DeviceV2.softDelete('patch_deleted_device', 'test-user');
 
         const updateData = { status: 'maintenance' as const };
-        const request = createMockPatchRequest(
-          'patch_deleted_device',
-          updateData
-        );
+        const request = createMockPatchRequest('patch_deleted_device', updateData);
         const params = Promise.resolve({ id: 'patch_deleted_device' });
         const response = await PATCH(request, { params });
 

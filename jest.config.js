@@ -20,10 +20,7 @@ const config = {
   roots: ['<rootDir>/__tests__'],
 
   // Test file patterns
-  testMatch: [
-    '**/__tests__/**/*.test.ts',
-    '**/__tests__/**/*.integration.test.ts',
-  ],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.integration.test.ts'],
 
   // Ignore patterns
   testPathIgnorePatterns: ['/node_modules/', '/.next/', '/e2e/'],
@@ -54,9 +51,9 @@ const config = {
   // Coverage thresholds
   coverageThreshold: {
     global: {
-      branches: 55,   // Current: 59% → Target: 70%
-      functions: 55,  // Current: 58% → Target: 75%
-      lines: 75,      // Current: 78% → Target: 80%
+      branches: 55, // Current: 59% → Target: 70%
+      functions: 55, // Current: 58% → Target: 75%
+      lines: 75, // Current: 78% → Target: 80%
       statements: 75, // Current: 78% → Target: 80%
     },
   },

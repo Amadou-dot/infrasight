@@ -51,9 +51,7 @@ describe('Reading Validation Schemas', () => {
       for (const type of validTypes) {
         const result = readingTypeSchema.safeParse(type);
         expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.data).toBe(type);
-        }
+        if (result.success) expect(result.data).toBe(type);
       }
     });
 
@@ -74,25 +72,43 @@ describe('Reading Validation Schemas', () => {
   describe('readingUnitSchema', () => {
     const validUnits = [
       // Temperature
-      'celsius', 'fahrenheit', 'kelvin',
+      'celsius',
+      'fahrenheit',
+      'kelvin',
       // Humidity/percentage
       'percent',
       // CO2 / Gas / Air quality
-      'ppm', 'ppb', 'ug_m3',
+      'ppm',
+      'ppb',
+      'ug_m3',
       // Pressure
-      'pascal', 'hpa', 'bar', 'psi',
+      'pascal',
+      'hpa',
+      'bar',
+      'psi',
       // Power/Energy
-      'watts', 'kilowatts', 'watt_hours', 'kilowatt_hours',
+      'watts',
+      'kilowatts',
+      'watt_hours',
+      'kilowatt_hours',
       // Electrical
-      'volts', 'millivolts', 'amperes', 'milliamperes',
+      'volts',
+      'millivolts',
+      'amperes',
+      'milliamperes',
       // Light
-      'lux', 'lumens',
+      'lux',
+      'lumens',
       // Flow
-      'liters_per_minute', 'gallons_per_minute', 'cubic_meters_per_hour',
+      'liters_per_minute',
+      'gallons_per_minute',
+      'cubic_meters_per_hour',
       // Occupancy/Count
-      'count', 'boolean',
+      'count',
+      'boolean',
       // Generic
-      'raw', 'unknown',
+      'raw',
+      'unknown',
     ];
 
     it('should accept all valid reading units', () => {
@@ -123,9 +139,7 @@ describe('Reading Validation Schemas', () => {
       for (const source of validSources) {
         const result = readingSourceSchema.safeParse(source);
         expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.data).toBe(source);
-        }
+        if (result.success) expect(result.data).toBe(source);
       }
     });
 
@@ -165,9 +179,7 @@ describe('Reading Validation Schemas', () => {
 
       const result = readingMetadataSchema.safeParse(metadataWithoutSource);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.source).toBe('sensor');
-      }
+      if (result.success) expect(result.data.source).toBe('sensor');
     });
 
     it('should reject missing device_id', () => {
@@ -249,9 +261,7 @@ describe('Reading Validation Schemas', () => {
 
       const result = readingQualitySchema.safeParse(qualityWithFlags);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.validation_flags).toContain('out_of_range');
-      }
+      if (result.success) expect(result.data.validation_flags).toContain('out_of_range');
     });
 
     it('should reject confidence_score over 1', () => {
@@ -371,9 +381,7 @@ describe('Reading Validation Schemas', () => {
 
       const result = readingProcessingSchema.safeParse(processingWithoutIngestedAt);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.ingested_at).toBeInstanceOf(Date);
-      }
+      if (result.success) expect(result.data.ingested_at).toBeInstanceOf(Date);
     });
 
     it('should accept empty processing', () => {
@@ -512,9 +520,7 @@ describe('Reading Validation Schemas', () => {
     it('should apply default source', () => {
       const result = bulkReadingItemSchema.safeParse(validItem);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.source).toBe('sensor');
-      }
+      if (result.success) expect(result.data.source).toBe('sensor');
     });
 
     it('should accept optional quality fields', () => {
@@ -585,9 +591,7 @@ describe('Reading Validation Schemas', () => {
 
       const result = bulkIngestReadingsSchema.safeParse(payload);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.readings.length).toBe(3);
-      }
+      if (result.success) expect(result.data.readings.length).toBe(3);
     });
 
     it('should accept idempotency_key', () => {
@@ -812,9 +816,7 @@ describe('Reading Validation Schemas', () => {
 
       const result = listReadingsQuerySchema.safeParse(query);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.fields).toEqual(['timestamp', 'value', 'metadata']);
-      }
+      if (result.success) expect(result.data.fields).toEqual(['timestamp', 'value', 'metadata']);
     });
   });
 
@@ -858,9 +860,7 @@ describe('Reading Validation Schemas', () => {
 
       const result = latestReadingsQuerySchema.safeParse(query);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.include_invalid).toBe(false);
-      }
+      if (result.success) expect(result.data.include_invalid).toBe(false);
     });
 
     it('should accept include_quality_metrics', () => {
@@ -981,9 +981,7 @@ describe('Reading Validation Schemas', () => {
 
       const result = readingAnalyticsQuerySchema.safeParse(query);
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.include_invalid).toBe(false);
-      }
+      if (result.success) expect(result.data.include_invalid).toBe(false);
     });
   });
 

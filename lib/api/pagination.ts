@@ -125,7 +125,7 @@ export const cursorPaginationSchema = z.object({
  * ```typescript
  * const params = getOffsetPaginationParams({ page: '2', limit: '10' });
  * // { type: 'offset', page: 2, limit: 10, skip: 10 }
- * 
+ *
  * // For analytics endpoints with higher limit:
  * const params = getOffsetPaginationParams({ limit: '500' }, { maxLimit: 1000 });
  * ```
@@ -135,7 +135,7 @@ export function getOffsetPaginationParams(
   options: { maxLimit?: number } = {}
 ): OffsetPaginationParams {
   const maxLimit = options.maxLimit ?? MAX_PAGE_SIZE;
-  
+
   // Create schema with custom max limit
   const schema = z.object({
     page: z.coerce
@@ -185,9 +185,7 @@ export function getOffsetPaginationParams(
  * // { type: 'cursor', cursor: 'abc123', limit: 10, decodedCursor: {...} }
  * ```
  */
-export function getCursorPaginationParams(
-  query: RawPaginationInput
-): CursorPaginationParams {
+export function getCursorPaginationParams(query: RawPaginationInput): CursorPaginationParams {
   const result = cursorPaginationSchema.safeParse({
     cursor: query.cursor,
     limit: query.limit,
@@ -206,9 +204,7 @@ export function getCursorPaginationParams(
   const { cursor, limit } = result.data;
 
   let decodedCursor: DecodedCursor | undefined;
-  if (cursor) 
-    decodedCursor = decodeCursor(cursor);
-  
+  if (cursor) decodedCursor = decodeCursor(cursor);
 
   return {
     type: 'cursor',
@@ -222,21 +218,16 @@ export function getCursorPaginationParams(
  * Auto-detects and extracts pagination parameters
  * Uses cursor if provided, otherwise offset
  */
-export function getPaginationParams(
-  query: RawPaginationInput
-): PaginationParams {
-  if (query.cursor) 
-    return getCursorPaginationParams(query);
-  
+export function getPaginationParams(query: RawPaginationInput): PaginationParams {
+  if (query.cursor) return getCursorPaginationParams(query);
+
   return getOffsetPaginationParams(query);
 }
 
 /**
  * Extracts pagination from URL searchParams
  */
-export function getPaginationFromSearchParams(
-  searchParams: URLSearchParams
-): PaginationParams {
+export function getPaginationFromSearchParams(searchParams: URLSearchParams): PaginationParams {
   return getPaginationParams({
     page: searchParams.get('page') ?? undefined,
     limit: searchParams.get('limit') ?? undefined,
@@ -352,9 +343,8 @@ export function decodeCursor(cursor: string): DecodedCursor {
     const decoded = Buffer.from(cursor, 'base64url').toString('utf-8');
     const parsed = JSON.parse(decoded);
 
-    if (!parsed.field || parsed.value === undefined || !parsed.lastId) 
+    if (!parsed.field || parsed.value === undefined || !parsed.lastId)
       throw new Error('Missing cursor fields');
-    
 
     return {
       field: String(parsed.field),
@@ -362,12 +352,7 @@ export function decodeCursor(cursor: string): DecodedCursor {
       lastId: String(parsed.lastId),
     };
   } catch {
-    throw new ApiError(
-      ErrorCodes.INVALID_PAGINATION,
-      400,
-      'Invalid pagination cursor',
-      { cursor }
-    );
+    throw new ApiError(ErrorCodes.INVALID_PAGINATION, 400, 'Invalid pagination cursor', { cursor });
   }
 }
 
@@ -414,7 +399,7 @@ export function createCursorFromItem<T extends { _id?: string | unknown }>(
  * ```
  */
 export function applyOffsetPagination<
-  Q extends { skip: (n: number) => Q; limit: (n: number) => Q }
+  Q extends { skip: (n: number) => Q; limit: (n: number) => Q },
 >(query: Q, params: OffsetPaginationParams): Q {
   return query.skip(params.skip).limit(params.limit);
 }
@@ -433,9 +418,7 @@ export function buildCursorQuery(
   params: CursorPaginationParams,
   sortDirection: 'asc' | 'desc' = 'desc'
 ): Record<string, unknown> {
-  if (!params.decodedCursor) 
-    return {};
-  
+  if (!params.decodedCursor) return {};
 
   const { field, value, lastId } = params.decodedCursor;
   const operator = sortDirection === 'desc' ? '$lt' : '$gt';

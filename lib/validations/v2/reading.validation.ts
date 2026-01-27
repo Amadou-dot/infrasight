@@ -84,12 +84,7 @@ export const readingUnitSchema = z.enum([
 /**
  * Reading source enum - where the reading originated
  */
-export const readingSourceSchema = z.enum([
-  'sensor',
-  'simulation',
-  'manual',
-  'calibration',
-]);
+export const readingSourceSchema = z.enum(['sensor', 'simulation', 'manual', 'calibration']);
 
 // ============================================================================
 // NESTED SCHEMAS
@@ -110,13 +105,17 @@ export const readingMetadataSchema = z.object({
  */
 export const readingQualitySchema = z.object({
   is_valid: z.boolean().default(true).describe('Whether the reading passed validation'),
-  confidence_score: confidenceScoreSchema.optional().describe('Confidence in reading accuracy (0-1)'),
+  confidence_score: confidenceScoreSchema
+    .optional()
+    .describe('Confidence in reading accuracy (0-1)'),
   validation_flags: z
     .array(z.string().max(50))
     .optional()
     .describe('Validation flags/issues found'),
   is_anomaly: z.boolean().default(false).describe('Whether reading is flagged as anomalous'),
-  anomaly_score: anomalyScoreSchema.optional().describe('Anomaly score (0-1, higher = more anomalous)'),
+  anomaly_score: anomalyScoreSchema
+    .optional()
+    .describe('Anomaly score (0-1, higher = more anomalous)'),
 });
 
 /**
@@ -134,7 +133,10 @@ export const readingContextSchema = z.object({
 export const readingProcessingSchema = z.object({
   raw_value: z.number().optional().describe('Original uncalibrated value'),
   calibration_offset: z.number().optional().describe('Calibration offset applied'),
-  ingested_at: z.date().default(() => new Date()).describe('Server ingestion timestamp'),
+  ingested_at: z
+    .date()
+    .default(() => new Date())
+    .describe('Server ingestion timestamp'),
 });
 
 // ============================================================================
@@ -172,13 +174,12 @@ export const bulkReadingItemSchema = z.object({
     .date()
     .or(z.string().datetime())
     .or(z.number()) // Unix timestamp support
-    .transform((val) => {
-      if (typeof val === 'number') 
-        return new Date(val > 1e12 ? val : val * 1000); // Handle ms vs seconds
-      
+    .transform(val => {
+      if (typeof val === 'number') return new Date(val > 1e12 ? val : val * 1000); // Handle ms vs seconds
+
       return typeof val === 'string' ? new Date(val) : val;
     })
-    .refine((date) => date <= new Date(), 'Timestamp cannot be in the future'),
+    .refine(date => date <= new Date(), 'Timestamp cannot be in the future'),
   value: z.number(),
   // Optional quality fields for ingest
   confidence_score: confidenceScoreSchema.optional(),
@@ -197,11 +198,7 @@ export const bulkIngestReadingsSchema = z.object({
     .min(1, 'At least one reading is required')
     .max(10000, 'Cannot ingest more than 10,000 readings at once'),
   // Idempotency key to prevent duplicate ingests
-  idempotency_key: z
-    .string()
-    .uuid()
-    .optional()
-    .describe('UUID to prevent duplicate ingests'),
+  idempotency_key: z.string().uuid().optional().describe('UUID to prevent duplicate ingests'),
   // Source identifier for batch
   batch_source: z.string().max(100).optional().describe('Identifier for the batch source'),
 });
@@ -213,18 +210,13 @@ export const bulkIngestReadingsSchema = z.object({
 /**
  * Reading sort fields
  */
-const readingSortFields = [
-  'timestamp',
-  'value',
-  'anomaly_score',
-  'confidence_score',
-] as const;
+const readingSortFields = ['timestamp', 'value', 'anomaly_score', 'confidence_score'] as const;
 
 /**
  * Aggregation types for readings
  */
 export const aggregationTypeSchema = z.enum([
-  'raw',    // No aggregation, return individual readings
+  'raw', // No aggregation, return individual readings
   'avg',
   'sum',
   'min',
@@ -237,85 +229,65 @@ export const aggregationTypeSchema = z.enum([
 /**
  * Time granularity for aggregations
  */
-export const timeGranularitySchema = z.enum([
-  'second',
-  'minute',
-  'hour',
-  'day',
-  'week',
-  'month',
-]);
+export const timeGranularitySchema = z.enum(['second', 'minute', 'hour', 'day', 'week', 'month']);
 
 /**
  * Schema for reading list query parameters (GET /api/v2/readings)
  */
-export const listReadingsQuerySchema = z.object({
-  // Pagination
-  ...paginationSchema.shape,
-  
-  // Sorting
-  ...createSortSchema(readingSortFields).shape,
-  
-  // Required: Device filter (at least one device required for efficiency)
-  device_id: z
-    .union([
-      deviceIdSchema,
-      z.array(deviceIdSchema),
-      z.string().transform((val) => val.split(',')),
-    ])
-    .optional(),
-  
-  // Type filter
-  type: z
-    .union([
-      readingTypeSchema,
-      z.array(readingTypeSchema),
-      z.string().transform((val) => val.split(',') as z.infer<typeof readingTypeSchema>[]),
-    ])
-    .optional(),
-  
-  // Source filter
-  source: z
-    .union([
-      readingSourceSchema,
-      z.array(readingSourceSchema),
-      z.string().transform((val) => val.split(',') as z.infer<typeof readingSourceSchema>[]),
-    ])
-    .optional(),
-  
-  // Time range (required for efficiency with time series)
-  ...dateRangeSchema.shape,
-  
-  // Quality filters
-  is_valid: z
-    .union([z.boolean(), z.string().transform((v) => v === 'true')])
-    .optional(),
-  is_anomaly: z
-    .union([z.boolean(), z.string().transform((v) => v === 'true')])
-    .optional(),
-  min_confidence: z
-    .union([z.number(), z.string().transform((v) => parseFloat(v))])
-    .optional(),
-  min_anomaly_score: z
-    .union([z.number(), z.string().transform((v) => parseFloat(v))])
-    .optional(),
-  
-  // Value range filter
-  min_value: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional(),
-  max_value: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional(),
-  
-  // Field projection
-  fields: z
-    .string()
-    .transform((val) => val.split(','))
-    .optional(),
-}).refine(
-  (data) => data.device_id || data.startDate,
-  {
+export const listReadingsQuerySchema = z
+  .object({
+    // Pagination
+    ...paginationSchema.shape,
+
+    // Sorting
+    ...createSortSchema(readingSortFields).shape,
+
+    // Required: Device filter (at least one device required for efficiency)
+    device_id: z
+      .union([deviceIdSchema, z.array(deviceIdSchema), z.string().transform(val => val.split(','))])
+      .optional(),
+
+    // Type filter
+    type: z
+      .union([
+        readingTypeSchema,
+        z.array(readingTypeSchema),
+        z.string().transform(val => val.split(',') as z.infer<typeof readingTypeSchema>[]),
+      ])
+      .optional(),
+
+    // Source filter
+    source: z
+      .union([
+        readingSourceSchema,
+        z.array(readingSourceSchema),
+        z.string().transform(val => val.split(',') as z.infer<typeof readingSourceSchema>[]),
+      ])
+      .optional(),
+
+    // Time range (required for efficiency with time series)
+    ...dateRangeSchema.shape,
+
+    // Quality filters
+    is_valid: z.union([z.boolean(), z.string().transform(v => v === 'true')]).optional(),
+    is_anomaly: z.union([z.boolean(), z.string().transform(v => v === 'true')]).optional(),
+    min_confidence: z.union([z.number(), z.string().transform(v => parseFloat(v))]).optional(),
+    min_anomaly_score: z.union([z.number(), z.string().transform(v => parseFloat(v))]).optional(),
+
+    // Value range filter
+    min_value: z.union([z.number(), z.string().transform(v => parseFloat(v))]).optional(),
+    max_value: z.union([z.number(), z.string().transform(v => parseFloat(v))]).optional(),
+
+    // Field projection
+    fields: z
+      .string()
+      .transform(val => val.split(','))
+      .optional(),
+  })
+  .refine(data => data.device_id || data.startDate, {
     message: 'Either device_id or startDate must be provided to prevent full collection scans',
     path: ['device_id', 'startDate'],
-  }
-);
+  });
 
 /**
  * Schema for latest readings query (GET /api/v2/readings/latest)
@@ -323,29 +295,24 @@ export const listReadingsQuerySchema = z.object({
 export const latestReadingsQuerySchema = z.object({
   // Required: Device IDs
   device_ids: z
-    .union([
-      z.array(deviceIdSchema),
-      z.string().transform((val) => val.split(',')),
-    ])
+    .union([z.array(deviceIdSchema), z.string().transform(val => val.split(','))])
     .describe('Device IDs to get latest readings for'),
-  
+
   // Optional: Type filter
   type: z
     .union([
       readingTypeSchema,
       z.array(readingTypeSchema),
-      z.string().transform((val) => val.split(',') as z.infer<typeof readingTypeSchema>[]),
+      z.string().transform(val => val.split(',') as z.infer<typeof readingTypeSchema>[]),
     ])
     .optional(),
-  
+
   // Include invalid readings
-  include_invalid: z
-    .union([z.boolean(), z.string().transform((v) => v === 'true')])
-    .default(false),
-  
+  include_invalid: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(false),
+
   // Include quality metrics aggregation
   include_quality_metrics: z
-    .union([z.boolean(), z.string().transform((v) => v === 'true')])
+    .union([z.boolean(), z.string().transform(v => v === 'true')])
     .default(false),
 });
 
@@ -355,43 +322,37 @@ export const latestReadingsQuerySchema = z.object({
 export const readingAnalyticsQuerySchema = z.object({
   // Required: Device filter
   device_id: z
-    .union([
-      deviceIdSchema,
-      z.array(deviceIdSchema),
-      z.string().transform((val) => val.split(',')),
-    ])
+    .union([deviceIdSchema, z.array(deviceIdSchema), z.string().transform(val => val.split(','))])
     .optional(),
-  
+
   // Required: Time range
   ...dateRangeSchema.shape,
-  
+
   // Aggregation settings
   aggregation: aggregationTypeSchema.default('avg'),
   granularity: timeGranularitySchema.default('hour'),
-  
+
   // Type filter
   type: z
     .union([
       readingTypeSchema,
       z.array(readingTypeSchema),
-      z.string().transform((val) => val.split(',') as z.infer<typeof readingTypeSchema>[]),
+      z.string().transform(val => val.split(',') as z.infer<typeof readingTypeSchema>[]),
     ])
     .optional(),
-  
+
   // Quality filter (exclude invalid by default)
-  include_invalid: z
-    .union([z.boolean(), z.string().transform((v) => v === 'true')])
-    .default(false),
-  
+  include_invalid: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(false),
+
   // Group by options
-  group_by: z
-    .enum(['device', 'type', 'floor', 'room', 'building', 'department'])
-    .optional(),
-  
+  group_by: z.enum(['device', 'type', 'floor', 'room', 'building', 'department']).optional(),
+
   // Comparison period
   // Comparison period for trend analysis
-  compare_with: z.enum(['previous_period', 'same_period_last_week', 'same_period_last_month']).optional(),
-  
+  compare_with: z
+    .enum(['previous_period', 'same_period_last_week', 'same_period_last_month'])
+    .optional(),
+
   // Pagination for grouped results
   ...paginationSchema.shape,
 });
@@ -403,36 +364,30 @@ export const readingAnalyticsQuerySchema = z.object({
 export const anomalyAnalyticsQuerySchema = z.object({
   // Pagination (higher limit for analytics)
   ...analyticsPaginationSchema.shape,
-  
+
   // Time range
   ...dateRangeSchema.shape,
-  
+
   // Device filter
   device_id: z
-    .union([
-      deviceIdSchema,
-      z.array(deviceIdSchema),
-      z.string().transform((val) => val.split(',')),
-    ])
+    .union([deviceIdSchema, z.array(deviceIdSchema), z.string().transform(val => val.split(','))])
     .optional(),
-  
+
   // Type filter
   type: z
     .union([
       readingTypeSchema,
       z.array(readingTypeSchema),
-      z.string().transform((val) => val.split(',') as z.infer<typeof readingTypeSchema>[]),
+      z.string().transform(val => val.split(',') as z.infer<typeof readingTypeSchema>[]),
     ])
     .optional(),
-  
+
   // Minimum anomaly score threshold
-  min_score: z
-    .union([z.number(), z.string().transform((v) => parseFloat(v))])
-    .optional(),
-  
+  min_score: z.union([z.number(), z.string().transform(v => parseFloat(v))]).optional(),
+
   // Time bucket for trends
   bucket_granularity: timeGranularitySchema.optional(),
-  
+
   // Sorting
   ...createSortSchema(['timestamp', 'anomaly_score', 'value'] as const).shape,
 });

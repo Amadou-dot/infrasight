@@ -9,10 +9,7 @@ import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
-import {
-  getOffsetPaginationParams,
-  calculateOffsetPagination,
-} from '@/lib/api/pagination';
+import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
 import { z } from 'zod';
 import { validateQuery } from '@/lib/validations/validator';
 import { paginationSchema, dateRangeSchema } from '@/lib/validations/common.validation';
@@ -24,27 +21,25 @@ import { paginationSchema, dateRangeSchema } from '@/lib/validations/common.vali
 const auditQuerySchema = z.object({
   ...paginationSchema.shape,
   ...dateRangeSchema.shape,
-  
+
   // Action filter
   action: z
     .enum(['create', 'update', 'delete'])
-    .or(z.string().transform((val) => val.split(',') as ('create' | 'update' | 'delete')[]))
+    .or(z.string().transform(val => val.split(',') as ('create' | 'update' | 'delete')[]))
     .optional(),
-  
+
   // User filter
   user: z.string().max(100).optional(),
-  
+
   // Device filter
   device_id: z
     .string()
-    .or(z.string().transform((val) => val.split(',')))
+    .or(z.string().transform(val => val.split(',')))
     .optional(),
-  
+
   // Include deleted devices
-  include_deleted: z
-    .union([z.boolean(), z.string().transform((v) => v === 'true')])
-    .default(true),
-  
+  include_deleted: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(true),
+
   // Sorting
   sortBy: z.enum(['timestamp', 'action', 'device_id', 'user']).default('timestamp'),
   sortDirection: z.enum(['asc', 'desc']).default('desc'),
@@ -76,14 +71,13 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, auditQuerySchema);
-    if (!validationResult.success) 
+    if (!validationResult.success)
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    
 
     const query = validationResult.data as AuditQuery;
 
@@ -95,10 +89,8 @@ export async function GET(request: NextRequest) {
 
     // Build device match
     const deviceMatch: Record<string, unknown> = {};
-    
-    if (!query.include_deleted) 
-      deviceMatch['audit.deleted_at'] = { $exists: false };
-    
+
+    if (!query.include_deleted) deviceMatch['audit.deleted_at'] = { $exists: false };
 
     if (query.device_id) {
       const deviceIds = Array.isArray(query.device_id) ? query.device_id : [query.device_id];
@@ -106,16 +98,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all devices matching filters
-    const devices = await DeviceV2.find(deviceMatch)
-      .select('_id serial_number audit')
-      .lean();
+    const devices = await DeviceV2.find(deviceMatch).select('_id serial_number audit').lean();
 
     // Build audit entries from devices
     const auditEntries: AuditEntry[] = [];
-    
+
     for (const device of devices) {
       const audit = device.audit;
-      
+
       // Create entry
       auditEntries.push({
         device_id: device._id,
@@ -129,7 +119,7 @@ export async function GET(request: NextRequest) {
       });
 
       // Update entries
-      if (audit.updated_at && audit.updated_at.getTime() !== audit.created_at.getTime()) 
+      if (audit.updated_at && audit.updated_at.getTime() !== audit.created_at.getTime())
         auditEntries.push({
           device_id: device._id,
           action: 'update',
@@ -139,10 +129,9 @@ export async function GET(request: NextRequest) {
             action_type: 'device_updated',
           },
         });
-      
 
       // Delete entry
-      if (audit.deleted_at) 
+      if (audit.deleted_at)
         auditEntries.push({
           device_id: device._id,
           action: 'delete',
@@ -152,7 +141,6 @@ export async function GET(request: NextRequest) {
             action_type: 'device_deleted',
           },
         });
-      
     }
 
     // Apply filters
@@ -167,9 +155,7 @@ export async function GET(request: NextRequest) {
     // User filter
     if (query.user) {
       const userLower = query.user.toLowerCase();
-      filteredEntries = filteredEntries.filter(e => 
-        e.user.toLowerCase().includes(userLower)
-      );
+      filteredEntries = filteredEntries.filter(e => e.user.toLowerCase().includes(userLower));
     }
 
     // Date range filter
@@ -209,22 +195,24 @@ export async function GET(request: NextRequest) {
     );
 
     // Calculate pagination info
-    const paginationInfo = calculateOffsetPagination(
-      total,
-      pagination.page,
-      pagination.limit
-    );
+    const paginationInfo = calculateOffsetPagination(total, pagination.page, pagination.limit);
 
     // Get summary statistics
-    const actionCounts = filteredEntries.reduce((acc, entry) => {
-      acc[entry.action] = (acc[entry.action] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const actionCounts = filteredEntries.reduce(
+      (acc, entry) => {
+        acc[entry.action] = (acc[entry.action] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
-    const userCounts = filteredEntries.reduce((acc, entry) => {
-      acc[entry.user] = (acc[entry.user] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const userCounts = filteredEntries.reduce(
+      (acc, entry) => {
+        acc[entry.user] = (acc[entry.user] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
     // Get top users
     const topUsers = Object.entries(userCounts)

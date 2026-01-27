@@ -18,9 +18,7 @@ export const CACHE_PREFIXES = {
  * Generate a deterministic key from an object of parameters
  */
 function serializeParams(params: Record<string, unknown>): string {
-  if (!params || Object.keys(params).length === 0) 
-    return 'default';
-  
+  if (!params || Object.keys(params).length === 0) return 'default';
 
   return Object.keys(params)
     .filter(key => params[key] !== undefined && params[key] !== null)
@@ -60,10 +58,7 @@ export function healthKey(filters: Record<string, unknown> = {}): string {
 /**
  * Generate cache key for latest readings
  */
-export function latestReadingsKey(
-  deviceIds: string[] = [],
-  types: string[] = []
-): string {
+export function latestReadingsKey(deviceIds: string[] = [], types: string[] = []): string {
   const params = {
     devices: deviceIds.sort().join(',') || 'all',
     types: types.sort().join(',') || 'all',
@@ -74,10 +69,7 @@ export function latestReadingsKey(
 /**
  * Generate cache key for analytics data
  */
-export function analyticsKey(
-  endpoint: string,
-  params: Record<string, unknown> = {}
-): string {
+export function analyticsKey(endpoint: string, params: Record<string, unknown> = {}): string {
   return `${CACHE_PREFIXES.ANALYTICS}:${endpoint}:${serializeParams(params)}`;
 }
 

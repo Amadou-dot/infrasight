@@ -66,23 +66,26 @@ These variables are **required** for the application to start. Missing any of th
 
 ### MongoDB
 
-| Variable | Description | Example |
-|----------|-------------|---------|
+| Variable      | Description               | Example                                |
+| ------------- | ------------------------- | -------------------------------------- |
 | `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/infrasight` |
 
 #### Connection String Formats
 
 **Local MongoDB:**
+
 ```env
 MONGODB_URI=mongodb://localhost:27017/infrasight
 ```
 
 **MongoDB with Authentication:**
+
 ```env
 MONGODB_URI=mongodb://username:password@localhost:27017/infrasight?authSource=admin
 ```
 
 **MongoDB Atlas (Cloud):**
+
 ```env
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/infrasight?retryWrites=true&w=majority
 ```
@@ -91,11 +94,11 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/infrasight?retry
 
 The application uses these connection options (configured in `lib/db.ts`):
 
-| Option | Value | Description |
-|--------|-------|-------------|
-| `bufferCommands` | `false` | Disable command buffering |
-| `serverSelectionTimeoutMS` | `5000` | Timeout after 5 seconds |
-| `socketTimeoutMS` | `45000` | Close sockets after 45s inactivity |
+| Option                     | Value   | Description                        |
+| -------------------------- | ------- | ---------------------------------- |
+| `bufferCommands`           | `false` | Disable command buffering          |
+| `serverSelectionTimeoutMS` | `5000`  | Timeout after 5 seconds            |
+| `socketTimeoutMS`          | `45000` | Close sockets after 45s inactivity |
 
 ---
 
@@ -105,19 +108,19 @@ Pusher enables real-time WebSocket communication for live sensor updates.
 
 #### Server-Side Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `PUSHER_APP_ID` | Pusher application ID | Yes |
-| `PUSHER_KEY` | Pusher key (for server-side) | Yes |
-| `PUSHER_SECRET` | Pusher secret key | Yes |
-| `PUSHER_CLUSTER` | Pusher cluster region | Yes |
+| Variable         | Description                  | Required |
+| ---------------- | ---------------------------- | -------- |
+| `PUSHER_APP_ID`  | Pusher application ID        | Yes      |
+| `PUSHER_KEY`     | Pusher key (for server-side) | Yes      |
+| `PUSHER_SECRET`  | Pusher secret key            | Yes      |
+| `PUSHER_CLUSTER` | Pusher cluster region        | Yes      |
 
 #### Client-Side Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `NEXT_PUBLIC_PUSHER_KEY` | Pusher key for browser | Yes |
-| `NEXT_PUBLIC_PUSHER_CLUSTER` | Pusher cluster for browser | Yes |
+| Variable                     | Description                | Required |
+| ---------------------------- | -------------------------- | -------- |
+| `NEXT_PUBLIC_PUSHER_KEY`     | Pusher key for browser     | Yes      |
+| `NEXT_PUBLIC_PUSHER_CLUSTER` | Pusher cluster for browser | Yes      |
 
 > **IMPORTANT**: Client-side variables **must** have the `NEXT_PUBLIC_` prefix. Without this prefix, the variables will not be exposed to the browser.
 
@@ -143,19 +146,21 @@ NEXT_PUBLIC_PUSHER_CLUSTER=us2
 
 Redis is used for rate limiting and caching. Without Redis, rate limiting and caching are disabled (suitable for development).
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `REDIS_URL` | Redis connection URL | None (disabled) |
-| `REDIS_TLS` | Enable TLS for Redis connection | `false` |
+| Variable    | Description                     | Default         |
+| ----------- | ------------------------------- | --------------- |
+| `REDIS_URL` | Redis connection URL            | None (disabled) |
+| `REDIS_TLS` | Enable TLS for Redis connection | `false`         |
 
 #### Connection Formats
 
 **Local Redis:**
+
 ```env
 REDIS_URL=redis://localhost:6379
 ```
 
 **Upstash (Cloud Redis):**
+
 ```env
 REDIS_URL=rediss://default:your-password@your-endpoint.upstash.io:6379
 REDIS_TLS=true
@@ -169,12 +174,12 @@ REDIS_TLS=true
 
 Rate limiting protects the API from abuse. Requires Redis to be configured.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `RATE_LIMIT_ENABLED` | Enable/disable rate limiting | `true` |
-| `RATE_LIMIT_INGEST_PER_DEVICE` | Max ingestion requests per device/minute | `1000` |
-| `RATE_LIMIT_INGEST_PER_IP` | Max ingestion requests per IP/minute | `10000` |
-| `RATE_LIMIT_MUTATIONS_PER_IP` | Max POST/PATCH/DELETE per IP/minute | `100` |
+| Variable                       | Description                              | Default |
+| ------------------------------ | ---------------------------------------- | ------- |
+| `RATE_LIMIT_ENABLED`           | Enable/disable rate limiting             | `true`  |
+| `RATE_LIMIT_INGEST_PER_DEVICE` | Max ingestion requests per device/minute | `1000`  |
+| `RATE_LIMIT_INGEST_PER_IP`     | Max ingestion requests per IP/minute     | `10000` |
+| `RATE_LIMIT_MUTATIONS_PER_IP`  | Max POST/PATCH/DELETE per IP/minute      | `100`   |
 
 #### Example Configuration
 
@@ -191,11 +196,11 @@ RATE_LIMIT_MUTATIONS_PER_IP=100
 
 Caching improves performance for frequently accessed endpoints. Requires Redis.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CACHE_ENABLED` | Enable/disable caching | `true` |
-| `CACHE_METADATA_TTL` | Metadata cache TTL (seconds) | `600` (10 min) |
-| `CACHE_HEALTH_TTL` | Health analytics cache TTL (seconds) | `30` |
+| Variable             | Description                          | Default        |
+| -------------------- | ------------------------------------ | -------------- |
+| `CACHE_ENABLED`      | Enable/disable caching               | `true`         |
+| `CACHE_METADATA_TTL` | Metadata cache TTL (seconds)         | `600` (10 min) |
+| `CACHE_HEALTH_TTL`   | Health analytics cache TTL (seconds) | `30`           |
 
 #### Example Configuration
 
@@ -209,19 +214,19 @@ CACHE_HEALTH_TTL=30
 
 ### Monitoring & Logging
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `LOG_LEVEL` | Logging verbosity | `info` |
+| Variable         | Description                      | Default |
+| ---------------- | -------------------------------- | ------- |
+| `LOG_LEVEL`      | Logging verbosity                | `info`  |
 | `ENABLE_METRICS` | Enable Prometheus metrics export | `false` |
 
 #### Log Levels
 
-| Level | Description |
-|-------|-------------|
-| `debug` | Verbose debug information |
-| `info` | General operational information |
-| `warn` | Warning messages |
-| `error` | Error messages only |
+| Level   | Description                     |
+| ------- | ------------------------------- |
+| `debug` | Verbose debug information       |
+| `info`  | General operational information |
+| `warn`  | Warning messages                |
+| `error` | Error messages only             |
 
 #### Example Configuration
 
@@ -236,13 +241,13 @@ ENABLE_METRICS=true
 
 Sentry provides error tracking and monitoring.
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `SENTRY_DSN` | Server-side Sentry DSN | No |
-| `NEXT_PUBLIC_SENTRY_DSN` | Client-side Sentry DSN | No |
-| `SENTRY_ORG` | Sentry organization slug | No |
-| `SENTRY_PROJECT` | Sentry project slug | No |
-| `SENTRY_AUTH_TOKEN` | Auth token for source map uploads | No |
+| Variable                 | Description                       | Required |
+| ------------------------ | --------------------------------- | -------- |
+| `SENTRY_DSN`             | Server-side Sentry DSN            | No       |
+| `NEXT_PUBLIC_SENTRY_DSN` | Client-side Sentry DSN            | No       |
+| `SENTRY_ORG`             | Sentry organization slug          | No       |
+| `SENTRY_PROJECT`         | Sentry project slug               | No       |
+| `SENTRY_AUTH_TOKEN`      | Auth token for source map uploads | No       |
 
 #### Example Configuration
 
@@ -260,8 +265,8 @@ SENTRY_AUTH_TOKEN=sntrys_eyJ...
 
 API key authentication is opt-in. Leave empty to disable (development mode).
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable   | Description                         | Default         |
+| ---------- | ----------------------------------- | --------------- |
 | `API_KEYS` | Comma-separated API key definitions | None (disabled) |
 
 #### Format
@@ -272,11 +277,11 @@ name:key:role,name:key:role,...
 
 #### Roles
 
-| Role | Permissions |
-|------|-------------|
-| `admin` | Full access to all endpoints |
+| Role       | Permissions                                     |
+| ---------- | ----------------------------------------------- |
+| `admin`    | Full access to all endpoints                    |
 | `operator` | Create, update, delete devices; ingest readings |
-| `viewer` | Read-only access |
+| `viewer`   | Read-only access                                |
 
 #### Example Configuration
 
@@ -288,11 +293,11 @@ API_KEYS=sensor-gateway:abc123xyz:operator,dashboard:xyz789abc:viewer,admin-cli:
 
 ### Development Options
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NUM_DEVICES` | Number of devices to seed | `500` |
-| `READINGS_PER_DEVICE` | Readings per device when seeding | `25` |
-| `REACT_EDITOR` | Editor for React error overlay | `code` |
+| Variable              | Description                      | Default |
+| --------------------- | -------------------------------- | ------- |
+| `NUM_DEVICES`         | Number of devices to seed        | `500`   |
+| `READINGS_PER_DEVICE` | Readings per device when seeding | `25`    |
+| `REACT_EDITOR`        | Editor for React error overlay   | `code`  |
 
 #### Example Configuration
 
@@ -421,6 +426,7 @@ API_KEYS=sensor-gateway-1:abc123:operator,sensor-gateway-2:def456:operator
    - Windows: Download from [mongodb.com](https://www.mongodb.com/try/download/community)
 
 2. Start MongoDB:
+
    ```bash
    brew services start mongodb-community  # macOS
    sudo systemctl start mongod            # Linux
@@ -473,6 +479,7 @@ API_KEYS=sensor-gateway-1:abc123:operator,sensor-gateway-2:def456:operator
    - Copy: `app_id`, `key`, `secret`, `cluster`
 
 4. Configure environment:
+
    ```env
    PUSHER_APP_ID=your_app_id
    PUSHER_KEY=your_key
@@ -513,12 +520,14 @@ API_KEYS=sensor-gateway-1:abc123:operator,sensor-gateway-2:def456:operator
 #### Option 2: Local Redis
 
 1. Install Redis:
+
    ```bash
    brew install redis           # macOS
    sudo apt install redis       # Ubuntu
    ```
 
 2. Start Redis:
+
    ```bash
    brew services start redis    # macOS
    sudo systemctl start redis   # Linux
@@ -575,12 +584,14 @@ Error: Please define the MONGODB_URI environment variable inside .env.local
 **Error**: `Failed to connect to MongoDB`
 
 **Causes**:
+
 - MongoDB server not running
 - Incorrect connection string
 - Network/firewall blocking connection
 - Authentication failed
 
 **Solutions**:
+
 1. Verify MongoDB is running: `mongosh --eval "db.serverStatus()"`
 2. Check connection string format
 3. Verify network access (for Atlas, check IP whitelist)
@@ -591,11 +602,13 @@ Error: Please define the MONGODB_URI environment variable inside .env.local
 **Error**: `Pusher: Connection failed` in browser console
 
 **Causes**:
+
 - Missing `NEXT_PUBLIC_` prefix on client-side variables
 - Incorrect cluster
 - Invalid credentials
 
 **Solutions**:
+
 1. Verify `NEXT_PUBLIC_PUSHER_KEY` and `NEXT_PUBLIC_PUSHER_CLUSTER` are set
 2. Verify values match server-side credentials
 3. Check Pusher dashboard for connection attempts
@@ -605,11 +618,13 @@ Error: Please define the MONGODB_URI environment variable inside .env.local
 **Error**: `Redis connection error` in logs
 
 **Causes**:
+
 - Redis server not running
 - Incorrect URL format
 - TLS misconfiguration
 
 **Solutions**:
+
 1. Verify Redis is running: `redis-cli ping`
 2. Check URL format (`redis://` vs `rediss://`)
 3. For Upstash, ensure `REDIS_TLS=true`
@@ -658,6 +673,7 @@ console.log('All required variables are set');
 ### Secret Values
 
 Keep these values secret:
+
 - `MONGODB_URI` (contains password)
 - `PUSHER_SECRET`
 - `PUSHER_PRIMARY_KEY`
@@ -668,6 +684,7 @@ Keep these values secret:
 ### Client-Side Exposure
 
 Only these variables are exposed to the browser:
+
 - `NEXT_PUBLIC_PUSHER_KEY`
 - `NEXT_PUBLIC_PUSHER_CLUSTER`
 - `NEXT_PUBLIC_SENTRY_DSN`
@@ -777,4 +794,4 @@ REACT_EDITOR=code
 
 ---
 
-*Last Updated: 2026-01-05*
+_Last Updated: 2026-01-05_

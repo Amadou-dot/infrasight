@@ -49,7 +49,9 @@ test.describe('Dashboard', () => {
       await page.waitForLoadState('load');
 
       // Check for device cards or grid
-      const deviceGrid = page.locator('[data-testid="device-grid"], .device-grid, [class*="grid"]').first();
+      const deviceGrid = page
+        .locator('[data-testid="device-grid"], .device-grid, [class*="grid"]')
+        .first();
       await expect(deviceGrid).toBeVisible({ timeout: 15000 });
     });
 
@@ -78,9 +80,7 @@ test.describe('Dashboard', () => {
       const floorSelector = page.locator('[data-testid="floor-selector"], [class*="floor"]');
 
       // Floor selector might not exist in all views
-      if ((await floorSelector.count()) > 0) 
-        await expect(floorSelector.first()).toBeVisible();
-      
+      if ((await floorSelector.count()) > 0) await expect(floorSelector.first()).toBeVisible();
     });
 
     test('should allow floor navigation', async ({ page }) => {
@@ -145,7 +145,7 @@ test.describe('Dashboard', () => {
       // This is a basic check - real-time connection happens in background
       // We can check if the page has loaded without errors
       const errors: string[] = [];
-      page.on('pageerror', (error) => {
+      page.on('pageerror', error => {
         errors.push(error.message);
       });
 
@@ -153,9 +153,7 @@ test.describe('Dashboard', () => {
       await page.waitForTimeout(2000);
 
       // Filter out non-critical errors
-      const criticalErrors = errors.filter(
-        (e) => e.includes('Pusher') && !e.includes('connect')
-      );
+      const criticalErrors = errors.filter(e => e.includes('Pusher') && !e.includes('connect'));
 
       expect(criticalErrors.length).toBe(0);
     });
@@ -172,9 +170,7 @@ test.describe('Dashboard', () => {
       // Look for navigation elements
       const nav = page.locator('nav, header, [role="navigation"]');
 
-      if ((await nav.count()) > 0) 
-        await expect(nav.first()).toBeVisible();
-      
+      if ((await nav.count()) > 0) await expect(nav.first()).toBeVisible();
     });
 
     test('should navigate to device details on click', async ({ page }) => {
@@ -220,9 +216,7 @@ test.describe('Dashboard', () => {
 
       // Check that main content is visible
       const mainContent = page.locator('main, [role="main"], .main-content');
-      if ((await mainContent.count()) > 0) 
-        await expect(mainContent.first()).toBeVisible();
-      
+      if ((await mainContent.count()) > 0) await expect(mainContent.first()).toBeVisible();
     });
 
     test('should display correctly on tablet', async ({ page }) => {
@@ -233,9 +227,7 @@ test.describe('Dashboard', () => {
 
       // Check that main content is visible
       const mainContent = page.locator('main, [role="main"], .main-content');
-      if ((await mainContent.count()) > 0) 
-        await expect(mainContent.first()).toBeVisible();
-      
+      if ((await mainContent.count()) > 0) await expect(mainContent.first()).toBeVisible();
     });
 
     test('should display correctly on desktop', async ({ page }) => {
@@ -246,9 +238,7 @@ test.describe('Dashboard', () => {
 
       // Check that main content is visible
       const mainContent = page.locator('main, [role="main"], .main-content');
-      if ((await mainContent.count()) > 0) 
-        await expect(mainContent.first()).toBeVisible();
-      
+      if ((await mainContent.count()) > 0) await expect(mainContent.first()).toBeVisible();
     });
   });
 
@@ -259,7 +249,7 @@ test.describe('Dashboard', () => {
   test.describe('Error Handling', () => {
     test('should not crash on page load', async ({ page }) => {
       const errors: string[] = [];
-      page.on('pageerror', (error) => {
+      page.on('pageerror', error => {
         errors.push(error.message);
       });
 
@@ -268,7 +258,7 @@ test.describe('Dashboard', () => {
 
       // Filter for critical errors (ignore warnings and common dev-mode issues)
       const criticalErrors = errors.filter(
-        (e) =>
+        e =>
           !e.includes('Warning') &&
           !e.includes('DevTools') &&
           !e.includes('favicon') &&
@@ -281,16 +271,16 @@ test.describe('Dashboard', () => {
       );
 
       // Log any errors for debugging
-      if (criticalErrors.length > 0) {
+      if (criticalErrors.length > 0)
+        // eslint-disable-next-line no-console -- Debugging output in test
         console.log('Page errors detected:', criticalErrors);
-      }
 
       expect(criticalErrors.length).toBe(0);
     });
 
     test('should handle network errors gracefully', async ({ page, context }) => {
       // Block API requests to simulate network error
-      await context.route('**/api/**', (route) => route.abort());
+      await context.route('**/api/**', route => route.abort());
 
       // Navigate to page
       await page.goto('/');
@@ -336,8 +326,8 @@ test.describe('Dashboard', () => {
 
       for (let i = 0; i < Math.min(buttonCount, 5); i++) {
         const button = buttons.nth(i);
-        const accessibleName = await button.getAttribute('aria-label') ||
-          await button.textContent();
+        const accessibleName =
+          (await button.getAttribute('aria-label')) || (await button.textContent());
         expect(accessibleName).toBeTruthy();
       }
     });
@@ -347,9 +337,7 @@ test.describe('Dashboard', () => {
       await page.waitForLoadState('load');
 
       // Press Tab multiple times
-      for (let i = 0; i < 5; i++) 
-        await page.keyboard.press('Tab');
-      
+      for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
 
       // Check that some element is focused
       const focusedElement = page.locator(':focus');

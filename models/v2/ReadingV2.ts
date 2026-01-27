@@ -322,14 +322,10 @@ ReadingV2Schema.index({ 'quality.is_valid': 1, 'metadata.device_id': 1 });
 /**
  * Get latest reading for a device
  */
-ReadingV2Schema.statics.getLatestForDevice = function (
-  deviceId: string,
-  type?: ReadingType
-) {
+ReadingV2Schema.statics.getLatestForDevice = function (deviceId: string, type?: ReadingType) {
   const query: Record<string, unknown> = { 'metadata.device_id': deviceId };
-  if (type) 
-    query['metadata.type'] = type;
-  
+  if (type) query['metadata.type'] = type;
+
   return this.findOne(query).sort({ timestamp: -1 });
 };
 
@@ -347,19 +343,13 @@ ReadingV2Schema.statics.getForDeviceInRange = function (
     timestamp: { $gte: startTime, $lte: endTime },
   };
 
-  if (options.type) 
-    query['metadata.type'] = options.type;
-  
+  if (options.type) query['metadata.type'] = options.type;
 
-  if (!options.includeInvalid) 
-    query['quality.is_valid'] = true;
-  
+  if (!options.includeInvalid) query['quality.is_valid'] = true;
 
   let cursor = this.find(query).sort({ timestamp: -1 });
 
-  if (options.limit) 
-    cursor = cursor.limit(options.limit);
-  
+  if (options.limit) cursor = cursor.limit(options.limit);
 
   return cursor;
 };
@@ -375,29 +365,20 @@ ReadingV2Schema.statics.getAnomalies = function (
     'quality.is_anomaly': true,
   };
 
-  if (deviceId) 
-    query['metadata.device_id'] = deviceId;
-  
+  if (deviceId) query['metadata.device_id'] = deviceId;
 
   if (options.startTime || options.endTime) {
     query.timestamp = {};
-    if (options.startTime) 
-      (query.timestamp as Record<string, Date>).$gte = options.startTime;
-    
-    if (options.endTime) 
-      (query.timestamp as Record<string, Date>).$lte = options.endTime;
-    
+    if (options.startTime) (query.timestamp as Record<string, Date>).$gte = options.startTime;
+
+    if (options.endTime) (query.timestamp as Record<string, Date>).$lte = options.endTime;
   }
 
-  if (options.minScore !== undefined) 
-    query['quality.anomaly_score'] = { $gte: options.minScore };
-  
+  if (options.minScore !== undefined) query['quality.anomaly_score'] = { $gte: options.minScore };
 
   let cursor = this.find(query).sort({ timestamp: -1 });
 
-  if (options.limit) 
-    cursor = cursor.limit(options.limit);
-  
+  if (options.limit) cursor = cursor.limit(options.limit);
 
   return cursor;
 };
@@ -405,11 +386,9 @@ ReadingV2Schema.statics.getAnomalies = function (
 /**
  * Bulk insert readings with validation
  */
-ReadingV2Schema.statics.bulkInsertReadings = async function (
-  readings: Array<Partial<IReadingV2>>
-) {
+ReadingV2Schema.statics.bulkInsertReadings = async function (readings: Array<Partial<IReadingV2>>) {
   // Add ingested_at timestamp to all readings
-  const readingsWithTimestamp = readings.map((reading) => ({
+  const readingsWithTimestamp = readings.map(reading => ({
     ...reading,
     processing: {
       ...reading.processing,
@@ -425,7 +404,10 @@ ReadingV2Schema.statics.bulkInsertReadings = async function (
 // ============================================================================
 
 export interface IReadingV2Model extends Model<IReadingV2> {
-  getLatestForDevice(deviceId: string, type?: ReadingType): ReturnType<Model<IReadingV2>['findOne']>;
+  getLatestForDevice(
+    deviceId: string,
+    type?: ReadingType
+  ): ReturnType<Model<IReadingV2>['findOne']>;
   getForDeviceInRange(
     deviceId: string,
     startTime: Date,

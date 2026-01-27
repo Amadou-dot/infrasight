@@ -178,13 +178,13 @@ async function createCollectionIndexes(
 
   // Get existing indexes
   const existingIndexes = await collection.indexes();
-  const existingIndexNames = new Set(existingIndexes.map((idx) => idx.name));
+  const existingIndexNames = new Set(existingIndexes.map(idx => idx.name));
 
   console.log(`\n📦 Collection: ${collectionName}`);
   console.log(`   Existing indexes: ${existingIndexNames.size}`);
   console.log('─'.repeat(60));
 
-  for (const index of indexes) 
+  for (const index of indexes)
     try {
       // Check if index already exists
       if (existingIndexNames.has(index.name)) {
@@ -199,7 +199,8 @@ async function createCollectionIndexes(
       const indexOptions: Record<string, unknown> = { name: index.name };
       if (index.options.unique !== undefined) indexOptions.unique = index.options.unique;
       if (index.options.sparse !== undefined) indexOptions.sparse = index.options.sparse;
-      if (index.options.background !== undefined) indexOptions.background = index.options.background;
+      if (index.options.background !== undefined)
+        indexOptions.background = index.options.background;
 
       await collection.createIndex(index.spec, indexOptions);
       const duration = Date.now() - startTime;
@@ -208,12 +209,10 @@ async function createCollectionIndexes(
       console.log(`      └─ ${index.description}`);
       stats.success++;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`   ❌ [FAIL] ${index.name}: ${errorMessage}`);
       stats.failed++;
     }
-  
 
   return stats;
 }
@@ -226,7 +225,7 @@ async function verifyIndexes(collectionName: string): Promise<void> {
   const indexes = await collection.indexes();
 
   console.log(`\n📋 Final indexes for ${collectionName}:`);
-  indexes.forEach((idx) => {
+  indexes.forEach(idx => {
     const keys = Object.entries(idx.key)
       .map(([k, v]) => `${k}:${v}`)
       .join(', ');
@@ -254,34 +253,26 @@ async function createIndexes(): Promise<void> {
 
     // Check if collections exist
     const collections = await mongoose.connection.db!.listCollections().toArray();
-    const collectionNames = new Set(collections.map((c) => c.name));
+    const collectionNames = new Set(collections.map(c => c.name));
 
     const hasDevicesV2 = collectionNames.has('devices_v2');
     const hasReadingsV2 = collectionNames.has('readings_v2');
 
-    if (!hasDevicesV2) 
+    if (!hasDevicesV2)
       console.log(
         '\n⚠️  Collection devices_v2 does not exist yet. Creating indexes will create the collection.'
       );
-    
 
-    if (!hasReadingsV2) 
+    if (!hasReadingsV2)
       console.log(
         '\n⚠️  Collection readings_v2 does not exist yet. Creating indexes will create the collection.'
       );
-    
 
     // Create indexes for devices_v2
-    const deviceStats = await createCollectionIndexes(
-      'devices_v2',
-      DEVICE_V2_INDEXES
-    );
+    const deviceStats = await createCollectionIndexes('devices_v2', DEVICE_V2_INDEXES);
 
     // Create indexes for readings_v2
-    const readingStats = await createCollectionIndexes(
-      'readings_v2',
-      READING_V2_INDEXES
-    );
+    const readingStats = await createCollectionIndexes('readings_v2', READING_V2_INDEXES);
 
     // Verify indexes
     await verifyIndexes('devices_v2');

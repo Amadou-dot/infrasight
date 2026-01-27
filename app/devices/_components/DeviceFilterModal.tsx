@@ -88,31 +88,29 @@ export default function DeviceFilterModal({
 }: DeviceFilterModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-lg max-h-[80vh] overflow-y-auto'>
+      <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <SlidersHorizontal className='h-5 w-5' />
+          <DialogTitle className="flex items-center gap-2">
+            <SlidersHorizontal className="h-5 w-5" />
             Filter Devices
           </DialogTitle>
         </DialogHeader>
 
-        <div className='space-y-6 py-4'>
+        <div className="space-y-6 py-4">
           {/* Status Filter */}
           <div>
-            <h4 className='text-sm font-medium mb-3'>Status</h4>
-            <div className='flex flex-wrap gap-2'>
+            <h4 className="text-sm font-medium mb-3">Status</h4>
+            <div className="flex flex-wrap gap-2">
               {DEVICE_STATUSES.map(status => (
                 <Button
                   key={status}
                   variant={pendingFilters.status.includes(status) ? 'default' : 'outline'}
-                  size='sm'
+                  size="sm"
                   onClick={() => onToggleFilterValue('status', status)}
-                  className='capitalize'
+                  className="capitalize"
                 >
                   {status}
-                  {pendingFilters.status.includes(status) && (
-                    <X className='h-3 w-3 ml-1' />
-                  )}
+                  {pendingFilters.status.includes(status) && <X className="h-3 w-3 ml-1" />}
                 </Button>
               ))}
             </div>
@@ -120,20 +118,18 @@ export default function DeviceFilterModal({
 
           {/* Device Type Filter */}
           <div>
-            <h4 className='text-sm font-medium mb-3'>Device Type</h4>
-            <div className='flex flex-wrap gap-2'>
+            <h4 className="text-sm font-medium mb-3">Device Type</h4>
+            <div className="flex flex-wrap gap-2">
               {DEVICE_TYPES.map(type => (
                 <Button
                   key={type}
                   variant={pendingFilters.type.includes(type) ? 'default' : 'outline'}
-                  size='sm'
+                  size="sm"
                   onClick={() => onToggleFilterValue('type', type)}
-                  className='capitalize'
+                  className="capitalize"
                 >
                   {type.replace('_', ' ')}
-                  {pendingFilters.type.includes(type) && (
-                    <X className='h-3 w-3 ml-1' />
-                  )}
+                  {pendingFilters.type.includes(type) && <X className="h-3 w-3 ml-1" />}
                 </Button>
               ))}
             </div>
@@ -142,18 +138,20 @@ export default function DeviceFilterModal({
           {/* Manufacturer Filter */}
           {filterOptions.manufacturers.length > 0 && (
             <div>
-              <h4 className='text-sm font-medium mb-3'>Manufacturer</h4>
-              <div className='flex flex-wrap gap-2'>
+              <h4 className="text-sm font-medium mb-3">Manufacturer</h4>
+              <div className="flex flex-wrap gap-2">
                 {filterOptions.manufacturers.map(manufacturer => (
                   <Button
                     key={manufacturer}
-                    variant={pendingFilters.manufacturer.includes(manufacturer) ? 'default' : 'outline'}
-                    size='sm'
+                    variant={
+                      pendingFilters.manufacturer.includes(manufacturer) ? 'default' : 'outline'
+                    }
+                    size="sm"
                     onClick={() => onToggleFilterValue('manufacturer', manufacturer)}
                   >
                     {manufacturer}
                     {pendingFilters.manufacturer.includes(manufacturer) && (
-                      <X className='h-3 w-3 ml-1' />
+                      <X className="h-3 w-3 ml-1" />
                     )}
                   </Button>
                 ))}
@@ -164,19 +162,19 @@ export default function DeviceFilterModal({
           {/* Department Filter */}
           {filterOptions.departments.length > 0 && (
             <div>
-              <h4 className='text-sm font-medium mb-3'>Department</h4>
-              <div className='flex flex-wrap gap-2'>
+              <h4 className="text-sm font-medium mb-3">Department</h4>
+              <div className="flex flex-wrap gap-2">
                 {filterOptions.departments.map(department => (
                   <Button
                     key={department}
                     variant={pendingFilters.department.includes(department) ? 'default' : 'outline'}
-                    size='sm'
+                    size="sm"
                     onClick={() => onToggleFilterValue('department', department)}
-                    className='capitalize'
+                    className="capitalize"
                   >
                     {department}
                     {pendingFilters.department.includes(department) && (
-                      <X className='h-3 w-3 ml-1' />
+                      <X className="h-3 w-3 ml-1" />
                     )}
                   </Button>
                 ))}
@@ -185,20 +183,14 @@ export default function DeviceFilterModal({
           )}
         </div>
 
-        <DialogFooter className='flex-row gap-2'>
-          <Button
-            variant='ghost'
-            onClick={onClearAll}
-            className='mr-auto'
-          >
+        <DialogFooter className="flex-row gap-2">
+          <Button variant="ghost" onClick={onClearAll} className="mr-auto">
             Clear All
           </Button>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onApply}>
-            Apply Filters
-          </Button>
+          <Button onClick={onApply}>Apply Filters</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

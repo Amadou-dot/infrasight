@@ -1,7 +1,7 @@
 'use client';
 
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import { Geist, Geist_Mono } from 'next/font/google';
+import './globals.css';
 import { ClerkThemeProvider } from '@/components/clerk-theme-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import TopNav from '@/components/TopNav';
@@ -25,28 +25,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang='en' suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <title>InfraSight</title>
-        <meta name="description" content="Real-time sensor data and analytics for infrastructure monitoring." />
+        <meta
+          name="description"
+          content="Real-time sensor data and analytics for infrastructure monitoring."
+        />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider
-            attribute='class'
-            defaultTheme='system'
+            attribute="class"
+            defaultTheme="system"
             enableSystem
-            disableTransitionOnChange>
+            disableTransitionOnChange
+          >
             <ClerkThemeProvider>
               <TopNav />
-              <main className='min-h-screen'>{children}</main>
+              <main className="min-h-screen">{children}</main>
             </ClerkThemeProvider>
           </ThemeProvider>
           {/* Dev tools only in development */}
-          {process.env.NODE_ENV === 'development' && (
-            <ReactQueryDevtools initialIsOpen={false} />
-          )}
+          {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
         </QueryClientProvider>
       </body>
     </html>

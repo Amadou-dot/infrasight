@@ -55,10 +55,8 @@ async function testEndpoint(
     const data = await response.json();
 
     let passed = response.status === expectedStatus;
-    
-    if (passed && options?.validateResponse) 
-      passed = options.validateResponse(data);
-    
+
+    if (passed && options?.validateResponse) passed = options.validateResponse(data);
 
     const result: TestResult = {
       name,
@@ -92,9 +90,7 @@ function logResult(result: TestResult): void {
   const time = `${result.responseTime}ms`;
   console.log(`${icon} ${result.name}`);
   console.log(`   ${result.endpoint} [${result.status}] ${time}`);
-  if (result.error) 
-    console.log(`   Error: ${result.error}`);
-  
+  if (result.error) console.log(`   Error: ${result.error}`);
 }
 
 // ============================================================================
@@ -248,17 +244,12 @@ async function runTests(): Promise<void> {
 
   // List readings
   logResult(
-    await testEndpoint(
-      'List Readings',
-      'GET',
-      `/api/v2/readings?device_id=${testDeviceId}`,
-      {
-        validateResponse: (data: unknown) => {
-          const d = data as { success: boolean; data?: unknown[] };
-          return d.success === true && Array.isArray(d.data);
-        },
-      }
-    )
+    await testEndpoint('List Readings', 'GET', `/api/v2/readings?device_id=${testDeviceId}`, {
+      validateResponse: (data: unknown) => {
+        const d = data as { success: boolean; data?: unknown[] };
+        return d.success === true && Array.isArray(d.data);
+      },
+    })
   );
 
   // Latest readings
@@ -359,14 +350,9 @@ async function runTests(): Promise<void> {
 
   // Verify soft delete
   logResult(
-    await testEndpoint(
-      'Verify Soft Delete',
-      'GET',
-      `/api/v2/devices/${testDeviceId}`,
-      {
-        expectedStatus: 410, // Gone
-      }
-    )
+    await testEndpoint('Verify Soft Delete', 'GET', `/api/v2/devices/${testDeviceId}`, {
+      expectedStatus: 410, // Gone
+    })
   );
 
   // ---------------------------------------------------------------------------
@@ -375,8 +361,8 @@ async function runTests(): Promise<void> {
   console.log('\n' + '='.repeat(60));
   console.log('\n📋 Test Summary\n');
 
-  const passed = results.filter((r) => r.passed).length;
-  const failed = results.filter((r) => !r.passed).length;
+  const passed = results.filter(r => r.passed).length;
+  const failed = results.filter(r => !r.passed).length;
   const total = results.length;
   const avgTime = Math.round(results.reduce((sum, r) => sum + r.responseTime, 0) / total);
 
@@ -388,8 +374,8 @@ async function runTests(): Promise<void> {
   if (failed > 0) {
     console.log('\n❌ Failed Tests:');
     results
-      .filter((r) => !r.passed)
-      .forEach((r) => {
+      .filter(r => !r.passed)
+      .forEach(r => {
         console.log(`  - ${r.name}: ${r.error}`);
       });
     process.exit(1);
@@ -400,7 +386,7 @@ async function runTests(): Promise<void> {
 }
 
 // Run tests
-runTests().catch((error) => {
+runTests().catch(error => {
   console.error('Test runner error:', error);
   process.exit(1);
 });

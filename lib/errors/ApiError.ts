@@ -56,12 +56,7 @@ export class ApiError extends Error {
   public readonly timestamp: Date;
   public isOperational: boolean;
 
-  constructor(
-    errorCode: string,
-    statusCode: number,
-    message: string,
-    metadata?: ApiErrorMetadata
-  ) {
+  constructor(errorCode: string, statusCode: number, message: string, metadata?: ApiErrorMetadata) {
     super(message);
 
     this.name = 'ApiError';
@@ -72,9 +67,7 @@ export class ApiError extends Error {
     this.isOperational = true; // Operational errors are expected; programming errors are not
 
     // Maintains proper stack trace for where error was thrown (V8 engines)
-    if (Error.captureStackTrace) 
-      Error.captureStackTrace(this, ApiError);
-    
+    if (Error.captureStackTrace) Error.captureStackTrace(this, ApiError);
 
     // Set prototype explicitly for proper instanceof checks
     Object.setPrototypeOf(this, ApiError.prototype);
@@ -119,10 +112,7 @@ export class ApiError extends Error {
   /**
    * 400 Validation Error - Input validation failed
    */
-  static validationError(
-    message: string,
-    metadata?: ApiErrorMetadata
-  ): ApiError {
+  static validationError(message: string, metadata?: ApiErrorMetadata): ApiError {
     return new ApiError('VALIDATION_ERROR', 400, message, metadata);
   }
 
@@ -143,19 +133,14 @@ export class ApiError extends Error {
   /**
    * 403 Forbidden - Insufficient permissions
    */
-  static forbidden(
-    message = 'You do not have permission to perform this action'
-  ): ApiError {
+  static forbidden(message = 'You do not have permission to perform this action'): ApiError {
     return new ApiError('FORBIDDEN', 403, message);
   }
 
   /**
    * 404 Not Found - Resource not found
    */
-  static notFound(
-    resourceType: string,
-    identifier?: string | Record<string, unknown>
-  ): ApiError {
+  static notFound(resourceType: string, identifier?: string | Record<string, unknown>): ApiError {
     const id =
       typeof identifier === 'string'
         ? identifier
@@ -201,11 +186,7 @@ export class ApiError extends Error {
   /**
    * 409 Duplicate - Resource with same unique identifier exists
    */
-  static duplicate(
-    resourceType: string,
-    field: string,
-    value: string
-  ): ApiError {
+  static duplicate(resourceType: string, field: string, value: string): ApiError {
     return new ApiError(
       'DUPLICATE_RESOURCE',
       409,
@@ -217,20 +198,14 @@ export class ApiError extends Error {
   /**
    * 422 Unprocessable Entity - Valid syntax but semantically incorrect
    */
-  static unprocessableEntity(
-    message: string,
-    metadata?: ApiErrorMetadata
-  ): ApiError {
+  static unprocessableEntity(message: string, metadata?: ApiErrorMetadata): ApiError {
     return new ApiError('UNPROCESSABLE_ENTITY', 422, message, metadata);
   }
 
   /**
    * 429 Rate Limit Exceeded
    */
-  static rateLimitExceeded(
-    retryAfterSeconds?: number,
-    metadata?: ApiErrorMetadata
-  ): ApiError {
+  static rateLimitExceeded(retryAfterSeconds?: number, metadata?: ApiErrorMetadata): ApiError {
     const message = retryAfterSeconds
       ? `Rate limit exceeded. Retry after ${retryAfterSeconds} seconds`
       : 'Rate limit exceeded';
@@ -256,16 +231,11 @@ export class ApiError extends Error {
   /**
    * 502 Bad Gateway - External service error
    */
-  static badGateway(
-    serviceName: string,
-    metadata?: ApiErrorMetadata
-  ): ApiError {
-    return new ApiError(
-      'BAD_GATEWAY',
-      502,
-      `Error communicating with ${serviceName}`,
-      { service: serviceName, ...metadata }
-    );
+  static badGateway(serviceName: string, metadata?: ApiErrorMetadata): ApiError {
+    return new ApiError('BAD_GATEWAY', 502, `Error communicating with ${serviceName}`, {
+      service: serviceName,
+      ...metadata,
+    });
   }
 
   /**
@@ -281,16 +251,11 @@ export class ApiError extends Error {
   /**
    * 504 Gateway Timeout - External service timeout
    */
-  static gatewayTimeout(
-    serviceName: string,
-    metadata?: ApiErrorMetadata
-  ): ApiError {
-    return new ApiError(
-      'GATEWAY_TIMEOUT',
-      504,
-      `Request to ${serviceName} timed out`,
-      { service: serviceName, ...metadata }
-    );
+  static gatewayTimeout(serviceName: string, metadata?: ApiErrorMetadata): ApiError {
+    return new ApiError('GATEWAY_TIMEOUT', 504, `Request to ${serviceName} timed out`, {
+      service: serviceName,
+      ...metadata,
+    });
   }
 
   // ============================================================================
@@ -308,9 +273,7 @@ export class ApiError extends Error {
    * Creates an ApiError from an unknown error
    */
   static from(error: unknown): ApiError {
-    if (ApiError.isApiError(error)) 
-      return error;
-    
+    if (ApiError.isApiError(error)) return error;
 
     if (error instanceof Error) {
       const apiError = new ApiError(
