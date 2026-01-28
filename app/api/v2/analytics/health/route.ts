@@ -87,151 +87,162 @@ export async function GET(request: NextRequest) {
         // Calculate offline threshold
         const offlineThreshold = new Date(Date.now() - query.offline_threshold_minutes * 60 * 1000);
 
-        // Get status breakdown
-        const statusBreakdown = await DeviceV2.aggregate([
-          { $match: baseFilter },
-          {
-            $group: {
-              _id: '$status',
-              count: { $sum: 1 },
-            },
-          },
-          {
-            $project: {
-              _id: 0,
-              status: '$_id',
-              count: 1,
-            },
-          },
-        ]).option({ maxTimeMS: 5000 });
-
-        // Get total device count
-        const totalDevices = await DeviceV2.countDocuments(baseFilter).maxTimeMS(5000);
-
-        // Get active devices count
-        const activeDevices = await DeviceV2.countDocuments({
-          ...baseFilter,
-          status: 'active',
-        }).maxTimeMS(5000);
-
-        // Get offline devices (based on last_seen)
-        const offlineDevices = await DeviceV2.find(
-          {
-            ...baseFilter,
-            'health.last_seen': { $lt: offlineThreshold },
-          },
-          {
-            _id: 1,
-            serial_number: 1,
-            'location.building_id': 1,
-            'location.floor': 1,
-            'location.room_name': 1,
-            'health.last_seen': 1,
-            status: 1,
-          }
-        )
-          .maxTimeMS(5000)
-          .lean();
-
-        // Get devices with low battery
-        const lowBatteryDevices = await DeviceV2.find(
-          {
-            ...baseFilter,
-            'health.battery_level': { $lt: query.battery_warning_threshold, $ne: null },
-          },
-          {
-            _id: 1,
-            serial_number: 1,
-            'location.room_name': 1,
-            'health.battery_level': 1,
-          }
-        )
-          .maxTimeMS(5000)
-          .lean();
-
-        // Get devices with errors
-        const errorDevices = await DeviceV2.find(
-          {
-            ...baseFilter,
-            status: 'error',
-          },
-          {
-            _id: 1,
-            serial_number: 1,
-            'location.room_name': 1,
-            'health.last_error': 1,
-            'health.error_count': 1,
-          }
-        )
-          .maxTimeMS(5000)
-          .lean();
-
-        // Get devices needing maintenance (next_maintenance within 7 days)
+        // Run all independent queries in parallel
+        const now = new Date();
         const maintenanceDueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        const maintenanceDue = await DeviceV2.find(
-          {
-            ...baseFilter,
-            'metadata.next_maintenance': { $lte: maintenanceDueDate, $ne: null },
-          },
-          {
-            _id: 1,
-            serial_number: 1,
-            'location.room_name': 1,
-            'metadata.next_maintenance': 1,
-            'metadata.last_maintenance': 1,
-          }
-        )
-          .maxTimeMS(5000)
-          .lean();
 
-        // Calculate average uptime
-        const uptimeStats = await DeviceV2.aggregate([
-          { $match: baseFilter },
-          {
-            $group: {
-              _id: null,
-              avg_uptime: { $avg: '$health.uptime_percentage' },
-              min_uptime: { $min: '$health.uptime_percentage' },
-              max_uptime: { $max: '$health.uptime_percentage' },
-              total_errors: { $sum: '$health.error_count' },
+        const [
+          statusBreakdown,
+          totalDevices,
+          activeDevices,
+          offlineDevices,
+          lowBatteryDevices,
+          errorDevices,
+          maintenanceDue,
+          uptimeStats,
+          predictiveMaintenanceDevices,
+        ] = await Promise.all([
+          // Status breakdown
+          DeviceV2.aggregate([
+            { $match: baseFilter },
+            {
+              $group: {
+                _id: '$status',
+                count: { $sum: 1 },
+              },
             },
-          },
-        ]).option({ maxTimeMS: 5000 });
+            {
+              $project: {
+                _id: 0,
+                status: '$_id',
+                count: 1,
+              },
+            },
+          ]).option({ maxTimeMS: 5000 }),
+
+          // Total device count
+          DeviceV2.countDocuments(baseFilter).maxTimeMS(5000),
+
+          // Active devices count
+          DeviceV2.countDocuments({
+            ...baseFilter,
+            status: 'active',
+          }).maxTimeMS(5000),
+
+          // Offline devices (based on last_seen)
+          DeviceV2.find(
+            {
+              ...baseFilter,
+              'health.last_seen': { $lt: offlineThreshold },
+            },
+            {
+              _id: 1,
+              serial_number: 1,
+              'location.building_id': 1,
+              'location.floor': 1,
+              'location.room_name': 1,
+              'health.last_seen': 1,
+              status: 1,
+            }
+          )
+            .maxTimeMS(5000)
+            .lean(),
+
+          // Devices with low battery
+          DeviceV2.find(
+            {
+              ...baseFilter,
+              'health.battery_level': { $lt: query.battery_warning_threshold, $ne: null },
+            },
+            {
+              _id: 1,
+              serial_number: 1,
+              'location.room_name': 1,
+              'health.battery_level': 1,
+            }
+          )
+            .maxTimeMS(5000)
+            .lean(),
+
+          // Devices with errors
+          DeviceV2.find(
+            {
+              ...baseFilter,
+              status: 'error',
+            },
+            {
+              _id: 1,
+              serial_number: 1,
+              'location.room_name': 1,
+              'health.last_error': 1,
+              'health.error_count': 1,
+            }
+          )
+            .maxTimeMS(5000)
+            .lean(),
+
+          // Devices needing maintenance (next_maintenance within 7 days)
+          DeviceV2.find(
+            {
+              ...baseFilter,
+              'metadata.next_maintenance': { $lte: maintenanceDueDate, $ne: null },
+            },
+            {
+              _id: 1,
+              serial_number: 1,
+              'location.room_name': 1,
+              'metadata.next_maintenance': 1,
+              'metadata.last_maintenance': 1,
+            }
+          )
+            .maxTimeMS(5000)
+            .lean(),
+
+          // Average uptime
+          DeviceV2.aggregate([
+            { $match: baseFilter },
+            {
+              $group: {
+                _id: null,
+                avg_uptime: { $avg: '$health.uptime_percentage' },
+                min_uptime: { $min: '$health.uptime_percentage' },
+                max_uptime: { $max: '$health.uptime_percentage' },
+                total_errors: { $sum: '$health.error_count' },
+              },
+            },
+          ]).option({ maxTimeMS: 5000 }),
+
+          // Predictive maintenance: devices at risk
+          DeviceV2.find(
+            {
+              ...baseFilter,
+              $or: [
+                { 'health.battery_level': { $lt: 15, $ne: null } },
+                {
+                  'metadata.next_maintenance': {
+                    $lte: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+                    $ne: null,
+                  },
+                },
+                { 'health.error_count': { $gt: 10 } },
+              ],
+            },
+            {
+              _id: 1,
+              serial_number: 1,
+              'location.room_name': 1,
+              'health.battery_level': 1,
+              'health.error_count': 1,
+              'metadata.next_maintenance': 1,
+            }
+          )
+            .maxTimeMS(5000)
+            .lean(),
+        ]);
 
         // Calculate health score (percentage of active devices)
         const healthScore =
           totalDevices > 0 ? Math.round((activeDevices / totalDevices) * 100) : 100;
-
-        // Predictive maintenance: devices at risk
-        const now = new Date();
-        const predictiveMaintenanceDevices = await DeviceV2.find(
-          {
-            ...baseFilter,
-            $or: [
-              // Battery critical (< 15%)
-              { 'health.battery_level': { $lt: 15, $ne: null } },
-              // Maintenance overdue or within 3 days
-              {
-                'metadata.next_maintenance': {
-                  $lte: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
-                  $ne: null,
-                },
-              },
-              // High error count
-              { 'health.error_count': { $gt: 10 } },
-            ],
-          },
-          {
-            _id: 1,
-            serial_number: 1,
-            'location.room_name': 1,
-            'health.battery_level': 1,
-            'health.error_count': 1,
-            'metadata.next_maintenance': 1,
-          }
-        )
-          .maxTimeMS(5000)
-          .lean();
 
         // Categorize predictive maintenance issues
         const predictiveMaintenanceItems = predictiveMaintenanceDevices.map(device => {

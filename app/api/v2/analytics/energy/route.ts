@@ -12,6 +12,7 @@ import {
   type ReadingAnalyticsQuery,
 } from '@/lib/validations/v2/reading.validation';
 import { validateQuery } from '@/lib/validations/validator';
+import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import type { PipelineStage } from 'mongoose';
 import type { NextRequest } from 'next/server';
@@ -154,6 +155,36 @@ export async function GET(request: NextRequest) {
 
     // Build match stage
     const matchStage: Record<string, unknown> = {};
+
+    // Floor filter: resolve to device IDs on that floor
+    if (query.floor !== undefined) {
+      const floorDeviceIds = await DeviceV2.find(
+        { 'location.floor': query.floor, 'audit.deleted_at': { $exists: false } },
+        { _id: 1 }
+      )
+        .maxTimeMS(3000)
+        .lean();
+
+      const ids = floorDeviceIds.map(d => d._id);
+      if (ids.length === 0) {
+        // No devices on this floor — return empty results immediately
+        return jsonSuccess({
+          results: [],
+          comparison: null,
+          metadata: {
+            granularity: query.granularity || 'hour',
+            aggregation_type: query.aggregation || 'avg',
+            total_points: 0,
+            excluded_invalid: 0,
+            group_by: query.group_by || null,
+            time_range: { start: query.startDate, end: query.endDate },
+            compare_with: query.compare_with || null,
+          },
+        });
+      }
+
+      matchStage['metadata.device_id'] = ids.length === 1 ? ids[0] : { $in: ids };
+    }
 
     // Device filter
     if (query.device_id) {
