@@ -314,6 +314,24 @@ describe('Auth Module', () => {
   });
 
   // ==========================================================================
+  // isAdminRole()
+  // ==========================================================================
+
+  describe('isAdminRole()', () => {
+    it('should return true for org:admin role', () => {
+      const { isAdminRole } = require('@/lib/auth');
+
+      expect(isAdminRole('org:admin')).toBe(true);
+    });
+
+    it('should return false for org:member role', () => {
+      const { isAdminRole } = require('@/lib/auth');
+
+      expect(isAdminRole('org:member')).toBe(false);
+    });
+  });
+
+  // ==========================================================================
   // withAuth()
   // ==========================================================================
 
