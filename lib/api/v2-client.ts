@@ -430,8 +430,11 @@ export const analyticsApi = {
   /**
    * Get device health metrics
    */
-  async health(): Promise<ApiSuccessResponse<HealthMetrics>> {
-    return apiCall('/api/v2/analytics/health');
+  async health(
+    query: { floor?: number; building_id?: string; department?: string } = {}
+  ): Promise<ApiSuccessResponse<HealthMetrics>> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    return apiCall(`/api/v2/analytics/health${queryString}`);
   },
 
   /**

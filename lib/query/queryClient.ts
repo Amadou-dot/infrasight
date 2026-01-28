@@ -34,7 +34,7 @@ export const queryClient = new QueryClient({
  * Query key factory for consistent cache keys
  */
 export const queryKeys = {
-  health: ['analytics', 'health'] as const,
+  health: (params?: Record<string, unknown>) => ['analytics', 'health', params] as const,
   devices: {
     all: ['devices'] as const,
     list: (filters?: Record<string, unknown>) => ['devices', 'list', filters] as const,

@@ -67,7 +67,7 @@ export default function AnalyticsPage() {
       {/* Analytics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <EnergyUsageChart selectedFloor={selectedFloor} />
-        <DeviceHealthWidget />
+        <DeviceHealthWidget selectedFloor={selectedFloor} />
       </div>
     </div>
   );

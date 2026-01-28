@@ -10,13 +10,13 @@ interface UseHealthAnalyticsOptions {
 }
 
 export function useHealthAnalytics(
-  _options: UseHealthAnalyticsOptions = {},
+  options: UseHealthAnalyticsOptions = {},
   config?: QueryConfig<HealthMetrics>
 ) {
   return useQuery({
-    queryKey: queryKeys.health,
+    queryKey: queryKeys.health(options),
     queryFn: async () => {
-      const response = await v2Api.analytics.health();
+      const response = await v2Api.analytics.health(options);
       return response.data;
     },
     staleTime: 60 * 1000, // 1 minute (needs to be fairly fresh)
@@ -30,5 +30,5 @@ export function useHealthAnalytics(
  */
 export function useInvalidateHealth() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: queryKeys.health });
+  return () => queryClient.invalidateQueries({ queryKey: queryKeys.health() });
 }
