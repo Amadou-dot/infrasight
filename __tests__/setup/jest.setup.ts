@@ -20,7 +20,12 @@ jest.setTimeout(30000);
 // Individual tests can override with jest.mock() if needed
 
 jest.mock('@clerk/nextjs/server', () => ({
-  auth: jest.fn().mockResolvedValue({ userId: 'user_test_default' }),
+  auth: jest.fn().mockResolvedValue({
+    userId: 'user_test_default',
+    orgId: 'org_default',
+    orgSlug: 'users',
+    orgRole: 'org:admin',
+  }),
   currentUser: jest.fn().mockResolvedValue({
     id: 'user_test_default',
     fullName: 'Test User',

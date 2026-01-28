@@ -8,6 +8,7 @@ Complete guide for configuring environment variables and setting up the Infrasig
 - [Required Environment Variables](#required-environment-variables)
   - [MongoDB](#mongodb)
   - [Pusher (Real-time)](#pusher-real-time)
+  - [Clerk Authentication & RBAC](#clerk-authentication--rbac)
 - [Optional Environment Variables](#optional-environment-variables)
   - [Redis (Rate Limiting & Caching)](#redis-rate-limiting--caching)
   - [Rate Limiting](#rate-limiting)
@@ -137,6 +138,25 @@ PUSHER_CLUSTER=us2
 NEXT_PUBLIC_PUSHER_KEY=a1b2c3d4e5f6g7h8i9j0
 NEXT_PUBLIC_PUSHER_CLUSTER=us2
 ```
+
+---
+
+### Clerk Authentication & RBAC
+
+Clerk handles authentication and organization-based access control. Users must belong to the allowed org(s) and have a role of `admin` or `member`.
+
+| Variable                              | Description                                    | Required | Default |
+| ------------------------------------- | ---------------------------------------------- | -------- | ------- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`   | Clerk publishable key                          | Yes      | —       |
+| `CLERK_SECRET_KEY`                    | Clerk secret key                               | Yes      | —       |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`       | Sign-in route                                  | Yes      | `/sign-in` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`       | Sign-up route                                  | Yes      | `/sign-up` |
+| `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | Redirect after sign-in                         | Yes      | `/`     |
+| `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | Redirect after sign-up                         | Yes      | `/`     |
+| `CLERK_ALLOWED_ORG_SLUGS`             | Server allowlist of org slugs (comma-separated) | No       | `users` |
+| `NEXT_PUBLIC_CLERK_ALLOWED_ORG_SLUGS` | Client allowlist of org slugs (comma-separated) | No       | `users` |
+
+> **RBAC Rules**: `admin` can perform all actions. `member` is read-only and cannot create, update, or delete devices or ingest readings.
 
 ---
 

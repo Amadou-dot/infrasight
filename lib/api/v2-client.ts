@@ -218,6 +218,15 @@ export const deviceApi = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Restore a soft-deleted device
+   */
+  async restore(id: string): Promise<ApiSuccessResponse<{ _id: string; restored: boolean }>> {
+    return apiCall(`/api/v2/devices/${id}`, {
+      method: 'POST',
+    });
+  },
 };
 
 // ============================================================================

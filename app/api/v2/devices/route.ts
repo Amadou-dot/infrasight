@@ -32,7 +32,7 @@ import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 import { invalidateOnDeviceCreate, getOrSet, CACHE_TTL, devicesListKey } from '@/lib/cache';
 
 // Auth
-import { requireAuth, getAuditUser } from '@/lib/auth';
+import { requireAdmin, requireOrgMembership, getAuditUser } from '@/lib/auth';
 
 // ============================================================================
 // GET /api/v2/devices - List Devices
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    // Require authentication
-    await requireAuth();
+    // Require org membership
+    const authContext = await requireOrgMembership();
 
     await dbConnect();
 
@@ -60,6 +60,12 @@ export async function GET(request: NextRequest) {
       );
 
     const query = validationResult.data as ListDevicesQuery;
+
+    if (
+      authContext.orgRole !== 'org:admin' &&
+      (query.include_deleted || query.only_deleted)
+    )
+      throw ApiError.forbidden('Admin role required to access deleted devices');
 
     // Generate cache key based on all query parameters
     const cacheKey = devicesListKey(query as Record<string, unknown>);
@@ -232,7 +238,7 @@ async function handleCreateDevice(request: NextRequest) {
 
   return withErrorHandler(async () => {
     // Require authentication
-    const { userId, user } = await requireAuth();
+    const { userId, user } = await requireAdmin();
     const auditUser = getAuditUser(userId, user);
 
     await dbConnect();

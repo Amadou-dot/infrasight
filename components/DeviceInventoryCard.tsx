@@ -32,6 +32,7 @@ interface DeviceInventoryCardProps {
   device: DeviceV2Response;
   onClick?: () => void;
   onDelete?: (deviceId: string) => void;
+  showActions?: boolean;
 }
 
 // Get icon component based on device type
@@ -196,6 +197,7 @@ export default function DeviceInventoryCard({
   device,
   onClick,
   onDelete,
+  showActions = true,
 }: DeviceInventoryCardProps) {
   const secondaryStat = getSecondaryStat(device);
 
@@ -235,28 +237,30 @@ export default function DeviceInventoryCard({
               <p className="text-xs text-muted-foreground">{formatDeviceType(device.type)}</p>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0'
-                onClick={e => {
-                  e.stopPropagation();
-                }}>
-                <MoreVertical className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' onClick={e => e.stopPropagation()}>
-              <DropdownMenuItem
-                variant='destructive'
-                onClick={() => onDelete?.(device._id)}
-              >
-                <Trash2 className='h-4 w-4' />
-                Delete Device
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {showActions && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0'
+                  onClick={e => {
+                    e.stopPropagation();
+                  }}>
+                  <MoreVertical className='h-4 w-4' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' onClick={e => e.stopPropagation()}>
+                <DropdownMenuItem
+                  variant='destructive'
+                  onClick={() => onDelete?.(device._id)}
+                >
+                  <Trash2 className='h-4 w-4' />
+                  Delete Device
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Location & Info */}

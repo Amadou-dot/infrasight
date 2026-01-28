@@ -20,7 +20,7 @@ import { validateInput, validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 import { withRateLimit } from '@/lib/ratelimit';
-import { requireAuth, getAuditUser } from '@/lib/auth';
+import { requireAdmin, requireOrgMembership, getAuditUser } from '@/lib/auth';
 import { invalidateDevice } from '@/lib/cache';
 
 // ============================================================================
@@ -29,8 +29,8 @@ import { invalidateDevice } from '@/lib/cache';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    // Require authentication
-    await requireAuth();
+    // Require org membership
+    await requireOrgMembership();
 
     await dbConnect();
 
@@ -101,8 +101,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    // Require authentication
-    const { userId, user } = await requireAuth();
+    // Require admin
+    const { userId, user } = await requireAdmin();
     const auditUser = getAuditUser(userId, user);
 
     await dbConnect();
@@ -225,8 +225,8 @@ async function handleDeleteDevice(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandler(async () => {
-    // Require authentication
-    const { userId, user } = await requireAuth();
+    // Require admin
+    const { userId, user } = await requireAdmin();
     const auditUser = getAuditUser(userId, user);
 
     await dbConnect();
@@ -273,3 +273,67 @@ async function handleDeleteDevice(
 }
 
 export const DELETE = withRateLimit(handleDeleteDevice);
+
+// ============================================================================
+// POST /api/v2/devices/[id] - Restore Device
+// ============================================================================
+
+async function handleRestoreDevice(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withErrorHandler(async () => {
+    // Require admin
+    const { userId, user } = await requireAdmin();
+    const auditUser = getAuditUser(userId, user);
+
+    await dbConnect();
+
+    const { id } = await params;
+
+    // Validate path param
+    const paramValidation = validateInput({ id }, deviceIdParamSchema);
+    if (!paramValidation.success)
+      throw new ApiError(
+        ErrorCodes.VALIDATION_ERROR,
+        400,
+        paramValidation.errors.map(e => e.message).join(', '),
+        { errors: paramValidation.errors }
+      );
+
+    // Check if device exists
+    const device = await DeviceV2.findById(id);
+    if (!device) throw ApiError.notFound('Device', id);
+
+    if (!device.audit?.deleted_at)
+      throw new ApiError(ErrorCodes.BAD_REQUEST, 400, `Device '${id}' is not deleted`);
+
+    const restoredDevice = await DeviceV2.restore(id);
+    if (!restoredDevice) throw ApiError.notFound('Device', id);
+
+    await DeviceV2.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          'audit.updated_at': new Date(),
+          'audit.updated_by': auditUser,
+        },
+      },
+      { new: true }
+    ).lean();
+
+    invalidateDevice(id).catch(() => {
+      // Error already logged
+    });
+
+    return jsonSuccess(
+      {
+        _id: id,
+        restored: true,
+      },
+      'Device restored successfully'
+    );
+  })();
+}
+
+export const POST = withRateLimit(handleRestoreDevice);

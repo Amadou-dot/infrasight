@@ -14,10 +14,12 @@ import { useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useUser } from '@clerk/nextjs';
+import { useRbac } from '@/lib/auth/rbac-client';
 
 export default function Home() {
   // User info from Clerk
   const { user } = useUser();
+  const { isAdmin } = useRbac();
 
   // Data fetching with React Query (automatic caching, deduplication)
   const { data: health, isLoading } = useHealthAnalytics();
@@ -92,10 +94,12 @@ export default function Home() {
           {/* Actions */}
           <div className="flex items-center justify-end gap-3">
             {/* Generate Report button */}
-            <button className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors">
-              <FileText className="h-4 w-4" />
-              Generate Report
-            </button>
+            {isAdmin && (
+              <button className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors">
+                <FileText className="h-4 w-4" />
+                Generate Report
+              </button>
+            )}
           </div>
         </div>
       </header>

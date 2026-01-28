@@ -14,8 +14,10 @@
 
 import { NextResponse } from 'next/server';
 import { getPrometheusMetrics, getMetricsSnapshot } from '@/lib/monitoring';
+import { requireAdmin } from '@/lib/auth';
 
 export async function GET(request: Request) {
+  await requireAdmin();
   const url = new URL(request.url);
   const format = url.searchParams.get('format');
 

@@ -184,6 +184,136 @@ describe('Auth Module', () => {
   });
 
   // ==========================================================================
+  // getAuthContext() / requireOrgMembership() / requireAdmin()
+  // ==========================================================================
+
+  describe('RBAC helpers', () => {
+    it('should return auth context for admin in allowed org', async () => {
+      const { auth, currentUser } = require('@clerk/nextjs/server');
+      auth.mockResolvedValue({
+        userId: 'user_admin',
+        orgId: 'org_123',
+        orgSlug: 'users',
+        orgRole: 'org:admin',
+      } as Awaited<ReturnType<typeof auth>>);
+      currentUser.mockResolvedValue({
+        id: 'user_admin',
+        fullName: 'Admin User',
+        firstName: 'Admin',
+        lastName: 'User',
+        primaryEmailAddressId: 'email_admin',
+        emailAddresses: [
+          { id: 'email_admin', emailAddress: 'admin@example.com' },
+        ],
+      });
+
+      const { getAuthContext } = require('@/lib/auth');
+      const context = await getAuthContext();
+
+      expect(context.userId).toBe('user_admin');
+      expect(context.orgId).toBe('org_123');
+      expect(context.orgSlug).toBe('users');
+      expect(context.orgRole).toBe('org:admin');
+    });
+
+    it('should reject when org slug is missing', async () => {
+      const { auth, currentUser } = require('@clerk/nextjs/server');
+      auth.mockResolvedValue({
+        userId: 'user_no_org',
+        orgId: null,
+        orgSlug: null,
+        orgRole: 'org:admin',
+      } as Awaited<ReturnType<typeof auth>>);
+      currentUser.mockResolvedValue({
+        id: 'user_no_org',
+        fullName: 'No Org',
+        firstName: 'No',
+        lastName: 'Org',
+        primaryEmailAddressId: 'email_no_org',
+        emailAddresses: [
+          { id: 'email_no_org', emailAddress: 'noorg@example.com' },
+        ],
+      });
+
+      const { getAuthContext } = require('@/lib/auth');
+      await expect(getAuthContext()).rejects.toThrow('Organization membership required');
+    });
+
+    it('should reject when org slug not allowed', async () => {
+      process.env.CLERK_ALLOWED_ORG_SLUGS = 'admins';
+
+      const { auth, currentUser } = require('@clerk/nextjs/server');
+      auth.mockResolvedValue({
+        userId: 'user_bad_org',
+        orgId: 'org_bad',
+        orgSlug: 'users',
+        orgRole: 'org:admin',
+      } as Awaited<ReturnType<typeof auth>>);
+      currentUser.mockResolvedValue({
+        id: 'user_bad_org',
+        fullName: 'Bad Org',
+        firstName: 'Bad',
+        lastName: 'Org',
+        primaryEmailAddressId: 'email_bad_org',
+        emailAddresses: [
+          { id: 'email_bad_org', emailAddress: 'badorg@example.com' },
+        ],
+      });
+
+      const { requireOrgMembership } = require('@/lib/auth');
+      await expect(requireOrgMembership()).rejects.toThrow('required organization');
+
+      delete process.env.CLERK_ALLOWED_ORG_SLUGS;
+    });
+
+    it('should reject unsupported org role', async () => {
+      const { auth, currentUser } = require('@clerk/nextjs/server');
+      auth.mockResolvedValue({
+        userId: 'user_role',
+        orgId: 'org_role',
+        orgSlug: 'users',
+        orgRole: 'org:viewer',
+      } as Awaited<ReturnType<typeof auth>>);
+      currentUser.mockResolvedValue({
+        id: 'user_role',
+        fullName: 'Viewer Role',
+        firstName: 'Viewer',
+        lastName: 'Role',
+        primaryEmailAddressId: 'email_role',
+        emailAddresses: [
+          { id: 'email_role', emailAddress: 'viewer@example.com' },
+        ],
+      });
+
+      const { getAuthContext } = require('@/lib/auth');
+      await expect(getAuthContext()).rejects.toThrow('Unsupported organization role');
+    });
+
+    it('should reject admin requirement for member role', async () => {
+      const { auth, currentUser } = require('@clerk/nextjs/server');
+      auth.mockResolvedValue({
+        userId: 'user_member',
+        orgId: 'org_member',
+        orgSlug: 'users',
+        orgRole: 'org:member',
+      } as Awaited<ReturnType<typeof auth>>);
+      currentUser.mockResolvedValue({
+        id: 'user_member',
+        fullName: 'Member User',
+        firstName: 'Member',
+        lastName: 'User',
+        primaryEmailAddressId: 'email_member',
+        emailAddresses: [
+          { id: 'email_member', emailAddress: 'member@example.com' },
+        ],
+      });
+
+      const { requireAdmin } = require('@/lib/auth');
+      await expect(requireAdmin()).rejects.toThrow('Admin role required');
+    });
+  });
+
+  // ==========================================================================
   // withAuth()
   // ==========================================================================
 

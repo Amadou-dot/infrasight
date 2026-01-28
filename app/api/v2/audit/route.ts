@@ -13,6 +13,7 @@ import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/
 import { z } from 'zod';
 import { validateQuery } from '@/lib/validations/validator';
 import { paginationSchema, dateRangeSchema } from '@/lib/validations/common.validation';
+import { requireAdmin } from '@/lib/auth';
 
 // ============================================================================
 // Validation Schema
@@ -65,6 +66,7 @@ interface AuditEntry {
 
 export async function GET(request: NextRequest) {
   return withErrorHandler(async () => {
+    await requireAdmin();
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;

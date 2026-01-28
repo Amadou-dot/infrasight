@@ -202,6 +202,54 @@ describe('V2 API Client', () => {
     });
   });
 
+  describe('deviceApi.restore', () => {
+    it('should restore a device successfully', async () => {
+      const mockResponse = {
+        success: true,
+        data: { _id: 'device_restore', restored: true },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await deviceApi.restore('device_restore');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v2/devices/device_restore',
+        expect.objectContaining({
+          method: 'POST',
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should throw ApiClientError when restore fails', async () => {
+      const mockErrorResponse = {
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'Device is not deleted',
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve(mockErrorResponse),
+      });
+
+      try {
+        await deviceApi.restore('device_active');
+        fail('Expected error to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiClientError);
+        expect((error as ApiClientError).statusCode).toBe(400);
+      }
+    });
+  });
+
   describe('deviceApi.delete', () => {
     it('should delete a device successfully', async () => {
       const mockResponse = {
