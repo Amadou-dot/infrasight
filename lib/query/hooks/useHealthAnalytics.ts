@@ -14,7 +14,7 @@ export function useHealthAnalytics(
   config?: QueryConfig<HealthMetrics>
 ) {
   return useQuery({
-    queryKey: queryKeys.health(options),
+    queryKey: queryKeys.health(options as Record<string, unknown>),
     queryFn: async () => {
       const response = await v2Api.analytics.health(options);
       return response.data;
