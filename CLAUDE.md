@@ -87,6 +87,11 @@ All checked at import time—app fails loudly if missing:
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`: Redirect after sign-in (`/`)
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`: Redirect after sign-up (`/`)
 
+**RBAC Organization Access (required):**
+
+- `CLERK_ALLOWED_ORG_SLUGS`: Comma-separated org slugs allowed access (default: `users`)
+- `NEXT_PUBLIC_CLERK_ALLOWED_ORG_SLUGS`: Client-side org allowlist (default: `users`)
+
 **Optional (Phase 5 Features):**
 
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`: Redis for caching and rate limiting
@@ -270,13 +275,14 @@ lib/
   redis/                           # Redis client configuration
   middleware/                      # Request validation, body size, headers
   utils/                           # Correlation analysis, severity calculation
-  auth/                            # Auth utilities (requireAuth, getAuditUser, withAuth)
+  auth/                            # RBAC utilities (requireAdmin, requireOrgMembership, useRbac)
 app/
   layout.tsx                       # Root layout with ClerkProvider
   page.tsx                         # Dashboard home page
   settings/page.tsx                # User settings (theme, profile, sign-out)
   analytics/page.tsx               # Analytics dashboard
   devices/page.tsx                 # Device list view
+  devices/deleted/page.tsx         # Deleted devices (admin only)
   floor-plan/page.tsx              # Floor plan visualization
   maintenance/page.tsx             # Maintenance dashboard
   sign-in/[[...sign-in]]/page.tsx  # Clerk sign-in page
@@ -322,16 +328,77 @@ The v2 API includes enterprise-grade features for production deployment:
 - **Keys**: Structured cache keys in `lib/cache/keys.ts`
 - **Endpoints**: Metadata, analytics aggregations
 
-### Authentication (Clerk)
+### Authentication & RBAC (Clerk)
 
-- **Provider**: [Clerk](https://clerk.com) for user authentication
-- **Middleware**: `proxy.ts` protects all routes (Next.js 16+ uses `proxy.ts` instead of `middleware.ts`)
+- **Provider**: [Clerk](https://clerk.com) for user authentication and organization-based RBAC
+- **Middleware**: `proxy.ts` protects all routes and validates organization membership
 - **Components**: `UserButton` in TopNav, `useUser()` hook for user data
 - **Routes**: `/sign-in`, `/sign-up` for authentication pages
-- **Protected Routes**: All dashboard and API routes require sign-in
+- **Protected Routes**: All dashboard and API routes require sign-in and org membership
 - **Public Routes**: Only `/api/v2/cron/simulate` is public (for GitHub Actions cron job)
-- **API Auth Utilities**: `lib/auth/` provides `requireAuth()` and `getAuditUser()` helpers for API routes
-- **Audit Tracking**: All mutation operations (create, update, delete) track the authenticated user's email in audit trails
+- **API Auth Utilities**: `lib/auth/` provides RBAC helpers for API routes
+- **Audit Tracking**: All mutation operations track the authenticated user's email in audit trails
+
+**RBAC Roles:**
+
+| Role | Permissions |
+|------|-------------|
+| `org:admin` | Full access: create, read, update, delete, ingest, view audit, access deleted devices |
+| `org:member` | Read-only: view devices, readings, analytics, metadata (cannot modify) |
+
+**Server-Side RBAC Functions** (from `lib/auth/`):
+
+```typescript
+import { requireOrgMembership, requireAdmin, getAuditUser, isAdminRole } from '@/lib/auth';
+
+// For read-only endpoints (admins + members)
+export async function GET(request: NextRequest) {
+  return withErrorHandler(async () => {
+    const authContext = await requireOrgMembership();
+    // authContext: { userId, user, orgId, orgSlug, orgRole }
+    // ...
+  });
+}
+
+// For write operations (admins only)
+export async function POST(request: NextRequest) {
+  return withErrorHandler(async () => {
+    const { userId, user } = await requireAdmin();
+    const auditUser = getAuditUser(userId, user);
+    // ...
+  });
+}
+```
+
+**Client-Side RBAC Hook** (for UI):
+
+```typescript
+import { useRbac } from '@/lib/auth/rbac-client';
+
+function MyComponent() {
+  const { isAdmin, isMember, orgRole, isLoaded } = useRbac();
+
+  // Conditionally render admin-only features
+  if (isAdmin) {
+    return <DeleteButton />;
+  }
+}
+```
+
+**API Endpoint Permissions:**
+
+| Endpoint | Method | Requirement |
+|----------|--------|-------------|
+| `/api/v2/devices` | GET | `requireOrgMembership()` |
+| `/api/v2/devices` | POST | `requireAdmin()` |
+| `/api/v2/devices/:id` | PATCH/DELETE | `requireAdmin()` |
+| `/api/v2/devices/:id/history` | GET | `requireAdmin()` |
+| `/api/v2/readings` | GET | `requireOrgMembership()` |
+| `/api/v2/readings/ingest` | POST | `requireAdmin()` |
+| `/api/v2/analytics/*` | GET | `requireOrgMembership()` |
+| `/api/v2/audit` | GET | `requireAdmin()` |
+| `/api/v2/metrics` | GET | `requireAdmin()` |
+| `/api/v2/metadata` | GET | `requireOrgMembership()` |
 
 ### Monitoring & Observability
 
@@ -362,7 +429,8 @@ __tests__/
   unit/                          # Unit tests
     models/                      # Model tests (DeviceV2, ReadingV2)
     validations/                 # Zod schema validation tests
-    auth/                        # Auth utility tests
+    auth/                        # Auth and RBAC utility tests
+    lib/                         # RBAC client hook tests
     utils/                       # Utility function tests
   integration/api/               # API integration tests
     devices.test.ts              # Device CRUD endpoints
@@ -526,6 +594,8 @@ await ReadingV2.bulkInsertReadings([
 8. **Bulk insert limits**: Reading ingestion limited to 10,000 per request—batch larger datasets
 9. **Analytics queries**: Always include time range for reading queries—required for timeseries efficiency
 10. **Device type mismatch**: Ensure reading type matches device type—enforced at validation layer
+11. **RBAC enforcement**: Always use `requireAdmin()` for mutations and `requireOrgMembership()` for reads—never skip role checks
+12. **Client-side RBAC**: Use `useRbac()` hook for UI hints only—always enforce permissions server-side in API routes
 
 ## Key Files to Reference
 
@@ -551,8 +621,8 @@ await ReadingV2.bulkInsertReadings([
 
 - Rate limiting: [lib/ratelimit/](lib/ratelimit/)
 - Caching: [lib/cache/](lib/cache/)
-- Authentication middleware: [proxy.ts](proxy.ts) (Clerk)
-- API auth utilities: [lib/auth/](lib/auth/) (`requireAuth()`, `getAuditUser()`)
+- Authentication middleware: [proxy.ts](proxy.ts) (Clerk + org validation)
+- RBAC utilities: [lib/auth/](lib/auth/) (`requireAdmin()`, `requireOrgMembership()`, `useRbac()`)
 - Monitoring: [lib/monitoring/](lib/monitoring/)
 - Redis: [lib/redis/](lib/redis/)
 - Middleware: [lib/middleware/](lib/middleware/)
