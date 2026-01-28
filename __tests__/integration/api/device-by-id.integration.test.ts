@@ -11,7 +11,7 @@ import ReadingV2 from '@/models/v2/ReadingV2';
 import { createDeviceInput, createReadingV2Input, resetCounters } from '../../setup/factories';
 
 // Import the route handlers
-import { GET, PATCH, DELETE } from '@/app/api/v2/devices/[id]/route';
+import { GET, PATCH, DELETE, POST } from '@/app/api/v2/devices/[id]/route';
 
 /**
  * Helper to create a mock NextRequest for GET requests
@@ -403,6 +403,53 @@ describe('Single Device API Integration Tests', () => {
 
         expect(response.status).toBe(200);
       });
+    });
+  });
+
+  // ==========================================================================
+  // POST /api/v2/devices/[id] RESTORE TESTS
+  // ==========================================================================
+
+  describe('POST /api/v2/devices/[id] (Restore)', () => {
+    it('should restore a deleted device', async () => {
+      const deviceData = createDeviceInput({ _id: 'restore_device_001' });
+      await DeviceV2.create(deviceData);
+      await DeviceV2.softDelete('restore_device_001', 'test-user');
+
+      const request = createMockDeleteRequest('restore_device_001');
+      const params = Promise.resolve({ id: 'restore_device_001' });
+      const response = await POST(request, { params });
+      const data = await parseResponse<{
+        success: boolean;
+        data: { _id: string; restored: boolean };
+      }>(response);
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data._id).toBe('restore_device_001');
+      expect(data.data.restored).toBe(true);
+
+      const restored = await DeviceV2.findById('restore_device_001');
+      expect(restored?.audit.deleted_at).toBeUndefined();
+    });
+
+    it('should return 404 when device does not exist', async () => {
+      const request = createMockDeleteRequest('restore_missing');
+      const params = Promise.resolve({ id: 'restore_missing' });
+      const response = await POST(request, { params });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 400 when device is not deleted', async () => {
+      const deviceData = createDeviceInput({ _id: 'restore_active' });
+      await DeviceV2.create(deviceData);
+
+      const request = createMockDeleteRequest('restore_active');
+      const params = Promise.resolve({ id: 'restore_active' });
+      const response = await POST(request, { params });
+
+      expect(response.status).toBe(400);
     });
   });
 

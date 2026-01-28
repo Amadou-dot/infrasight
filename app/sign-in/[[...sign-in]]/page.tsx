@@ -12,13 +12,19 @@ export default function SignInPage() {
           <p className="text-muted-foreground">
             Email:{' '}
             <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
-              guest@infrasight.com
+              infrasight+clerk_test@gmail.com
             </code>
           </p>
           <p className="text-muted-foreground mt-1">
             Password:{' '}
             <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
               infrasightguest
+            </code>
+          </p>
+          <p className="text-muted-foreground mt-1">
+            Verification code:{' '}
+            <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
+              424242
             </code>
           </p>
         </div>

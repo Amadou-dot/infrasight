@@ -23,7 +23,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useDevicesList } from '@/lib/query/hooks';
 import { queryKeys } from '@/lib/query/queryClient';
 import { v2Api } from '@/lib/api/v2-client';
-import type { DeviceV2Response } from '@/types/v2';
+import { useRbac } from '@/lib/auth/rbac-client';
 
 import {
   DeviceStatusCards,
@@ -58,6 +58,7 @@ export default function DevicesPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { isAdmin } = useRbac();
 
   // Fetch all devices with React Query (cached, shared across components)
   const { data: devices = [], isLoading, error: fetchError } = useDevicesList();
@@ -278,13 +279,15 @@ export default function DevicesPage() {
               Manage connected IoT endpoints across all zones.
             </p>
           </div>
-          <Button
-            className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white'
-            onClick={() => setCreateModalOpen(true)}
-          >
-            <Plus className='h-4 w-4 mr-2' />
-            Add Device
-          </Button>
+          {isAdmin && (
+            <Button
+              className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white'
+              onClick={() => setCreateModalOpen(true)}
+            >
+              <Plus className='h-4 w-4 mr-2' />
+              Add Device
+            </Button>
+          )}
         </div>
       </header>
 
@@ -334,7 +337,8 @@ export default function DevicesPage() {
                   key={device._id}
                   device={device}
                   onClick={() => handleDeviceClick(device._id)}
-                  onDelete={handleDeleteRequest}
+                  onDelete={isAdmin ? handleDeleteRequest : undefined}
+                  showActions={isAdmin}
                 />
               ))}
             </div>
@@ -376,52 +380,56 @@ export default function DevicesPage() {
       />
 
       {/* Create Device Modal */}
-      <CreateDeviceModal
-        isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSuccess={handleDeviceCreated}
-      />
+      {isAdmin && (
+        <CreateDeviceModal
+          isOpen={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+          onSuccess={handleDeviceCreated}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        open={deleteDialogOpen}
-        onOpenChange={(open) => {
-          // Prevent closing while deletion is in progress
-          if (!isDeleting) {
-            setDeleteDialogOpen(open);
-            if (!open) setDeviceToDelete(null);
-          }
-        }}
-      >
-        <AlertDialogContent onEscapeKeyDown={(e) => isDeleting && e.preventDefault()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Device</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete device <span className='font-semibold'>{deviceToDelete}</span>?
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteCancel} disabled={isDeleting}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              disabled={isDeleting}
-              className='bg-destructive text-white hover:bg-destructive/90'
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {isAdmin && (
+        <AlertDialog
+          open={deleteDialogOpen}
+          onOpenChange={(open) => {
+            // Prevent closing while deletion is in progress
+            if (!isDeleting) {
+              setDeleteDialogOpen(open);
+              if (!open) setDeviceToDelete(null);
+            }
+          }}
+        >
+          <AlertDialogContent onEscapeKeyDown={(e) => isDeleting && e.preventDefault()}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Device</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete device <span className='font-semibold'>{deviceToDelete}</span>?
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleDeleteCancel} disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className='bg-destructive text-white hover:bg-destructive/90'
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className='h-4 w-4 animate-spin' />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

@@ -9,6 +9,84 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { ApiError, ErrorCodes } from '@/lib/errors';
 
 // ============================================================================
+// RBAC TYPES & CONSTANTS
+// ============================================================================
+
+export type OrgRole = 'org:admin' | 'org:member';
+
+export interface AuthContext {
+  userId: string;
+  user: AuthenticatedUser;
+  orgId: string;
+  orgSlug: string;
+  orgRole: OrgRole;
+}
+
+const DEFAULT_ALLOWED_ORG_SLUGS = ['users'];
+
+function getAllowedOrgSlugs(): string[] {
+  const raw = process.env.CLERK_ALLOWED_ORG_SLUGS;
+  if (!raw) return DEFAULT_ALLOWED_ORG_SLUGS;
+  return raw
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean)
+    .map(value => value.toLowerCase());
+}
+
+function assertAllowedOrg(orgSlug: string | null): asserts orgSlug is string {
+  if (!orgSlug)
+    throw ApiError.forbidden('Organization membership required to access this resource');
+
+  const allowedOrgs = getAllowedOrgSlugs();
+  if (allowedOrgs.length > 0 && !allowedOrgs.includes(orgSlug.toLowerCase()))
+    throw ApiError.forbidden('You are not a member of the required organization');
+}
+
+function assertOrgRole(orgRole: string | null): asserts orgRole is OrgRole {
+  if (!orgRole) throw ApiError.forbidden('Organization role required to access this resource');
+
+  if (orgRole !== 'org:admin' && orgRole !== 'org:member')
+    throw ApiError.forbidden(`Unsupported organization role: ${orgRole}`);
+}
+
+// ============================================================================
+// RBAC HELPERS
+// ============================================================================
+
+export async function getAuthContext(): Promise<AuthContext> {
+  const authResult = await requireAuth();
+  const sessionAuth = await auth();
+
+  assertAllowedOrg(sessionAuth.orgSlug ?? null);
+  assertOrgRole(sessionAuth.orgRole ?? null);
+
+  return {
+    userId: authResult.userId,
+    user: authResult.user,
+    orgId: sessionAuth.orgId as string,
+    orgSlug: sessionAuth.orgSlug as string,
+    orgRole: sessionAuth.orgRole as OrgRole,
+  };
+}
+
+export async function requireOrgMembership(): Promise<AuthContext> {
+  return getAuthContext();
+}
+
+export async function requireAdmin(): Promise<AuthContext> {
+  const context = await getAuthContext();
+  if (context.orgRole !== 'org:admin')
+    throw ApiError.forbidden('Admin role required to perform this action');
+
+  return context;
+}
+
+export function isAdminRole(role: OrgRole): boolean {
+  return role === 'org:admin';
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 

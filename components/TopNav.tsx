@@ -2,17 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Monitor, Wrench, BarChart3, Map, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Monitor, Wrench, BarChart3, Map, Menu, X, ArchiveX } from 'lucide-react';
 import { useState } from 'react';
 import { Logo } from '@/components/logo';
 import { cn } from '@/lib/utils';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { UserButtonWithTheme } from '@/components/user-button-with-theme';
+import { useRbac } from '@/lib/auth/rbac-client';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/devices', label: 'Devices', icon: Monitor },
+  { href: '/devices/deleted', label: 'Deleted Devices', icon: ArchiveX, adminOnly: true },
   { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/floor-plan', label: 'Floor Plan', icon: Map },
@@ -21,6 +23,7 @@ const navItems = [
 export default function TopNav() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAdmin } = useRbac();
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80">
@@ -36,7 +39,9 @@ export default function TopNav() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
-            {navItems.map(item => {
+            {navItems
+              .filter(item => !item.adminOnly || isAdmin)
+              .map(item => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
               return (
@@ -86,10 +91,12 @@ export default function TopNav() {
         {mobileMenuOpen && (
           <div className="md:hidden pb-4 border-t border-border mt-2 pt-4">
             <div className="flex flex-col gap-1">
-              {navItems.map(item => {
-                const isActive = pathname === item.href;
-                const Icon = item.icon;
-                return (
+            {navItems
+              .filter(item => !item.adminOnly || isAdmin)
+              .map(item => {
+              const isActive = pathname === item.href;
+              const Icon = item.icon;
+              return (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -105,7 +112,7 @@ export default function TopNav() {
                     {item.label}
                   </Link>
                 );
-              })}
+                })}
             </div>
           </div>
         )}

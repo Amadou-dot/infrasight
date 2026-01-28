@@ -12,8 +12,9 @@ import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
-import { withErrorHandler } from '@/lib/errors';
+import { withErrorHandler, ApiError } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
+import { requireOrgMembership } from '@/lib/auth';
 
 // Phase 5 imports
 import { getOrSet, CACHE_TTL, metadataKey } from '@/lib/cache';
@@ -27,12 +28,16 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    const authContext = await requireOrgMembership();
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
     const includeStats = searchParams.get('include_stats') === 'true';
     const _includeInactive = searchParams.get('include_inactive') === 'true';
     const includeDeleted = searchParams.get('include_deleted') === 'true';
+
+    if (includeDeleted && authContext.orgRole !== 'org:admin')
+      throw ApiError.forbidden('Admin role required to include deleted devices');
 
     // Generate cache key based on query params
     const cacheKey = metadataKey({

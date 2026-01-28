@@ -26,6 +26,7 @@ interface MaintenanceTableProps {
   devices: DeviceV2Response[];
   onDeviceClick?: (deviceId: string) => void;
   loading?: boolean;
+  showActions?: boolean;
 }
 
 // Helper functions
@@ -95,6 +96,7 @@ export default function MaintenanceTable({
   devices,
   onDeviceClick,
   loading = false,
+  showActions = true,
 }: MaintenanceTableProps) {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [locationFilter, setLocationFilter] = useState<FilterLocation>('all');
@@ -263,13 +265,13 @@ export default function MaintenanceTable({
                 <th className="text-left py-3 px-2 font-medium">LAST SERVICE</th>
                 <th className="text-left py-3 px-2 font-medium">DUE DATE</th>
                 <th className="text-left py-3 px-2 font-medium">STATUS</th>
-                <th className="text-left py-3 px-2 font-medium">ACTIONS</th>
+                {showActions && <th className="text-left py-3 px-2 font-medium">ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {paginatedDevices.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <td colSpan={showActions ? 8 : 7} className="text-center py-8 text-muted-foreground">
                     No devices found matching filters
                   </td>
                 </tr>
@@ -319,23 +321,25 @@ export default function MaintenanceTable({
                         </span>
                       </td>
                       <td className="py-3 px-2">{getStatusBadge(status)}</td>
-                      <td className="py-3 px-2">
-                        <div className="flex items-center gap-2">
-                          {status === 'critical' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-blue-500 hover:text-blue-600"
-                              onClick={() => onDeviceClick?.(device._id)}
-                            >
-                              Review
+                      {showActions && (
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2">
+                            {status === 'critical' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-blue-500 hover:text-blue-600"
+                                onClick={() => onDeviceClick?.(device._id)}
+                              >
+                                Review
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
                             </Button>
-                          )}
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })

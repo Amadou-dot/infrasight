@@ -314,21 +314,43 @@ export interface ListDevicesQuery {
   /** Filter by manufacturer */
   manufacturer?: string;
   /** Filter by status */
-  status?: DeviceStatus;
+  status?: DeviceStatus | DeviceStatus[];
   /** Filter by department */
   department?: string;
   /** Filter by tags (comma-separated) */
-  tags?: string;
+  tags?: string | string[];
   /** Filter by building ID */
   building_id?: string;
   /** Filter by floor number */
   floor?: number;
+  /** Filter by zone */
+  zone?: string;
   /** Filter by device type */
-  type?: DeviceType;
+  type?: DeviceType | DeviceType[];
   /** Comma-separated fields to include in response */
-  fields?: string;
-  /** Sort field and direction (e.g., "serial_number:asc") */
-  sort?: string;
+  fields?: string | string[];
+  /** Sort field */
+  sortBy?: string;
+  /** Sort direction */
+  sortDirection?: 'asc' | 'desc';
+  /** Minimum battery level */
+  min_battery?: number;
+  /** Maximum battery level */
+  max_battery?: number;
+  /** Offline threshold in minutes */
+  offline_threshold_minutes?: number;
+  /** Include soft-deleted devices */
+  include_deleted?: boolean;
+  /** Show only soft-deleted devices */
+  only_deleted?: boolean;
+  /** Start date for date range filter */
+  startDate?: string;
+  /** End date for date range filter */
+  endDate?: string;
+  /** Field to apply date filter on */
+  date_filter_field?: 'created_at' | 'updated_at' | 'last_seen';
+  /** Search term */
+  search?: string;
 }
 
 /**

@@ -31,7 +31,7 @@ import { logger, recordIngestion, recordRequest, createRequestTimer } from '@/li
 import { invalidateReadings } from '@/lib/cache';
 
 // Auth
-import { requireAuth, getAuditUser } from '@/lib/auth';
+import { requireAdmin, getAuditUser } from '@/lib/auth';
 
 // ============================================================================
 // Constants
@@ -105,8 +105,8 @@ async function handleIngest(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    // Require authentication and get user info for audit
-    const { userId, user } = await requireAuth();
+    // Require admin and get user info for audit
+    const { userId, user } = await requireAdmin();
     const auditUser = getAuditUser(userId, user);
 
     await dbConnect();

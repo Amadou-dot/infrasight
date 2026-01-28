@@ -10,6 +10,7 @@ import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
+import { useRbac } from '@/lib/auth/rbac-client';
 
 // ============================================================================
 // CONSTANTS
@@ -27,6 +28,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export default function MaintenancePage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const { isAdmin } = useRbac();
 
   // Data fetching with React Query
   const {
@@ -174,10 +176,12 @@ export default function MaintenancePage() {
               Track device maintenance schedules, health status, and upcoming service needs.
             </p>
           </div>
-          <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="h-4 w-4 mr-2" />
-            Schedule Service
-          </Button>
+          {isAdmin && (
+            <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white">
+              <Plus className="h-4 w-4 mr-2" />
+              Schedule Service
+            </Button>
+          )}
         </div>
       </header>
 
@@ -215,11 +219,12 @@ export default function MaintenancePage() {
 
       {/* Data Table */}
       <section>
-        <MaintenanceTable
-          devices={allDevices}
-          onDeviceClick={handleDeviceClick}
-          loading={loading}
-        />
+          <MaintenanceTable
+            devices={allDevices}
+            onDeviceClick={handleDeviceClick}
+            loading={loading}
+            showActions={isAdmin}
+          />
       </section>
 
       {/* Device Detail Modal */}
