@@ -14,12 +14,14 @@ import {
 } from 'lucide-react';
 
 interface DeviceHealthWidgetProps {
+  selectedFloor?: number | 'all';
   onFilterDevices?: (filter: { status?: string; hasIssues?: boolean }) => void;
 }
 
-export default function DeviceHealthWidget({ onFilterDevices }: DeviceHealthWidgetProps) {
-  // Data fetching with React Query (shared with Dashboard and other components)
-  const { data: healthData, isLoading, error: fetchError } = useHealthAnalytics();
+export default function DeviceHealthWidget({ selectedFloor, onFilterDevices }: DeviceHealthWidgetProps) {
+  // Data fetching with React Query, filtered by floor when selected
+  const floorFilter = selectedFloor !== undefined && selectedFloor !== 'all' ? { floor: selectedFloor } : {};
+  const { data: healthData, isLoading, error: fetchError } = useHealthAnalytics(floorFilter);
 
   const error = fetchError
     ? fetchError instanceof Error

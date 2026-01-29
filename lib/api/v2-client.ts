@@ -421,17 +421,48 @@ export interface AnomalyResponse {
 export const analyticsApi = {
   /**
    * Get energy analytics
+   *
+   * Maps client-friendly field names to server schema fields:
+   *  - period → startDate/endDate
+   *  - aggregationType → aggregation
+   *  - deviceType → type
+   *  - includeInvalid → include_invalid
+   *  - groupBy → group_by
    */
   async energy(query: EnergyAnalyticsQuery = {}): Promise<ApiSuccessResponse<EnergyDataPoint[]>> {
-    const queryString = buildQueryString(query as Record<string, unknown>);
+    const { period, aggregationType, deviceType, includeInvalid, groupBy, ...rest } = query;
+
+    // Resolve period shorthand to startDate/endDate
+    const serverParams: Record<string, unknown> = { ...rest };
+    if (period) {
+      const now = new Date();
+      const match = period.match(/^(\d+)(h|d|w|m)$/);
+      if (match) {
+        const amount = parseInt(match[1], 10);
+        const unit = match[2];
+        const ms = { h: 3600000, d: 86400000, w: 604800000, m: 2592000000 }[unit]!;
+        serverParams.startDate = new Date(now.getTime() - amount * ms).toISOString();
+        serverParams.endDate = now.toISOString();
+      }
+    }
+
+    if (aggregationType) serverParams.aggregation = aggregationType;
+    if (deviceType) serverParams.type = deviceType;
+    if (includeInvalid !== undefined) serverParams.include_invalid = includeInvalid;
+    if (groupBy) serverParams.group_by = groupBy;
+
+    const queryString = buildQueryString(serverParams);
     return apiCall(`/api/v2/analytics/energy${queryString}`);
   },
 
   /**
    * Get device health metrics
    */
-  async health(): Promise<ApiSuccessResponse<HealthMetrics>> {
-    return apiCall('/api/v2/analytics/health');
+  async health(
+    query: { floor?: number; building_id?: string; department?: string } = {}
+  ): Promise<ApiSuccessResponse<HealthMetrics>> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    return apiCall(`/api/v2/analytics/health${queryString}`);
   },
 
   /**

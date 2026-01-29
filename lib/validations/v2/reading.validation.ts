@@ -344,6 +344,9 @@ export const readingAnalyticsQuerySchema = z.object({
   // Quality filter (exclude invalid by default)
   include_invalid: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(false),
 
+  // Floor filter (resolves device IDs on this floor)
+  floor: z.union([z.number(), z.string().transform(v => parseInt(v, 10))]).optional(),
+
   // Group by options
   group_by: z.enum(['device', 'type', 'floor', 'room', 'building', 'department']).optional(),
 
