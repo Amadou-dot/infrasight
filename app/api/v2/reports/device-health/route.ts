@@ -91,9 +91,10 @@ async function aggregateDeviceData(
   scope: 'all' | 'building',
   buildingId?: string
 ): Promise<ReportData> {
-  // Build match conditions for active devices
+  // Build match conditions for active devices (exclude decommissioned to avoid double-counting)
   const activeMatch: Record<string, unknown> = {
     'audit.deleted_at': { $exists: false },
+    status: { $ne: 'decommissioned' },
   };
 
   if (scope === 'building' && buildingId) {

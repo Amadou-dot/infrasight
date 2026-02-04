@@ -602,15 +602,23 @@ export const reportsApi = {
    */
   async generateDeviceHealth(query: ReportGenerateQuery): Promise<Blob> {
     const queryString = buildQueryString(query as Record<string, unknown>);
-    const res = await fetch(`/api/v2/reports/device-health${queryString}`);
+    const res = await fetchWithRetry(`/api/v2/reports/device-health${queryString}`);
     if (!res.ok) {
-      const err = await res.json();
-      throw new ApiClientError(
-        res.status,
-        err?.error?.code || 'REPORT_GENERATION_FAILED',
-        err?.error?.message ?? 'Report generation failed',
-        err?.error?.details
-      );
+      // Handle non-JSON error responses (e.g., HTML from reverse proxy)
+      let errorCode = 'REPORT_GENERATION_FAILED';
+      let errorMessage = `Report generation failed (HTTP ${res.status})`;
+      let errorDetails: Record<string, unknown> | undefined;
+
+      try {
+        const err = await res.json();
+        errorCode = err?.error?.code || errorCode;
+        errorMessage = err?.error?.message || errorMessage;
+        errorDetails = err?.error?.details;
+      } catch {
+        // Response was not valid JSON - keep default error message with HTTP status
+      }
+
+      throw new ApiClientError(res.status, errorCode, errorMessage, errorDetails);
     }
     return res.blob();
   },
