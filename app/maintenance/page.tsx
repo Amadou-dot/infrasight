@@ -1,12 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Wrench, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MaintenanceStatusCards from '@/components/MaintenanceStatusCards';
 import MaintenanceTimeline from '@/components/MaintenanceTimeline';
-import MaintenanceTable from '@/components/MaintenanceTable';
-import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
@@ -26,8 +24,6 @@ const CALIBRATION_THRESHOLD_DAYS = 90;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export default function MaintenancePage() {
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const { isAdmin } = useRbac();
 
   // Data fetching with React Query
@@ -52,11 +48,6 @@ export default function MaintenancePage() {
         ? devicesError.message
         : 'Failed to load devices'
       : null;
-
-  const handleDeviceClick = (deviceId: string) => {
-    setSelectedDeviceId(deviceId);
-    setDeviceModalOpen(true);
-  };
 
   // Calculate status counts
   const { criticalCount, dueForServiceCount, healthyCount } = useMemo(() => {
@@ -216,26 +207,6 @@ export default function MaintenancePage() {
       <section className="mb-6">
         <MaintenanceTimeline tasks={timelineTasks} loading={loading} />
       </section>
-
-      {/* Data Table */}
-      <section>
-          <MaintenanceTable
-            devices={allDevices}
-            onDeviceClick={handleDeviceClick}
-            loading={loading}
-            showActions={isAdmin}
-          />
-      </section>
-
-      {/* Device Detail Modal */}
-      <DeviceDetailModal
-        deviceId={selectedDeviceId}
-        isOpen={deviceModalOpen}
-        onClose={() => {
-          setDeviceModalOpen(false);
-          setSelectedDeviceId(null);
-        }}
-      />
     </div>
   );
 }
