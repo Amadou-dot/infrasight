@@ -21,6 +21,7 @@ import type {
   MaintenanceForecastResponse,
   TemperatureCorrelationQuery,
   TemperatureCorrelationResponse,
+  ReportGenerateQuery,
 } from '@/types/v2';
 
 // ============================================================================
@@ -622,6 +623,39 @@ export const auditApi = {
 };
 
 // ============================================================================
+// REPORTS API
+// ============================================================================
+
+export const reportsApi = {
+  /**
+   * Generate device health report PDF
+   * Returns a Blob containing the PDF data
+   */
+  async generateDeviceHealth(query: ReportGenerateQuery): Promise<Blob> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    const res = await fetchWithRetry(`/api/v2/reports/device-health${queryString}`);
+    if (!res.ok) {
+      // Handle non-JSON error responses (e.g., HTML from reverse proxy)
+      let errorCode = 'REPORT_GENERATION_FAILED';
+      let errorMessage = `Report generation failed (HTTP ${res.status})`;
+      let errorDetails: Record<string, unknown> | undefined;
+
+      try {
+        const err = await res.json();
+        errorCode = err?.error?.code || errorCode;
+        errorMessage = err?.error?.message || errorMessage;
+        errorDetails = err?.error?.details;
+      } catch {
+        // Response was not valid JSON - keep default error message with HTTP status
+      }
+
+      throw new ApiClientError(res.status, errorCode, errorMessage, errorDetails);
+    }
+    return res.blob();
+  },
+};
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -634,6 +668,7 @@ export const v2Api = {
   analytics: analyticsApi,
   metadata: metadataApi,
   audit: auditApi,
+  reports: reportsApi,
 };
 
 export default v2Api;

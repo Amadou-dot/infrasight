@@ -112,6 +112,8 @@ export type {
   AuditLogEntry,
   AuditLogQuery,
   AuditLogResponse,
+  // Reports
+  ReportGenerateQuery,
   // Helpers
   ExtractData,
   BaseListQuery,
