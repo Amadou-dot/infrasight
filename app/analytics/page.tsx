@@ -3,14 +3,18 @@
 import { useState, useMemo } from 'react';
 import DeviceHealthWidget from '@/components/DeviceHealthWidget';
 import EnergyUsageChart from '@/components/AnomalyChart';
+import GenerateReportModal from '@/components/GenerateReportModal';
 import { Select } from '@/components/ui/select';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, FileText } from 'lucide-react';
 import { useMetadata } from '@/lib/query/hooks';
+import { useRbac } from '@/lib/auth/rbac-client';
 
 export default function AnalyticsPage() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const { isAdmin } = useRbac();
 
   // Fetch metadata with React Query
   const { data: metadata } = useMetadata();
@@ -48,19 +52,33 @@ export default function AnalyticsPage() {
             </p>
           </div>
 
-          {/* Floor Filter */}
-          <Select
-            label="Floor"
-            value={String(selectedFloor)}
-            onValueChange={val => setSelectedFloor(val === 'all' ? 'all' : parseInt(val))}
-            options={[
-              { value: 'all', label: 'All Floors' },
-              ...availableFloors.map(f => ({
-                value: String(f),
-                label: `Floor ${f}`,
-              })),
-            ]}
-          />
+          {/* Actions */}
+          <div className="flex items-center gap-3">
+            {/* Generate Report button (admin only) */}
+            {isAdmin && (
+              <button
+                onClick={() => setReportModalOpen(true)}
+                className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <FileText className="h-4 w-4" />
+                Generate Report
+              </button>
+            )}
+
+            {/* Floor Filter */}
+            <Select
+              label="Floor"
+              value={String(selectedFloor)}
+              onValueChange={val => setSelectedFloor(val === 'all' ? 'all' : parseInt(val))}
+              options={[
+                { value: 'all', label: 'All Floors' },
+                ...availableFloors.map(f => ({
+                  value: String(f),
+                  label: `Floor ${f}`,
+                })),
+              ]}
+            />
+          </div>
         </div>
       </header>
 
@@ -69,6 +87,9 @@ export default function AnalyticsPage() {
         <EnergyUsageChart selectedFloor={selectedFloor} />
         <DeviceHealthWidget />
       </div>
+
+      {/* Generate Report Modal */}
+      <GenerateReportModal isOpen={reportModalOpen} onClose={() => setReportModalOpen(false)} />
     </div>
   );
 }

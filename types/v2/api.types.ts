@@ -33,6 +33,9 @@ import type {
   AggregationType,
 } from './reading.types';
 
+// Re-export report validation types
+export type { ReportGenerateQuery } from '@/lib/validations/v2/report.validation';
+
 // ============================================================================
 // RE-EXPORT COMMON TYPES
 // ============================================================================

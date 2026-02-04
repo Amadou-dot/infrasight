@@ -21,6 +21,7 @@ import type {
   MaintenanceForecastResponse,
   TemperatureCorrelationQuery,
   TemperatureCorrelationResponse,
+  ReportGenerateQuery,
 } from '@/types/v2';
 
 // ============================================================================
@@ -591,6 +592,31 @@ export const auditApi = {
 };
 
 // ============================================================================
+// REPORTS API
+// ============================================================================
+
+export const reportsApi = {
+  /**
+   * Generate device health report PDF
+   * Returns a Blob containing the PDF data
+   */
+  async generateDeviceHealth(query: ReportGenerateQuery): Promise<Blob> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    const res = await fetch(`/api/v2/reports/device-health${queryString}`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new ApiClientError(
+        res.status,
+        err?.error?.code || 'REPORT_GENERATION_FAILED',
+        err?.error?.message ?? 'Report generation failed',
+        err?.error?.details
+      );
+    }
+    return res.blob();
+  },
+};
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -603,6 +629,7 @@ export const v2Api = {
   analytics: analyticsApi,
   metadata: metadataApi,
   audit: auditApi,
+  reports: reportsApi,
 };
 
 export default v2Api;

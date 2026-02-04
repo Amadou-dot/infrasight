@@ -1,6 +1,7 @@
 'use client';
 
 import DeviceDetailModal from '@/components/DeviceDetailModal';
+import GenerateReportModal from '@/components/GenerateReportModal';
 import {
   AnomalyDetectionChart,
   CriticalIssuesPanel,
@@ -29,6 +30,7 @@ export default function Home() {
   // Modal state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   // Calculate metrics
   const totalDevices = health?.summary?.total_devices ?? 0;
@@ -95,7 +97,10 @@ export default function Home() {
           <div className="flex items-center justify-end gap-3">
             {/* Generate Report button */}
             {isAdmin && (
-              <button className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors">
+              <button
+                onClick={() => setReportModalOpen(true)}
+                className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
                 <FileText className="h-4 w-4" />
                 Generate Report
               </button>
@@ -178,6 +183,9 @@ export default function Home() {
           setSelectedDeviceId(null);
         }}
       />
+
+      {/* Generate Report Modal */}
+      <GenerateReportModal isOpen={reportModalOpen} onClose={() => setReportModalOpen(false)} />
     </div>
   );
 }
