@@ -38,6 +38,7 @@ export function resetCounters(): void {
   deviceCounter = 0;
   _readingCounter = 0;
   readingV2Counter = 0;
+  scheduleCounter = 0;
 }
 
 /**
@@ -676,4 +677,104 @@ export function createBulkIngestPayloadV2(deviceId: string, count: number = 10) 
     });
 
   return { readings };
+}
+
+// ============================================================================
+// SCHEDULE V2 FACTORIES
+// ============================================================================
+
+import type {
+  ServiceType as ScheduleServiceType,
+  ScheduleStatus,
+} from '@/models/v2/ScheduleV2';
+
+/**
+ * Valid service types for schedule testing
+ */
+export const VALID_SERVICE_TYPES: ScheduleServiceType[] = [
+  'firmware_update',
+  'calibration',
+  'emergency_fix',
+  'general_maintenance',
+];
+
+/**
+ * Valid schedule statuses for testing
+ */
+export const VALID_SCHEDULE_STATUSES: ScheduleStatus[] = [
+  'scheduled',
+  'completed',
+  'cancelled',
+];
+
+/**
+ * Schedule input interface for factories
+ */
+export interface ScheduleInput {
+  device_id: string;
+  service_type: ScheduleServiceType;
+  scheduled_date: Date;
+  status?: ScheduleStatus;
+  notes?: string;
+  audit: {
+    created_at: Date;
+    created_by: string;
+    updated_at: Date;
+    updated_by: string;
+    completed_at?: Date;
+    completed_by?: string;
+    cancelled_at?: Date;
+    cancelled_by?: string;
+  };
+}
+
+let scheduleCounter = 0;
+
+/**
+ * Create a valid schedule input for testing
+ */
+export function createScheduleInput(overrides: Partial<ScheduleInput> = {}): ScheduleInput {
+  scheduleCounter += 1;
+  const now = new Date();
+
+  return {
+    device_id: `device_test_${scheduleCounter}`,
+    service_type: 'calibration',
+    scheduled_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+    status: 'scheduled',
+    audit: {
+      created_at: now,
+      created_by: 'test@example.com',
+      updated_at: now,
+      updated_by: 'test@example.com',
+    },
+    ...overrides,
+  };
+}
+
+/**
+ * Create multiple schedule inputs
+ */
+export function createScheduleInputs(
+  count: number,
+  overrides: Partial<ScheduleInput> = {}
+): ScheduleInput[] {
+  return Array.from({ length: count }, () => createScheduleInput(overrides));
+}
+
+/**
+ * Create a schedule input with a specific service type
+ */
+export function createScheduleOfType(
+  serviceType: ScheduleServiceType,
+  overrides: Partial<ScheduleInput> = {}
+): ScheduleInput {
+  return createScheduleInput({ ...overrides, service_type: serviceType });
+}
+
+/**
+ * Future ISO date helper for schedule creation API payloads
+ */
+export function futureDateISO(daysAhead: number = 7): string {
+  return new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString();
 }
