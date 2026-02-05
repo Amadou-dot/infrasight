@@ -1,9 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import { ApiError } from '@/lib/errors';
+import { NextResponse } from 'next/server';
 
 const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/unauthorized',
   '/api/v2/cron/simulate', // Keep simulate public for GitHub Actions cron job
 ]);
 
@@ -23,8 +24,17 @@ export default clerkMiddleware(async (auth, request) => {
 
     const session = await auth();
     const orgSlug = session.orgSlug?.toLowerCase() || null;
-    if (!orgSlug || (allowedOrgSlugs.length > 0 && !allowedOrgSlugs.includes(orgSlug)))
-      throw ApiError.forbidden('Organization membership required');
+    if (!orgSlug || (allowedOrgSlugs.length > 0 && !allowedOrgSlugs.includes(orgSlug))) {
+      // API routes get a JSON 403 error; page routes get a redirect
+      if (request.nextUrl.pathname.startsWith('/api/')) {
+        return NextResponse.json(
+          { success: false, error: { code: 'FORBIDDEN', message: 'Organization membership required' } },
+          { status: 403 }
+        );
+      }
+      const url = new URL('/unauthorized', request.url);
+      return NextResponse.redirect(url);
+    }
   }
 });
 

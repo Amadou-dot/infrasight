@@ -4,3 +4,4 @@ export * from './useMaintenanceForecast';
 export * from './useAnomalies';
 export * from './useMetadata';
 export * from './useEnergyAnalytics';
+export * from './useSchedules';

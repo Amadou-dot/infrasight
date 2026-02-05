@@ -53,4 +53,9 @@ export const queryKeys = {
     list: (params?: Record<string, unknown>) => ['readings', 'list', params] as const,
   },
   metadata: ['metadata'] as const,
+  schedules: {
+    all: ['schedules'] as const,
+    list: (filters?: Record<string, unknown>) => ['schedules', 'list', filters] as const,
+    detail: (id: string) => ['schedules', 'detail', id] as const,
+  },
 } as const;
