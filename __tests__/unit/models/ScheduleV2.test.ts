@@ -438,6 +438,34 @@ describe('ScheduleV2 Model', () => {
   });
 
   // ==========================================================================
+  // AUDIT DEFAULTS TESTS
+  // ==========================================================================
+
+  describe('Audit Defaults', () => {
+    it('should use default created_at and updated_at when not provided', async () => {
+      const before = new Date();
+
+      const schedule = await ScheduleV2.create({
+        device_id: 'device_audit_defaults',
+        service_type: 'calibration',
+        scheduled_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        audit: {
+          created_by: 'test@example.com',
+          updated_by: 'test@example.com',
+        },
+      });
+
+      const after = new Date();
+
+      // Defaults should have been applied
+      expect(schedule.audit.created_at).toBeInstanceOf(Date);
+      expect(schedule.audit.updated_at).toBeInstanceOf(Date);
+      expect(schedule.audit.created_at.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(schedule.audit.created_at.getTime()).toBeLessThanOrEqual(after.getTime());
+    });
+  });
+
+  // ==========================================================================
   // BULK OPERATIONS TESTS
   // ==========================================================================
 

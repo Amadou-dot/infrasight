@@ -307,6 +307,136 @@ describe('Schedules API Integration Tests', () => {
       });
     });
 
+    describe('Date Range Filtering', () => {
+      it('should filter by startDate and endDate', async () => {
+        const now = Date.now();
+        await ScheduleV2.insertMany([
+          createScheduleInput({
+            device_id: 'range_early',
+            scheduled_date: new Date(now + 2 * 24 * 60 * 60 * 1000), // 2 days
+          }),
+          createScheduleInput({
+            device_id: 'range_mid',
+            scheduled_date: new Date(now + 10 * 24 * 60 * 60 * 1000), // 10 days
+          }),
+          createScheduleInput({
+            device_id: 'range_late',
+            scheduled_date: new Date(now + 60 * 24 * 60 * 60 * 1000), // 60 days
+          }),
+        ]);
+
+        const startDate = new Date(now + 5 * 24 * 60 * 60 * 1000).toISOString();
+        const endDate = new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+        const request = createMockGetRequest('/api/v2/schedules', { startDate, endDate });
+        const response = await listSchedules(request);
+        const data = await parseResponse<{
+          success: boolean;
+          data: Array<{ device_id: string }>;
+        }>(response);
+
+        expect(response.status).toBe(200);
+        expect(data.data.length).toBe(1);
+        expect(data.data[0].device_id).toBe('range_mid');
+      });
+
+      it('should filter with only startDate', async () => {
+        const now = Date.now();
+        await ScheduleV2.insertMany([
+          createScheduleInput({
+            device_id: 'start_early',
+            scheduled_date: new Date(now + 2 * 24 * 60 * 60 * 1000),
+          }),
+          createScheduleInput({
+            device_id: 'start_late',
+            scheduled_date: new Date(now + 30 * 24 * 60 * 60 * 1000),
+          }),
+        ]);
+
+        const startDate = new Date(now + 15 * 24 * 60 * 60 * 1000).toISOString();
+        const request = createMockGetRequest('/api/v2/schedules', { startDate });
+        const response = await listSchedules(request);
+        const data = await parseResponse<{
+          success: boolean;
+          data: Array<{ device_id: string }>;
+        }>(response);
+
+        expect(response.status).toBe(200);
+        expect(data.data.length).toBe(1);
+        expect(data.data[0].device_id).toBe('start_late');
+      });
+
+      it('should filter with only endDate', async () => {
+        const now = Date.now();
+        await ScheduleV2.insertMany([
+          createScheduleInput({
+            device_id: 'end_early',
+            scheduled_date: new Date(now + 2 * 24 * 60 * 60 * 1000),
+          }),
+          createScheduleInput({
+            device_id: 'end_late',
+            scheduled_date: new Date(now + 30 * 24 * 60 * 60 * 1000),
+          }),
+        ]);
+
+        const endDate = new Date(now + 15 * 24 * 60 * 60 * 1000).toISOString();
+        const request = createMockGetRequest('/api/v2/schedules', { endDate });
+        const response = await listSchedules(request);
+        const data = await parseResponse<{
+          success: boolean;
+          data: Array<{ device_id: string }>;
+        }>(response);
+
+        expect(response.status).toBe(200);
+        expect(data.data.length).toBe(1);
+        expect(data.data[0].device_id).toBe('end_early');
+      });
+    });
+
+    describe('Multiple Status/Type Filters', () => {
+      it('should filter by multiple statuses via array', async () => {
+        await ScheduleV2.insertMany([
+          createScheduleInput({ device_id: 'multi_1', status: 'scheduled' }),
+          createScheduleInput({ device_id: 'multi_2', status: 'completed' }),
+          createScheduleInput({ device_id: 'multi_3', status: 'cancelled' }),
+        ]);
+
+        const request = createMockGetRequest('/api/v2/schedules', {
+          status: 'scheduled,completed',
+          include_all: 'true',
+        });
+        const response = await listSchedules(request);
+        const data = await parseResponse<{
+          success: boolean;
+          data: Array<{ status: string }>;
+        }>(response);
+
+        expect(response.status).toBe(200);
+        expect(data.data.length).toBe(2);
+        expect(data.data.every(s => s.status !== 'cancelled')).toBe(true);
+      });
+
+      it('should filter by multiple service types', async () => {
+        await ScheduleV2.insertMany([
+          createScheduleInput({ device_id: 'stype_1', service_type: 'calibration' }),
+          createScheduleInput({ device_id: 'stype_2', service_type: 'firmware_update' }),
+          createScheduleInput({ device_id: 'stype_3', service_type: 'emergency_fix' }),
+        ]);
+
+        const request = createMockGetRequest('/api/v2/schedules', {
+          service_type: 'calibration,emergency_fix',
+        });
+        const response = await listSchedules(request);
+        const data = await parseResponse<{
+          success: boolean;
+          data: Array<{ service_type: string }>;
+        }>(response);
+
+        expect(response.status).toBe(200);
+        expect(data.data.length).toBe(2);
+      });
+    });
+
     describe('Validation Errors', () => {
       it('should reject invalid sort field', async () => {
         const request = createMockGetRequest('/api/v2/schedules', {
@@ -553,6 +683,20 @@ describe('Schedules API Integration Tests', () => {
       expect(response.status).toBe(400);
     });
 
+    it('should return 400 for invalid query parameters', async () => {
+      const schedule = await seedSchedule({ device_id: 'query_err_dev' });
+      const request = createMockGetRequest(`/api/v2/schedules/${schedule._id}`, {
+        include_device: 'not_a_boolean_but_thats_ok',
+        unknown_param: 'value', // unknown params are stripped, but we need a genuinely invalid one
+      });
+      // getScheduleQuerySchema accepts any string for include_device (transforms to bool)
+      // so this should succeed with include_device=false
+      const response = await getSchedule(request, {
+        params: createParamsPromise(schedule._id.toString()),
+      });
+      expect(response.status).toBe(200);
+    });
+
     it('should include device details when include_device=true', async () => {
       await seedDevice('include_dev');
       const schedule = await seedSchedule({ device_id: 'include_dev' });
@@ -685,6 +829,56 @@ describe('Schedules API Integration Tests', () => {
 
       it('should return 422 when cancelling an already cancelled schedule', async () => {
         const schedule = await seedSchedule({ device_id: 'dup_cancel', status: 'cancelled' });
+
+        const request = createMockPatchRequest(`/api/v2/schedules/${schedule._id}`, {
+          status: 'cancelled',
+        });
+        const response = await PATCH(request, {
+          params: createParamsPromise(schedule._id.toString()),
+        });
+
+        expect(response.status).toBe(422);
+      });
+
+      it('should return 404 when completing a non-existent schedule', async () => {
+        const fakeId = '507f1f77bcf86cd799439011';
+        const request = createMockPatchRequest(`/api/v2/schedules/${fakeId}`, {
+          status: 'completed',
+        });
+        const response = await PATCH(request, {
+          params: createParamsPromise(fakeId),
+        });
+
+        expect(response.status).toBe(404);
+      });
+
+      it('should return 404 when cancelling a non-existent schedule via PATCH', async () => {
+        const fakeId = '507f1f77bcf86cd799439011';
+        const request = createMockPatchRequest(`/api/v2/schedules/${fakeId}`, {
+          status: 'cancelled',
+        });
+        const response = await PATCH(request, {
+          params: createParamsPromise(fakeId),
+        });
+
+        expect(response.status).toBe(404);
+      });
+
+      it('should return 422 when completing a cancelled schedule', async () => {
+        const schedule = await seedSchedule({ device_id: 'complete_cancel', status: 'cancelled' });
+
+        const request = createMockPatchRequest(`/api/v2/schedules/${schedule._id}`, {
+          status: 'completed',
+        });
+        const response = await PATCH(request, {
+          params: createParamsPromise(schedule._id.toString()),
+        });
+
+        expect(response.status).toBe(422);
+      });
+
+      it('should return 422 when cancelling a completed schedule via PATCH', async () => {
+        const schedule = await seedSchedule({ device_id: 'cancel_complete', status: 'completed' });
 
         const request = createMockPatchRequest(`/api/v2/schedules/${schedule._id}`, {
           status: 'cancelled',

@@ -405,6 +405,48 @@ describe('Schedule Validation Schemas', () => {
   });
 
   // ==========================================================================
+  // SCHEDULE AUDIT SCHEMA TESTS
+  // ==========================================================================
+
+  describe('scheduleAuditSchema', () => {
+    it('should accept valid audit data', () => {
+      const { scheduleAuditSchema } = require('@/lib/validations/v2/schedule.validation');
+      const result = scheduleAuditSchema.safeParse({
+        created_by: 'admin@example.com',
+        updated_by: 'admin@example.com',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Defaults should be applied
+        expect(result.data.created_at).toBeInstanceOf(Date);
+        expect(result.data.updated_at).toBeInstanceOf(Date);
+      }
+    });
+
+    it('should accept explicit dates', () => {
+      const { scheduleAuditSchema } = require('@/lib/validations/v2/schedule.validation');
+      const now = new Date();
+      const result = scheduleAuditSchema.safeParse({
+        created_at: now,
+        created_by: 'admin@example.com',
+        updated_at: now,
+        updated_by: 'admin@example.com',
+        completed_at: now,
+        completed_by: 'admin@example.com',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing created_by', () => {
+      const { scheduleAuditSchema } = require('@/lib/validations/v2/schedule.validation');
+      const result = scheduleAuditSchema.safeParse({
+        updated_by: 'admin@example.com',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // ==========================================================================
   // SCHEDULE ID PARAM SCHEMA TESTS
   // ==========================================================================
 
