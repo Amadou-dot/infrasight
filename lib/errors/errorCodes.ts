@@ -70,6 +70,13 @@ export const ErrorCodes = {
   THRESHOLD_EXCEEDED: 'THRESHOLD_EXCEEDED',
   CALIBRATION_REQUIRED: 'CALIBRATION_REQUIRED',
 
+  // ---- Schedule Errors (404, 422) ----
+  SCHEDULE_NOT_FOUND: 'SCHEDULE_NOT_FOUND',
+  SCHEDULE_ALREADY_COMPLETED: 'SCHEDULE_ALREADY_COMPLETED',
+  SCHEDULE_ALREADY_CANCELLED: 'SCHEDULE_ALREADY_CANCELLED',
+  INVALID_SCHEDULED_DATE: 'INVALID_SCHEDULED_DATE',
+  INVALID_SCHEDULE_STATUS_TRANSITION: 'INVALID_SCHEDULE_STATUS_TRANSITION',
+
   // ---- Rate Limiting (429) ----
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
   TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
@@ -272,6 +279,33 @@ export const ErrorCodeRegistry: Record<ErrorCode, ErrorCodeDefinition> = {
     code: ErrorCodes.CALIBRATION_REQUIRED,
     statusCode: 422,
     description: 'Device calibration is required before taking readings',
+  },
+
+  // ---- Schedule Errors ----
+  [ErrorCodes.SCHEDULE_NOT_FOUND]: {
+    code: ErrorCodes.SCHEDULE_NOT_FOUND,
+    statusCode: 404,
+    description: 'The specified schedule was not found',
+  },
+  [ErrorCodes.SCHEDULE_ALREADY_COMPLETED]: {
+    code: ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
+    statusCode: 422,
+    description: 'The schedule has already been completed and cannot be modified',
+  },
+  [ErrorCodes.SCHEDULE_ALREADY_CANCELLED]: {
+    code: ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
+    statusCode: 422,
+    description: 'The schedule has already been cancelled and cannot be modified',
+  },
+  [ErrorCodes.INVALID_SCHEDULED_DATE]: {
+    code: ErrorCodes.INVALID_SCHEDULED_DATE,
+    statusCode: 422,
+    description: 'The scheduled date must be in the future',
+  },
+  [ErrorCodes.INVALID_SCHEDULE_STATUS_TRANSITION]: {
+    code: ErrorCodes.INVALID_SCHEDULE_STATUS_TRANSITION,
+    statusCode: 422,
+    description: 'Invalid schedule status transition',
   },
 
   // ---- Rate Limiting ----

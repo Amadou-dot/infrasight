@@ -39,3 +39,13 @@ export {
   type ReadingUnit,
   type ReadingSource,
 } from './ReadingV2';
+
+// ScheduleV2 Model and Types
+export {
+  default as ScheduleV2,
+  type IScheduleV2,
+  type IScheduleV2Model,
+  type IScheduleAudit,
+  type ServiceType,
+  type ScheduleStatus,
+} from './ScheduleV2';

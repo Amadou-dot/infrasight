@@ -16,6 +16,10 @@ export * from './device.validation';
 
 // Reading validations
 export * from './reading.validation';
+
+// Schedule validations
+export * from './schedule.validation';
+
 // Validation utilities
 export * from '../validator';
 

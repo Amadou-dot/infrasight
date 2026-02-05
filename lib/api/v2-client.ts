@@ -22,6 +22,11 @@ import type {
   TemperatureCorrelationQuery,
   TemperatureCorrelationResponse,
   ReportGenerateQuery,
+  ScheduleV2Response,
+  ListSchedulesQuery,
+  CreateScheduleInput,
+  UpdateScheduleInput,
+  BulkCreateScheduleResponse,
 } from '@/types/v2';
 
 // ============================================================================
@@ -623,6 +628,78 @@ export const auditApi = {
 };
 
 // ============================================================================
+// SCHEDULES API
+// ============================================================================
+
+export const schedulesApi = {
+  /**
+   * List schedules with optional filters
+   */
+  async list(query: ListSchedulesQuery = {}): Promise<PaginatedResponse<ScheduleV2Response>> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    return apiCall(`/api/v2/schedules${queryString}`);
+  },
+
+  /**
+   * Get a single schedule by ID
+   */
+  async getById(
+    id: string,
+    options: { include_device?: boolean } = {}
+  ): Promise<ApiSuccessResponse<ScheduleV2Response>> {
+    const queryString = buildQueryString(options as Record<string, unknown>);
+    return apiCall(`/api/v2/schedules/${id}${queryString}`);
+  },
+
+  /**
+   * Create new schedule(s) - supports bulk creation via device_ids array
+   */
+  async create(
+    data: CreateScheduleInput
+  ): Promise<ApiSuccessResponse<BulkCreateScheduleResponse>> {
+    return apiCall('/api/v2/schedules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update a schedule (reschedule date, update notes)
+   */
+  async update(
+    id: string,
+    data: UpdateScheduleInput
+  ): Promise<ApiSuccessResponse<ScheduleV2Response>> {
+    return apiCall(`/api/v2/schedules/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Mark a schedule as completed
+   */
+  async complete(id: string): Promise<ApiSuccessResponse<ScheduleV2Response>> {
+    return apiCall(`/api/v2/schedules/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    });
+  },
+
+  /**
+   * Cancel a schedule
+   */
+  async cancel(id: string): Promise<ApiSuccessResponse<{ _id: string; cancelled: boolean; cancelled_at?: string }>> {
+    return apiCall(`/api/v2/schedules/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============================================================================
 // REPORTS API
 // ============================================================================
 
@@ -669,6 +746,7 @@ export const v2Api = {
   metadata: metadataApi,
   audit: auditApi,
   reports: reportsApi,
+  schedules: schedulesApi,
 };
 
 export default v2Api;

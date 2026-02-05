@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Wrench, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MaintenanceStatusCards from '@/components/MaintenanceStatusCards';
 import MaintenanceTimeline from '@/components/MaintenanceTimeline';
+import ScheduleServiceModal from '@/components/ScheduleServiceModal';
+import ScheduleList from '@/components/ScheduleList';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
@@ -25,6 +27,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export default function MaintenancePage() {
   const { isAdmin } = useRbac();
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
   // Data fetching with React Query
   const {
@@ -168,7 +171,10 @@ export default function MaintenancePage() {
             </p>
           </div>
           {isAdmin && (
-            <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white">
+            <Button
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => setIsScheduleModalOpen(true)}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Schedule Service
             </Button>
@@ -207,6 +213,17 @@ export default function MaintenancePage() {
       <section className="mb-6">
         <MaintenanceTimeline tasks={timelineTasks} loading={loading} />
       </section>
+
+      {/* Scheduled Services List */}
+      <section className="mb-6">
+        <ScheduleList showHeader />
+      </section>
+
+      {/* Schedule Service Modal */}
+      <ScheduleServiceModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+      />
     </div>
   );
 }

@@ -120,5 +120,28 @@ export type {
   DateRangeQuery,
 } from './api.types';
 
+// ============================================================================
+// SCHEDULE TYPES
+// ============================================================================
+
+export type {
+  // Enums
+  ServiceType,
+  ScheduleStatus,
+  // Nested interfaces
+  ScheduleAudit,
+  // Document types
+  ScheduleV2Document,
+  // Input types
+  CreateScheduleInput,
+  UpdateScheduleInput,
+  // Query types
+  ListSchedulesQuery,
+  // Response types
+  ScheduleV2Response,
+  BulkCreateScheduleResponse,
+  ScheduleListResponse,
+} from './schedule.types';
+
 // Export type guards as values
 export { isSuccessResponse, isErrorResponse } from './api.types';
