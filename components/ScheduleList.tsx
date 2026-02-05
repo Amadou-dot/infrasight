@@ -33,8 +33,8 @@ interface ScheduleListProps {
   initialFilters?: Partial<ListSchedulesQuery>;
   /** Show header with title */
   showHeader?: boolean;
-  /** Callback when a schedule is clicked */
-  onScheduleClick?: (scheduleId: string) => void;
+  /** Callback when a device row is clicked */
+  onDeviceClick?: (deviceId: string) => void;
 }
 
 // ============================================================================
@@ -65,7 +65,7 @@ const PAGE_SIZE = 10;
 export function ScheduleList({
   initialFilters = {},
   showHeader = true,
-  onScheduleClick,
+  onDeviceClick,
 }: ScheduleListProps) {
   const { isAdmin } = useRbac();
   const [page, setPage] = useState(1);
@@ -248,9 +248,9 @@ export function ScheduleList({
             {schedules.map((schedule) => (
               <div
                 key={schedule._id}
-                onClick={() => onScheduleClick?.(schedule._id)}
+                onClick={() => onDeviceClick?.(schedule.device_id)}
                 className={`flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-muted/30 hover:bg-muted/50 rounded-lg transition-colors ${
-                  onScheduleClick ? 'cursor-pointer' : ''
+                  onDeviceClick ? 'cursor-pointer' : ''
                 }`}
               >
                 {/* Device info */}

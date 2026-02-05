@@ -96,8 +96,8 @@ export const updateScheduleSchema = z
       .refine(date => date > new Date(), 'Scheduled date must be in the future')
       .optional(),
 
-    // Status transition
-    status: scheduleStatusSchema.optional(),
+    // Status transition (only valid transitions from 'scheduled')
+    status: z.enum(['completed', 'cancelled']).optional(),
 
     // Update notes
     notes: z

@@ -7,6 +7,7 @@ import MaintenanceStatusCards from '@/components/MaintenanceStatusCards';
 import MaintenanceTimeline from '@/components/MaintenanceTimeline';
 import ScheduleServiceModal from '@/components/ScheduleServiceModal';
 import ScheduleList from '@/components/ScheduleList';
+import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
@@ -28,6 +29,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export default function MaintenancePage() {
   const { isAdmin } = useRbac();
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
   // Data fetching with React Query
   const {
@@ -216,8 +218,15 @@ export default function MaintenancePage() {
 
       {/* Scheduled Services List */}
       <section className="mb-6">
-        <ScheduleList showHeader />
+        <ScheduleList showHeader onDeviceClick={setSelectedDeviceId} />
       </section>
+
+      {/* Device Detail Modal */}
+      <DeviceDetailModal
+        deviceId={selectedDeviceId}
+        isOpen={selectedDeviceId !== null}
+        onClose={() => setSelectedDeviceId(null)}
+      />
 
       {/* Schedule Service Modal */}
       <ScheduleServiceModal

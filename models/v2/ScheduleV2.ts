@@ -165,65 +165,63 @@ ScheduleV2Schema.statics.findUpcoming = function (
 };
 
 /**
- * Mark a schedule as completed
+ * Mark a schedule as completed (atomic operation)
  */
 ScheduleV2Schema.statics.complete = async function (id: string, completedBy: string) {
-  const schedule = await this.findById(id);
-
-  if (!schedule) return null;
-
-  if (schedule.status === 'completed') {
-    throw new Error('Schedule is already completed');
-  }
-
-  if (schedule.status === 'cancelled') {
-    throw new Error('Cannot complete a cancelled schedule');
-  }
-
-  return this.findByIdAndUpdate(
-    id,
+  const now = new Date();
+  const result = await this.findOneAndUpdate(
+    { _id: id, status: 'scheduled' },
     {
       $set: {
         status: 'completed',
-        'audit.updated_at': new Date(),
+        'audit.updated_at': now,
         'audit.updated_by': completedBy,
-        'audit.completed_at': new Date(),
+        'audit.completed_at': now,
         'audit.completed_by': completedBy,
       },
     },
     { new: true }
   );
+
+  if (!result) {
+    // Determine the specific error
+    const existing = await this.findById(id);
+    if (!existing) return null;
+    if (existing.status === 'completed') throw new Error('Schedule is already completed');
+    if (existing.status === 'cancelled') throw new Error('Cannot complete a cancelled schedule');
+  }
+
+  return result;
 };
 
 /**
- * Cancel a schedule
+ * Cancel a schedule (atomic operation)
  */
 ScheduleV2Schema.statics.cancel = async function (id: string, cancelledBy: string) {
-  const schedule = await this.findById(id);
-
-  if (!schedule) return null;
-
-  if (schedule.status === 'completed') {
-    throw new Error('Cannot cancel a completed schedule');
-  }
-
-  if (schedule.status === 'cancelled') {
-    throw new Error('Schedule is already cancelled');
-  }
-
-  return this.findByIdAndUpdate(
-    id,
+  const now = new Date();
+  const result = await this.findOneAndUpdate(
+    { _id: id, status: 'scheduled' },
     {
       $set: {
         status: 'cancelled',
-        'audit.updated_at': new Date(),
+        'audit.updated_at': now,
         'audit.updated_by': cancelledBy,
-        'audit.cancelled_at': new Date(),
+        'audit.cancelled_at': now,
         'audit.cancelled_by': cancelledBy,
       },
     },
     { new: true }
   );
+
+  if (!result) {
+    // Determine the specific error
+    const existing = await this.findById(id);
+    if (!existing) return null;
+    if (existing.status === 'completed') throw new Error('Cannot cancel a completed schedule');
+    if (existing.status === 'cancelled') throw new Error('Schedule is already cancelled');
+  }
+
+  return result;
 };
 
 // ============================================================================

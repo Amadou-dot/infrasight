@@ -81,9 +81,9 @@ export function ScheduleServiceModal({
   const [generalError, setGeneralError] = useState<string | null>(null);
 
   // Fetch all active devices for selection
-  const { data: devices = [], isLoading: devicesLoading } = useDevicesList({
+  const { data: devices = [], isLoading: devicesLoading, error: devicesError } = useDevicesList({
     status: 'active',
-    limit: 500, // Load up to 500 devices for selection
+    limit: 500,
   });
 
   // Create schedule mutation
@@ -98,7 +98,7 @@ export function ScheduleServiceModal({
       onClose();
     },
     onError: (err) => {
-      if (err instanceof ApiClientError) 
+      if (err instanceof ApiClientError) {
         switch (err.errorCode) {
           case 'VALIDATION_ERROR':
             setGeneralError(err.message);
@@ -112,9 +112,10 @@ export function ScheduleServiceModal({
           default:
             setGeneralError(err.message || 'Failed to create schedule');
         }
-       else 
+      } else {
+        console.error('Unexpected error creating schedule:', err);
         setGeneralError('An unexpected error occurred');
-      
+      }
     },
   });
 
@@ -217,7 +218,7 @@ export function ScheduleServiceModal({
     createSchedule.mutate({
       device_ids: formData.device_ids,
       service_type: formData.service_type,
-      scheduled_date: formData.scheduled_date,
+      scheduled_date: new Date(formData.scheduled_date).toISOString(),
       notes: formData.notes || undefined,
     });
   };
@@ -344,6 +345,13 @@ export function ScheduleServiceModal({
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
+              ) : devicesError ? (
+                <div className="text-center py-8">
+                  <p className="text-destructive text-sm">Failed to load devices</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {devicesError instanceof Error ? devicesError.message : 'Please try again later'}
+                  </p>
+                </div>
               ) : filteredDevices.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">
                   {searchQuery ? 'No devices found matching your search' : 'No devices available'}
@@ -431,12 +439,15 @@ interface DeviceRowProps {
 
 function DeviceRow({ device, selected, onToggle }: DeviceRowProps) {
   return (
-    <button
-      type="button"
+    <div
       onClick={onToggle}
-      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors text-left"
+      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors text-left cursor-pointer"
     >
-      <Checkbox checked={selected} />
+      <Checkbox
+        checked={selected}
+        onCheckedChange={() => onToggle()}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">{device.serial_number}</span>
@@ -450,7 +461,7 @@ function DeviceRow({ device, selected, onToggle }: DeviceRowProps) {
       <span className="text-xs capitalize px-2 py-0.5 rounded-full bg-muted">
         {device.type.replace('_', ' ')}
       </span>
-    </button>
+    </div>
   );
 }
 

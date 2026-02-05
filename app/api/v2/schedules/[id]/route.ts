@@ -21,7 +21,7 @@ import {
   scheduleIdParamSchema,
   type GetScheduleQuery,
 } from '@/lib/validations/v2/schedule.validation';
-import { validateInput, validateQuery } from '@/lib/validations/validator';
+import { validateInput, validateQuery, validateBody } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 import { withRateLimit } from '@/lib/ratelimit';
@@ -111,6 +111,43 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // ============================================================================
+// ERROR MAPPING HELPER
+// ============================================================================
+
+const SCHEDULE_ERROR_MAP: Record<string, { code: string; status: number; message: string }> = {
+  'Schedule is already completed': {
+    code: ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
+    status: 422,
+    message: 'Schedule is already completed',
+  },
+  'Schedule is already cancelled': {
+    code: ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
+    status: 422,
+    message: 'Schedule is already cancelled',
+  },
+  'Cannot complete a cancelled schedule': {
+    code: ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
+    status: 422,
+    message: 'Cannot complete a cancelled schedule',
+  },
+  'Cannot cancel a completed schedule': {
+    code: ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
+    status: 422,
+    message: 'Cannot cancel a completed schedule',
+  },
+};
+
+function rethrowAsApiError(error: unknown): never {
+  if (error instanceof Error) {
+    const mapped = SCHEDULE_ERROR_MAP[error.message];
+    if (mapped) {
+      throw new ApiError(mapped.code, mapped.status, mapped.message);
+    }
+  }
+  throw error;
+}
+
+// ============================================================================
 // PATCH /api/v2/schedules/[id] - Update Schedule
 // ============================================================================
 
@@ -140,8 +177,7 @@ async function handleUpdateSchedule(
       );
 
     // Parse and validate body
-    const body = await request.json();
-    const bodyValidation = validateInput(body, updateScheduleSchema);
+    const bodyValidation = await validateBody(request, updateScheduleSchema);
 
     if (!bodyValidation.success)
       throw new ApiError(
@@ -155,77 +191,29 @@ async function handleUpdateSchedule(
 
     // Handle status transitions via static methods for consistency
     if (updateData.status === 'completed') {
-      try {
-        const completedSchedule = await ScheduleV2.complete(id, auditUser);
-        if (!completedSchedule) {
-          throw new ApiError(
-            ErrorCodes.SCHEDULE_NOT_FOUND,
-            404,
-            `Schedule '${id}' not found`
-          );
-        }
-
-        const duration = timer.elapsed();
-        recordRequest('PATCH', '/api/v2/schedules/[id]', 200, duration);
-        logger.info('Schedule completed', { scheduleId: id, completedBy: auditUser, duration });
-
-        return jsonSuccess(completedSchedule.toObject(), 'Schedule marked as completed');
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.message === 'Schedule is already completed') {
-            throw new ApiError(
-              ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
-              422,
-              'Schedule is already completed'
-            );
-          }
-          if (error.message === 'Cannot complete a cancelled schedule') {
-            throw new ApiError(
-              ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
-              422,
-              'Cannot complete a cancelled schedule'
-            );
-          }
-        }
-        throw error;
+      const completedSchedule = await ScheduleV2.complete(id, auditUser).catch(rethrowAsApiError);
+      if (!completedSchedule) {
+        throw new ApiError(ErrorCodes.SCHEDULE_NOT_FOUND, 404, `Schedule '${id}' not found`);
       }
+
+      const duration = timer.elapsed();
+      recordRequest('PATCH', '/api/v2/schedules/[id]', 200, duration);
+      logger.info('Schedule completed', { scheduleId: id, completedBy: auditUser, duration });
+
+      return jsonSuccess(completedSchedule.toObject(), 'Schedule marked as completed');
     }
 
     if (updateData.status === 'cancelled') {
-      try {
-        const cancelledSchedule = await ScheduleV2.cancel(id, auditUser);
-        if (!cancelledSchedule) {
-          throw new ApiError(
-            ErrorCodes.SCHEDULE_NOT_FOUND,
-            404,
-            `Schedule '${id}' not found`
-          );
-        }
-
-        const duration = timer.elapsed();
-        recordRequest('PATCH', '/api/v2/schedules/[id]', 200, duration);
-        logger.info('Schedule cancelled via PATCH', { scheduleId: id, cancelledBy: auditUser, duration });
-
-        return jsonSuccess(cancelledSchedule.toObject(), 'Schedule cancelled');
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.message === 'Cannot cancel a completed schedule') {
-            throw new ApiError(
-              ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
-              422,
-              'Cannot cancel a completed schedule'
-            );
-          }
-          if (error.message === 'Schedule is already cancelled') {
-            throw new ApiError(
-              ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
-              422,
-              'Schedule is already cancelled'
-            );
-          }
-        }
-        throw error;
+      const cancelledSchedule = await ScheduleV2.cancel(id, auditUser).catch(rethrowAsApiError);
+      if (!cancelledSchedule) {
+        throw new ApiError(ErrorCodes.SCHEDULE_NOT_FOUND, 404, `Schedule '${id}' not found`);
       }
+
+      const duration = timer.elapsed();
+      recordRequest('PATCH', '/api/v2/schedules/[id]', 200, duration);
+      logger.info('Schedule cancelled via PATCH', { scheduleId: id, cancelledBy: auditUser, duration });
+
+      return jsonSuccess(cancelledSchedule.toObject(), 'Schedule cancelled');
     }
 
     // For non-status updates (scheduled_date, notes), check schedule exists and is modifiable
@@ -324,57 +312,30 @@ async function handleCancelSchedule(
         { errors: paramValidation.errors }
       );
 
-    // Cancel the schedule using the static method
-    // The static method handles not-found and invalid status transitions
-    try {
-      const cancelledSchedule = await ScheduleV2.cancel(id, auditUser);
+    const cancelledSchedule = await ScheduleV2.cancel(id, auditUser).catch(rethrowAsApiError);
 
-      if (!cancelledSchedule) {
-        throw new ApiError(
-          ErrorCodes.SCHEDULE_NOT_FOUND,
-          404,
-          `Schedule '${id}' not found`
-        );
-      }
-
-      // Record metrics
-      const duration = timer.elapsed();
-      recordRequest('DELETE', '/api/v2/schedules/[id]', 200, duration);
-
-      logger.info('Schedule cancelled', {
-        scheduleId: id,
-        cancelledBy: auditUser,
-        duration,
-      });
-
-      return jsonSuccess(
-        {
-          _id: id,
-          cancelled: true,
-          cancelled_at: cancelledSchedule.audit?.cancelled_at,
-        },
-        'Schedule cancelled successfully'
-      );
-    } catch (error) {
-      // Map static method errors to API errors
-      if (error instanceof Error) {
-        if (error.message === 'Schedule is already completed') {
-          throw new ApiError(
-            ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
-            422,
-            'Cannot cancel a completed schedule'
-          );
-        }
-        if (error.message === 'Schedule is already cancelled') {
-          throw new ApiError(
-            ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
-            422,
-            'Schedule is already cancelled'
-          );
-        }
-      }
-      throw error;
+    if (!cancelledSchedule) {
+      throw new ApiError(ErrorCodes.SCHEDULE_NOT_FOUND, 404, `Schedule '${id}' not found`);
     }
+
+    // Record metrics
+    const duration = timer.elapsed();
+    recordRequest('DELETE', '/api/v2/schedules/[id]', 200, duration);
+
+    logger.info('Schedule cancelled', {
+      scheduleId: id,
+      cancelledBy: auditUser,
+      duration,
+    });
+
+    return jsonSuccess(
+      {
+        _id: id,
+        cancelled: true,
+        cancelled_at: cancelledSchedule.audit?.cancelled_at,
+      },
+      'Schedule cancelled successfully'
+    );
   })();
 }
 

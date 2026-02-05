@@ -20,7 +20,7 @@ import {
   listSchedulesQuerySchema,
   type ListSchedulesQuery,
 } from '@/lib/validations/v2/schedule.validation';
-import { validateQuery, validateInput } from '@/lib/validations/validator';
+import { validateQuery, validateBody } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess, jsonPaginated } from '@/lib/api/response';
 import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
@@ -161,8 +161,7 @@ async function handleCreateSchedules(request: NextRequest) {
     await dbConnect();
 
     // Parse and validate request body
-    const body = await request.json();
-    const validationResult = validateInput(body, createScheduleSchema);
+    const validationResult = await validateBody(request, createScheduleSchema);
 
     if (!validationResult.success) {
       logger.validationFailure('/api/v2/schedules', validationResult.errors);
