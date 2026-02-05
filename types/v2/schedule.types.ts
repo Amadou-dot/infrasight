@@ -100,8 +100,8 @@ export interface CreateScheduleInput {
 export interface UpdateScheduleInput {
   /** New scheduled date (must be in the future) */
   scheduled_date?: Date | string;
-  /** Status transition */
-  status?: ScheduleStatus;
+  /** Status transition (only valid targets from 'scheduled') */
+  status?: 'completed' | 'cancelled';
   /** Updated notes */
   notes?: string;
 }

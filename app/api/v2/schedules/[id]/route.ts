@@ -13,7 +13,7 @@
 
 import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
-import ScheduleV2 from '@/models/v2/ScheduleV2';
+import ScheduleV2, { ScheduleTransitionError, type ScheduleTransitionCode } from '@/models/v2/ScheduleV2';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import {
   updateScheduleSchema,
@@ -99,6 +99,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             room_name: device.location?.room_name,
           },
         };
+      } else {
+        logger.warn('Device not found for schedule', {
+          scheduleId: id,
+          deviceId: schedule.device_id,
+        });
+        response.device = null;
       }
     }
 
@@ -114,35 +120,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 // ERROR MAPPING HELPER
 // ============================================================================
 
-const SCHEDULE_ERROR_MAP: Record<string, { code: string; status: number; message: string }> = {
-  'Schedule is already completed': {
+const TRANSITION_CODE_MAP: Record<ScheduleTransitionCode, { code: string; message: string }> = {
+  ALREADY_COMPLETED: {
     code: ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
-    status: 422,
     message: 'Schedule is already completed',
   },
-  'Schedule is already cancelled': {
+  ALREADY_CANCELLED: {
     code: ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
-    status: 422,
     message: 'Schedule is already cancelled',
   },
-  'Cannot complete a cancelled schedule': {
+  CANNOT_COMPLETE_CANCELLED: {
     code: ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
-    status: 422,
     message: 'Cannot complete a cancelled schedule',
   },
-  'Cannot cancel a completed schedule': {
+  CANNOT_CANCEL_COMPLETED: {
     code: ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
-    status: 422,
     message: 'Cannot cancel a completed schedule',
   },
 };
 
 function rethrowAsApiError(error: unknown): never {
-  if (error instanceof Error) {
-    const mapped = SCHEDULE_ERROR_MAP[error.message];
-    if (mapped) {
-      throw new ApiError(mapped.code, mapped.status, mapped.message);
-    }
+  if (error instanceof ScheduleTransitionError) {
+    const mapped = TRANSITION_CODE_MAP[error.code];
+    throw new ApiError(mapped.code, 422, mapped.message);
   }
   throw error;
 }
@@ -262,6 +262,14 @@ async function handleUpdateSchedule(
       { $set: updateObj },
       { new: true, runValidators: true }
     ).lean();
+
+    if (!updatedSchedule) {
+      throw new ApiError(
+        ErrorCodes.SCHEDULE_NOT_FOUND,
+        404,
+        `Schedule '${id}' not found`
+      );
+    }
 
     // Record metrics
     const duration = timer.elapsed();

@@ -105,7 +105,7 @@ export const updateScheduleSchema = z
       .max(1000, 'Notes must be 1000 characters or less')
       .optional(),
   })
-  .refine(data => Object.keys(data).length > 0, 'At least one field must be provided for update');
+  .refine(data => Object.values(data).some(v => v !== undefined), 'At least one field must be provided for update');
 
 // ============================================================================
 // SCHEDULE QUERY SCHEMAS (GET)
@@ -140,7 +140,7 @@ export const listSchedulesQuerySchema = z.object({
     .union([
       scheduleStatusSchema,
       z.array(scheduleStatusSchema),
-      z.string().transform(val => val.split(',') as z.infer<typeof scheduleStatusSchema>[]),
+      z.string().transform(val => val.split(',')).pipe(z.array(scheduleStatusSchema)),
     ])
     .optional(),
 
@@ -149,7 +149,7 @@ export const listSchedulesQuerySchema = z.object({
     .union([
       serviceTypeSchema,
       z.array(serviceTypeSchema),
-      z.string().transform(val => val.split(',') as z.infer<typeof serviceTypeSchema>[]),
+      z.string().transform(val => val.split(',')).pipe(z.array(serviceTypeSchema)),
     ])
     .optional(),
 

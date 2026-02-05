@@ -1,6 +1,26 @@
 import mongoose, { Schema, type Document, type Model, Types } from 'mongoose';
 
 // ============================================================================
+// CUSTOM ERRORS
+// ============================================================================
+
+export type ScheduleTransitionCode =
+  | 'ALREADY_COMPLETED'
+  | 'ALREADY_CANCELLED'
+  | 'CANNOT_COMPLETE_CANCELLED'
+  | 'CANNOT_CANCEL_COMPLETED';
+
+export class ScheduleTransitionError extends Error {
+  code: ScheduleTransitionCode;
+
+  constructor(code: ScheduleTransitionCode, message: string) {
+    super(message);
+    this.name = 'ScheduleTransitionError';
+    this.code = code;
+  }
+}
+
+// ============================================================================
 // TYPESCRIPT INTERFACES
 // ============================================================================
 
@@ -187,8 +207,8 @@ ScheduleV2Schema.statics.complete = async function (id: string, completedBy: str
     // Determine the specific error
     const existing = await this.findById(id);
     if (!existing) return null;
-    if (existing.status === 'completed') throw new Error('Schedule is already completed');
-    if (existing.status === 'cancelled') throw new Error('Cannot complete a cancelled schedule');
+    if (existing.status === 'completed') throw new ScheduleTransitionError('ALREADY_COMPLETED', 'Schedule is already completed');
+    if (existing.status === 'cancelled') throw new ScheduleTransitionError('CANNOT_COMPLETE_CANCELLED', 'Cannot complete a cancelled schedule');
   }
 
   return result;
@@ -217,8 +237,8 @@ ScheduleV2Schema.statics.cancel = async function (id: string, cancelledBy: strin
     // Determine the specific error
     const existing = await this.findById(id);
     if (!existing) return null;
-    if (existing.status === 'completed') throw new Error('Cannot cancel a completed schedule');
-    if (existing.status === 'cancelled') throw new Error('Schedule is already cancelled');
+    if (existing.status === 'completed') throw new ScheduleTransitionError('CANNOT_CANCEL_COMPLETED', 'Cannot cancel a completed schedule');
+    if (existing.status === 'cancelled') throw new ScheduleTransitionError('ALREADY_CANCELLED', 'Schedule is already cancelled');
   }
 
   return result;
