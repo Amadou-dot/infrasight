@@ -14,6 +14,7 @@ import {
 import { validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
+import { requireOrgMembership } from '@/lib/auth';
 
 // ============================================================================
 // GET /api/v2/readings/latest - Get Latest Readings
@@ -21,6 +22,7 @@ import { jsonSuccess } from '@/lib/api/response';
 
 export async function GET(request: NextRequest) {
   return withErrorHandler(async () => {
+    await requireOrgMembership();
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;

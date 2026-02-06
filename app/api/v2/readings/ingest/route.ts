@@ -37,7 +37,7 @@ import { requireAdmin, getAuditUser } from '@/lib/auth';
 // Constants
 // ============================================================================
 
-const BATCH_SIZE = 100; // Process readings in batches
+const BATCH_SIZE = 500; // Process readings in batches
 const MAX_READINGS_PER_REQUEST = 10000;
 
 // ============================================================================
@@ -106,8 +106,8 @@ async function handleIngest(request: NextRequest) {
 
   return withErrorHandler(async () => {
     // Require admin and get user info for audit
-    const { userId, user } = await requireAdmin();
-    const auditUser = getAuditUser(userId, user);
+    const authContext = await requireAdmin();
+    const auditUser = getAuditUser(authContext.userId, authContext.user);
 
     await dbConnect();
 
@@ -244,7 +244,7 @@ async function handleIngest(request: NextRequest) {
       );
 
       // Invalidate readings cache (non-blocking)
-      invalidateReadings().catch(() => {
+      invalidateReadings(authContext.orgId).catch(() => {
         // Error already logged in invalidateReadings
       });
     }

@@ -61,10 +61,9 @@ test.describe('Dashboard', () => {
       // Look for status indicators (active, offline, etc.)
       const statusIndicators = page.locator('[data-testid="device-status"], [class*="status"]');
 
-      // Should have at least some status indicators if devices are loaded
+      // Dashboard should have at least one status indicator when devices are loaded
       const count = await statusIndicators.count();
-      // This is flexible - may be 0 if no devices, or more if devices exist
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -112,9 +111,9 @@ test.describe('Dashboard', () => {
         '[data-testid="filter-controls"], button:has-text("Filter"), input[placeholder*="search" i], [class*="filter"]'
       );
 
-      // Filters might not exist in minimal view
+      // Dashboard should have at least one filter control
       const count = await filterControls.count();
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should have search functionality', async ({ page }) => {
@@ -312,9 +311,9 @@ test.describe('Dashboard', () => {
     test('should have proper heading hierarchy', async ({ page }) => {
       await page.waitForLoadState('load');
 
-      // Check for h1
+      // Every page should have at least one h1 heading for accessibility
       const h1 = page.locator('h1');
-      expect(await h1.count()).toBeGreaterThanOrEqual(0);
+      expect(await h1.count()).toBeGreaterThanOrEqual(1);
     });
 
     test('should have interactive elements with proper labels', async ({ page }) => {
@@ -339,9 +338,9 @@ test.describe('Dashboard', () => {
       // Press Tab multiple times
       for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
 
-      // Check that some element is focused
+      // After pressing Tab 5 times, at least one element should be focused
       const focusedElement = page.locator(':focus');
-      expect(await focusedElement.count()).toBeGreaterThanOrEqual(0);
+      expect(await focusedElement.count()).toBeGreaterThanOrEqual(1);
     });
   });
 });

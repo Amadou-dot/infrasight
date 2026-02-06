@@ -24,11 +24,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      // Skip if no device cards found
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       // Click the first device card
       await deviceCards.first().click();
@@ -47,10 +44,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -68,10 +63,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -95,10 +88,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -123,10 +114,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -148,19 +137,17 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
       const modal = page.locator('[role="dialog"]');
       await expect(modal).toBeVisible({ timeout: 10000 });
 
-      // Look for location info (building, floor, room)
+      // Device detail modal should show location info (building, floor, room)
       const locationInfo = modal.locator('text=/building|floor|room|location/i');
-      expect(await locationInfo.count()).toBeGreaterThanOrEqual(0);
+      expect(await locationInfo.count()).toBeGreaterThanOrEqual(1);
     });
 
     test('should show device readings chart', async ({ page }) => {
@@ -168,10 +155,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -183,7 +168,8 @@ test.describe('Device Detail', () => {
         '[class*="recharts"], [class*="chart"], svg[class*="chart"], canvas'
       );
 
-      // Chart may or may not exist depending on available readings
+      // Chart may not render if no readings exist for the selected device,
+      // so >= 0 is intentionally lenient here
       const chartCount = await chart.count();
       expect(chartCount).toBeGreaterThanOrEqual(0);
     });
@@ -199,22 +185,20 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
       const modal = page.locator('[role="dialog"]');
       await expect(modal).toBeVisible({ timeout: 10000 });
 
-      // Look for tabs (Overview, Readings, Config, Audit)
+      // Device detail modal should have tab navigation
       const tabs = modal.locator(
         '[role="tablist"], [data-testid="device-tabs"], button:has-text("Overview"), button:has-text("Readings")'
       );
 
-      expect(await tabs.count()).toBeGreaterThanOrEqual(0);
+      expect(await tabs.count()).toBeGreaterThanOrEqual(1);
     });
 
     test('should switch between tabs', async ({ page }) => {
@@ -222,10 +206,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -251,10 +233,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -270,12 +250,12 @@ test.describe('Device Detail', () => {
         // Wait for content to load
         await page.waitForTimeout(1000);
 
-        // Look for audit log content
+        // Audit log should show at least one entry (device creation is always logged)
         const auditContent = modal.locator(
           '[data-testid="audit-log"], text=/created|updated|modified/i'
         );
 
-        expect(await auditContent.count()).toBeGreaterThanOrEqual(0);
+        expect(await auditContent.count()).toBeGreaterThanOrEqual(1);
       }
     });
   });
@@ -364,10 +344,8 @@ test.describe('Device Detail', () => {
         '[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"]'
       );
 
-      if ((await deviceCards.count()) === 0) {
-        test.skip();
-        return;
-      }
+      // Dashboard should have device cards after loading with seeded data
+      await expect(deviceCards.first()).toBeVisible({ timeout: 15000 });
 
       await deviceCards.first().click();
 
@@ -379,7 +357,8 @@ test.describe('Device Detail', () => {
         'button:has-text("Edit"), button:has-text("Delete"), button:has-text("Maintenance")'
       );
 
-      // Actions may or may not exist depending on user permissions
+      // Action buttons depend on RBAC role (admin vs member), so >= 0 is
+      // intentionally lenient -- members may not see any action buttons
       expect(await actionButtons.count()).toBeGreaterThanOrEqual(0);
     });
   });

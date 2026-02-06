@@ -8,6 +8,7 @@ import TopNav from '@/components/TopNav';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from '@/lib/query/queryClient';
+import { PusherProvider } from '@/lib/pusher-context';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -42,8 +43,10 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <ClerkThemeProvider>
-              <TopNav />
-              <main className="min-h-screen">{children}</main>
+              <PusherProvider>
+                <TopNav />
+                <main className="min-h-screen">{children}</main>
+              </PusherProvider>
             </ClerkThemeProvider>
           </ThemeProvider>
           {/* Dev tools only in development */}

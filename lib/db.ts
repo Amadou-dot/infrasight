@@ -31,6 +31,9 @@ async function dbConnect() {
       bufferCommands: false,
       serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
       socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+      maxPoolSize: 50, // Maximum connections in the pool
+      minPoolSize: 10, // Minimum maintained connections
+      maxIdleTimeMS: 60000, // Close idle connections after 1 minute
     };
 
     cached!.promise = mongoose

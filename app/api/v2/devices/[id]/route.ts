@@ -102,8 +102,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     // Require admin
-    const { userId, user } = await requireAdmin();
-    const auditUser = getAuditUser(userId, user);
+    const authContext = await requireAdmin();
+    const auditUser = getAuditUser(authContext.userId, authContext.user);
 
     await dbConnect();
 
@@ -226,8 +226,8 @@ async function handleDeleteDevice(
 ) {
   return withErrorHandler(async () => {
     // Require admin
-    const { userId, user } = await requireAdmin();
-    const auditUser = getAuditUser(userId, user);
+    const authContext = await requireAdmin();
+    const auditUser = getAuditUser(authContext.userId, authContext.user);
 
     await dbConnect();
 
@@ -257,7 +257,7 @@ async function handleDeleteDevice(
     const deletedDevice = await DeviceV2.softDelete(id, auditUser);
 
     // Invalidate device caches (non-blocking)
-    invalidateDevice(id).catch(() => {
+    invalidateDevice(authContext.orgId, id).catch(() => {
       // Error already logged
     });
 
@@ -284,8 +284,8 @@ async function handleRestoreDevice(
 ) {
   return withErrorHandler(async () => {
     // Require admin
-    const { userId, user } = await requireAdmin();
-    const auditUser = getAuditUser(userId, user);
+    const authContext = await requireAdmin();
+    const auditUser = getAuditUser(authContext.userId, authContext.user);
 
     await dbConnect();
 
@@ -322,7 +322,7 @@ async function handleRestoreDevice(
       { new: true }
     ).lean();
 
-    invalidateDevice(id).catch(() => {
+    invalidateDevice(authContext.orgId, id).catch(() => {
       // Error already logged
     });
 

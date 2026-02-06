@@ -1,6 +1,7 @@
 'use client';
 
-import { getPusherClient } from '@/lib/pusher-client';
+import { usePusherReadings } from '@/lib/pusher-context';
+import type { PusherReading } from '@/lib/pusher-context';
 import { v2Api } from '@/lib/api/v2-client';
 import type { DeviceV2Response } from '@/types/v2';
 import {
@@ -12,7 +13,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 
 interface Reading {
@@ -20,15 +21,6 @@ interface Reading {
   value: number;
   timestamp: string;
   type: string;
-}
-
-interface PusherReading {
-  metadata: {
-    device_id: string;
-    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
-  };
-  timestamp: string;
-  value: number;
 }
 
 interface FloorPlanProps {
@@ -119,12 +111,9 @@ export default function FloorPlan({
     if (devices && devices.length > 0) fetchReadings();
   }, [devices]);
 
-  // Real-time updates with Pusher
-  useEffect(() => {
-    const pusher = getPusherClient();
-    const channel = pusher.subscribe('InfraSight');
-
-    channel.bind('new-readings', (newReadings: PusherReading[]) => {
+  // Real-time updates via centralized Pusher context
+  usePusherReadings(
+    useCallback((newReadings: PusherReading[]) => {
       setReadings(prev => {
         const next = { ...prev };
         newReadings.forEach(reading => {
@@ -138,12 +127,8 @@ export default function FloorPlan({
         });
         return next;
       });
-    });
-
-    return () => {
-      pusher.unsubscribe('InfraSight');
-    };
-  }, []);
+    }, [])
+  );
 
   // Check for alerts when readings change
   useEffect(() => {

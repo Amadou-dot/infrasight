@@ -20,6 +20,9 @@ import { validateQuery } from '@/lib/validations/validator';
 import { getOrSet, CACHE_TTL, analyticsKey } from '@/lib/cache';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 
+// Auth
+import { requireOrgMembership } from '@/lib/auth';
+
 // ============================================================================
 // Query Schema
 // ============================================================================
@@ -41,6 +44,9 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    // Require org membership for read access
+    const authContext = await requireOrgMembership();
+
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
@@ -58,7 +64,7 @@ export async function GET(request: NextRequest) {
     const query = validationResult.data as MaintenanceForecastQuery;
 
     // Generate cache key based on filters
-    const cacheKey = analyticsKey('maintenance-forecast', {
+    const cacheKey = analyticsKey(authContext.orgId, 'maintenance-forecast', {
       days_ahead: query.days_ahead,
       severity_threshold: query.severity_threshold,
       building_id: query.building_id,

@@ -16,19 +16,21 @@ import {
 } from '@/lib/cache/invalidation';
 import * as cacheModule from '@/lib/cache/cache';
 
+const TEST_ORG = 'org_test_123';
+
 // Mock the cache module
 jest.mock('@/lib/cache/cache', () => ({
   del: jest.fn().mockResolvedValue(1),
   delPattern: jest.fn().mockResolvedValue(5),
 }));
 
-// Mock the cache keys module
+// Mock the cache keys module with orgId parameter
 jest.mock('@/lib/cache/keys', () => ({
-  deviceKey: jest.fn((id: string) => `device:${id}`),
-  devicesListPattern: jest.fn(() => 'devices:list:*'),
-  metadataPattern: jest.fn(() => 'metadata:*'),
-  healthPattern: jest.fn(() => 'health:*'),
-  readingsPattern: jest.fn(() => 'readings:*'),
+  deviceKey: jest.fn((orgId: string, id: string) => `org:${orgId}:device:${id}`),
+  devicesListPattern: jest.fn((orgId: string) => `org:${orgId}:devices:list:*`),
+  metadataPattern: jest.fn((orgId: string) => `org:${orgId}:metadata:*`),
+  healthPattern: jest.fn((orgId: string) => `org:${orgId}:health:*`),
+  readingsPattern: jest.fn((orgId: string) => `org:${orgId}:readings:latest:*`),
 }));
 
 // Mock logger to suppress output during tests
@@ -52,54 +54,54 @@ describe('Cache Invalidation', () => {
 
   describe('invalidateDevice()', () => {
     it('should invalidate specific device and related caches', async () => {
-      await invalidateDevice('device_001');
+      await invalidateDevice(TEST_ORG, 'device_001');
 
-      expect(cacheModule.del).toHaveBeenCalledWith('device:device_001');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('devices:list:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('metadata:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('health:*');
+      expect(cacheModule.del).toHaveBeenCalledWith(`org:${TEST_ORG}:device:device_001`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:devices:list:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:metadata:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:health:*`);
     });
 
     it('should handle errors gracefully', async () => {
       (cacheModule.del as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
       // Should not throw
-      await expect(invalidateDevice('device_001')).resolves.not.toThrow();
+      await expect(invalidateDevice(TEST_ORG, 'device_001')).resolves.not.toThrow();
     });
   });
 
   describe('invalidateAllDevices()', () => {
     it('should invalidate all device-related caches', async () => {
-      await invalidateAllDevices();
+      await invalidateAllDevices(TEST_ORG);
 
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('device:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('devices:list:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('metadata:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('health:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:device:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:devices:list:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:metadata:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:health:*`);
     });
 
     it('should handle errors gracefully', async () => {
       (cacheModule.delPattern as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
-      await expect(invalidateAllDevices()).resolves.not.toThrow();
+      await expect(invalidateAllDevices(TEST_ORG)).resolves.not.toThrow();
     });
   });
 
   describe('invalidateOnDeviceCreate()', () => {
     it('should invalidate lists and metadata but not specific devices', async () => {
-      await invalidateOnDeviceCreate();
+      await invalidateOnDeviceCreate(TEST_ORG);
 
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('devices:list:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('metadata:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('health:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:devices:list:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:metadata:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:health:*`);
       // Should NOT invalidate individual device caches
-      expect(cacheModule.delPattern).not.toHaveBeenCalledWith('device:*');
+      expect(cacheModule.delPattern).not.toHaveBeenCalledWith(`org:${TEST_ORG}:device:*`);
     });
 
     it('should handle errors gracefully', async () => {
       (cacheModule.delPattern as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
-      await expect(invalidateOnDeviceCreate()).resolves.not.toThrow();
+      await expect(invalidateOnDeviceCreate(TEST_ORG)).resolves.not.toThrow();
     });
   });
 
@@ -109,28 +111,28 @@ describe('Cache Invalidation', () => {
 
   describe('invalidateReadings()', () => {
     it('should invalidate readings and health caches', async () => {
-      await invalidateReadings();
+      await invalidateReadings(TEST_ORG);
 
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('readings:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('health:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:readings:latest:*`);
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:health:*`);
     });
 
     it('should handle errors gracefully', async () => {
       (cacheModule.delPattern as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
-      await expect(invalidateReadings()).resolves.not.toThrow();
+      await expect(invalidateReadings(TEST_ORG)).resolves.not.toThrow();
     });
   });
 
   describe('invalidateDeviceReadings()', () => {
     it('should invalidate readings cache for specific devices', async () => {
-      await invalidateDeviceReadings(['device_001', 'device_002']);
+      await invalidateDeviceReadings(TEST_ORG, ['device_001', 'device_002']);
 
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('readings:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:readings:latest:*`);
     });
 
     it('should do nothing when device IDs array is empty', async () => {
-      await invalidateDeviceReadings([]);
+      await invalidateDeviceReadings(TEST_ORG, []);
 
       expect(cacheModule.delPattern).not.toHaveBeenCalled();
     });
@@ -138,7 +140,7 @@ describe('Cache Invalidation', () => {
     it('should handle errors gracefully', async () => {
       (cacheModule.delPattern as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
-      await expect(invalidateDeviceReadings(['device_001'])).resolves.not.toThrow();
+      await expect(invalidateDeviceReadings(TEST_ORG, ['device_001'])).resolves.not.toThrow();
     });
   });
 
@@ -148,15 +150,15 @@ describe('Cache Invalidation', () => {
 
   describe('invalidateHealthCache()', () => {
     it('should invalidate health cache', async () => {
-      await invalidateHealthCache();
+      await invalidateHealthCache(TEST_ORG);
 
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('health:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:health:*`);
     });
 
     it('should handle errors gracefully', async () => {
       (cacheModule.delPattern as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
-      await expect(invalidateHealthCache()).resolves.not.toThrow();
+      await expect(invalidateHealthCache(TEST_ORG)).resolves.not.toThrow();
     });
   });
 
@@ -166,15 +168,15 @@ describe('Cache Invalidation', () => {
 
   describe('invalidateMetadata()', () => {
     it('should invalidate metadata cache', async () => {
-      await invalidateMetadata();
+      await invalidateMetadata(TEST_ORG);
 
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('metadata:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith(`org:${TEST_ORG}:metadata:*`);
     });
 
     it('should handle errors gracefully', async () => {
       (cacheModule.delPattern as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
-      await expect(invalidateMetadata()).resolves.not.toThrow();
+      await expect(invalidateMetadata(TEST_ORG)).resolves.not.toThrow();
     });
   });
 
@@ -186,12 +188,12 @@ describe('Cache Invalidation', () => {
     it('should clear all application caches', async () => {
       await clearAllCaches();
 
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('device:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('devices:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('metadata:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('health:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('readings:*');
-      expect(cacheModule.delPattern).toHaveBeenCalledWith('analytics:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith('org:*:device:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith('org:*:devices:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith('org:*:metadata:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith('org:*:health:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith('org:*:readings:*');
+      expect(cacheModule.delPattern).toHaveBeenCalledWith('org:*:analytics:*');
     });
 
     it('should handle errors gracefully', async () => {
