@@ -10,6 +10,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import mongoose from 'mongoose';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import { createDeviceInput, resetCounters } from '../../setup/factories';
 import { GET as getDevices, POST as createDevice } from '@/app/api/v2/devices/route';
@@ -24,6 +25,19 @@ import {
 } from '@/app/api/v2/devices/[id]/route';
 import { POST as ingestReadings } from '@/app/api/v2/readings/ingest/route';
 import { GET as simulateReadings } from '@/app/api/v2/cron/simulate/route';
+import { GET as getLatestReadings } from '@/app/api/v2/readings/latest/route';
+import { GET as listSchedules, POST as createSchedule } from '@/app/api/v2/schedules/route';
+import {
+  GET as getSchedule,
+  PATCH as updateSchedule,
+  DELETE as deleteSchedule,
+} from '@/app/api/v2/schedules/[id]/route';
+import { GET as getDeviceHealthReport } from '@/app/api/v2/reports/device-health/route';
+import { GET as getAnomalies } from '@/app/api/v2/analytics/anomalies/route';
+import { GET as getEnergy } from '@/app/api/v2/analytics/energy/route';
+import { GET as getHealth } from '@/app/api/v2/analytics/health/route';
+import { GET as getMaintenanceForecast } from '@/app/api/v2/analytics/maintenance-forecast/route';
+import { GET as getTemperatureCorrelation } from '@/app/api/v2/analytics/temperature-correlation/route';
 import { auth, currentUser } from '@clerk/nextjs/server';
 
 // Mock Clerk auth module
@@ -230,35 +244,208 @@ describe('Authentication Integration Tests', () => {
         expect(data.error.code).toBe('UNAUTHORIZED');
       });
     });
+
+    describe('GET /api/v2/readings/latest', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/readings/latest');
+        const response = await getLatestReadings(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/schedules (List)', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/schedules');
+        const response = await listSchedules(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/schedules/[id] (Single)', () => {
+      it('should return 401 when not authenticated', async () => {
+        const fakeId = new mongoose.Types.ObjectId().toString();
+        const request = createMockGetRequest(`/api/v2/schedules/${fakeId}`);
+        const params = Promise.resolve({ id: fakeId });
+        const response = await getSchedule(request, { params });
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('POST /api/v2/schedules (Create)', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockMutationRequest('/api/v2/schedules', 'POST', {
+          device_ids: ['device_001'],
+          service_type: 'calibration',
+          scheduled_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+        const response = await createSchedule(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('PATCH /api/v2/schedules/[id] (Update)', () => {
+      it('should return 401 when not authenticated', async () => {
+        const fakeId = new mongoose.Types.ObjectId().toString();
+        const request = createMockMutationRequest(`/api/v2/schedules/${fakeId}`, 'PATCH', {
+          notes: 'Updated notes',
+        });
+        const params = Promise.resolve({ id: fakeId });
+        const response = await updateSchedule(request, { params });
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('DELETE /api/v2/schedules/[id] (Cancel)', () => {
+      it('should return 401 when not authenticated', async () => {
+        const fakeId = new mongoose.Types.ObjectId().toString();
+        const request = createMockMutationRequest(`/api/v2/schedules/${fakeId}`, 'DELETE');
+        const params = Promise.resolve({ id: fakeId });
+        const response = await deleteSchedule(request, { params });
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/reports/device-health', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/reports/device-health', { scope: 'all' });
+        const response = await getDeviceHealthReport(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/analytics/anomalies', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/analytics/anomalies');
+        const response = await getAnomalies(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/analytics/energy', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/analytics/energy', {
+          startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          endDate: new Date().toISOString(),
+        });
+        const response = await getEnergy(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/analytics/health', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/analytics/health');
+        const response = await getHealth(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/analytics/maintenance-forecast', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/analytics/maintenance-forecast');
+        const response = await getMaintenanceForecast(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
+
+    describe('GET /api/v2/analytics/temperature-correlation', () => {
+      it('should return 401 when not authenticated', async () => {
+        const request = createMockGetRequest('/api/v2/analytics/temperature-correlation', {
+          device_id: 'device_001',
+        });
+        const response = await getTemperatureCorrelation(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(401);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('UNAUTHORIZED');
+      });
+    });
   });
 
   // ==========================================================================
   // Public Route Tests
   // ==========================================================================
 
-  describe('Public Routes', () => {
-    beforeEach(() => {
-      mockUnauthenticated();
-    });
-
+  describe('CRON_SECRET Protected Routes', () => {
     describe('GET /api/v2/cron/simulate', () => {
-      it('should be accessible without authentication (no 401)', async () => {
-        // Create a test device first so simulate has something to work with
+      it('should return 401 without valid CRON_SECRET Bearer token', async () => {
+        const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate');
+        const response = await simulateReadings(request);
+
+        expect(response.status).toBe(401);
+      });
+
+      it('should return 401 with invalid CRON_SECRET', async () => {
+        const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
+          headers: { Authorization: 'Bearer wrong-secret' },
+        });
+        const response = await simulateReadings(request);
+
+        expect(response.status).toBe(401);
+      });
+
+      it('should succeed with valid CRON_SECRET Bearer token', async () => {
+        // Create a test device so simulate has something to work with
         mockAuthenticated();
         const deviceInput = createDeviceInput();
         deviceInput._id = 'device_simulate_test';
         await DeviceV2.create(deviceInput);
 
-        // Now test simulate without auth
-        mockUnauthenticated();
-        const response = await simulateReadings();
+        const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        });
+        const response = await simulateReadings(request);
 
         const data = await parseResponse<{
           success: boolean;
           count?: number;
         }>(response);
 
-        // The key test: should NOT return 401 (auth not required)
         expect(response.status).toBe(200);
         expect(data.success).toBe(true);
         expect(data.count).toBeGreaterThan(0);
@@ -350,6 +537,75 @@ describe('Authentication Integration Tests', () => {
       });
     });
 
+    // ========================================================================
+    // Schedule RBAC Tests
+    // ========================================================================
+
+    describe('POST /api/v2/schedules (Create)', () => {
+      it('should return 403 when member', async () => {
+        mockAuthenticated(testUserId, testEmail, 'org:member');
+        const request = createMockMutationRequest('/api/v2/schedules', 'POST', {
+          device_ids: ['device_001'],
+          service_type: 'calibration',
+          scheduled_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+        const response = await createSchedule(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(403);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('FORBIDDEN');
+      });
+    });
+
+    describe('PATCH /api/v2/schedules/[id] (Update)', () => {
+      it('should return 403 when member', async () => {
+        mockAuthenticated(testUserId, testEmail, 'org:member');
+        const fakeId = new mongoose.Types.ObjectId().toString();
+        const request = createMockMutationRequest(`/api/v2/schedules/${fakeId}`, 'PATCH', {
+          notes: 'Updated notes',
+        });
+        const params = Promise.resolve({ id: fakeId });
+        const response = await updateSchedule(request, { params });
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(403);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('FORBIDDEN');
+      });
+    });
+
+    describe('DELETE /api/v2/schedules/[id] (Cancel)', () => {
+      it('should return 403 when member', async () => {
+        mockAuthenticated(testUserId, testEmail, 'org:member');
+        const fakeId = new mongoose.Types.ObjectId().toString();
+        const request = createMockMutationRequest(`/api/v2/schedules/${fakeId}`, 'DELETE');
+        const params = Promise.resolve({ id: fakeId });
+        const response = await deleteSchedule(request, { params });
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(403);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('FORBIDDEN');
+      });
+    });
+
+    // ========================================================================
+    // Report RBAC Tests
+    // ========================================================================
+
+    describe('GET /api/v2/reports/device-health', () => {
+      it('should return 403 when member', async () => {
+        mockAuthenticated(testUserId, testEmail, 'org:member');
+        const request = createMockGetRequest('/api/v2/reports/device-health', { scope: 'all' });
+        const response = await getDeviceHealthReport(request);
+        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+
+        expect(response.status).toBe(403);
+        expect(data.success).toBe(false);
+        expect(data.error.code).toBe('FORBIDDEN');
+      });
+    });
 
   });
 });

@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       throw ApiError.forbidden('Admin role required to access deleted devices');
 
     // Generate cache key based on all query parameters
-    const cacheKey = devicesListKey(query as Record<string, unknown>);
+    const cacheKey = devicesListKey(authContext.orgId, query as Record<string, unknown>);
 
     // Use cache-aside pattern
     const result = await getOrSet(
@@ -238,8 +238,8 @@ async function handleCreateDevice(request: NextRequest) {
 
   return withErrorHandler(async () => {
     // Require authentication
-    const { userId, user } = await requireAdmin();
-    const auditUser = getAuditUser(userId, user);
+    const authContext = await requireAdmin();
+    const auditUser = getAuditUser(authContext.userId, authContext.user);
 
     await dbConnect();
 
@@ -309,7 +309,7 @@ async function handleCreateDevice(request: NextRequest) {
     const device = await DeviceV2.create(deviceDoc);
 
     // Invalidate device caches (non-blocking)
-    invalidateOnDeviceCreate().catch(() => {
+    invalidateOnDeviceCreate(authContext.orgId).catch(() => {
       // Error already logged
     });
 

@@ -7,6 +7,7 @@
 import { jsonSuccess } from '@/lib/api/response';
 import dbConnect from '@/lib/db';
 import { ApiError, ErrorCodes, withErrorHandler } from '@/lib/errors';
+import { requireOrgMembership } from '@/lib/auth';
 import {
   readingAnalyticsQuerySchema,
   type ReadingAnalyticsQuery,
@@ -137,6 +138,9 @@ function requiresDeviceLookup(groupBy: GroupByOption): boolean {
 
 export async function GET(request: NextRequest) {
   return withErrorHandler(async () => {
+    // Require org membership for read access
+    await requireOrgMembership();
+
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
@@ -156,8 +160,15 @@ export async function GET(request: NextRequest) {
     // Build match stage
     const matchStage: Record<string, unknown> = {};
 
-    // Floor filter: resolve to device IDs on that floor
-    if (query.floor !== undefined) {
+    // Determine if we need a $lookup for device-based grouping
+    const needsLookup = query.group_by && requiresDeviceLookup(query.group_by as GroupByOption);
+
+    // Floor filter: if $lookup is needed, defer filtering to post-lookup $match
+    // to avoid a redundant pre-query to the devices collection (N+1 elimination).
+    // Otherwise, resolve device IDs upfront since there's no $lookup to piggyback on.
+    const deferFloorFilter = query.floor !== undefined && needsLookup;
+
+    if (query.floor !== undefined && !deferFloorFilter) {
       const floorDeviceIds = await DeviceV2.find(
         { 'location.floor': query.floor, 'audit.deleted_at': { $exists: false } },
         { _id: 1 }
@@ -222,9 +233,6 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Determine if we need a $lookup for device-based grouping
-    const needsLookup = query.group_by && requiresDeviceLookup(query.group_by as GroupByOption);
-
     if (query.group_by)
       switch (query.group_by) {
         case 'device':
@@ -253,7 +261,7 @@ export async function GET(request: NextRequest) {
     const pipeline: PipelineStage[] = [{ $match: matchStage } as PipelineStage.Match];
 
     // Add $lookup for floor, room, building, department grouping
-    if (needsLookup)
+    if (needsLookup) {
       pipeline.push(
         {
           $lookup: {
@@ -271,6 +279,18 @@ export async function GET(request: NextRequest) {
           },
         } as PipelineStage.Unwind
       );
+
+      // When floor filter was deferred (N+1 elimination), apply it after $lookup/$unwind
+      // instead of making a separate pre-query to the devices collection
+      if (deferFloorFilter) {
+        pipeline.push({
+          $match: {
+            'device.location.floor': query.floor,
+            'device.audit.deleted_at': { $exists: false },
+          },
+        } as PipelineStage.Match);
+      }
+    }
 
     pipeline.push(
       { $sort: { timestamp: 1 } } as PipelineStage.Sort,
@@ -366,7 +386,7 @@ export async function GET(request: NextRequest) {
         { $match: comparisonMatchStage } as PipelineStage.Match,
       ];
 
-      if (needsLookup)
+      if (needsLookup) {
         comparisonPipeline.push(
           {
             $lookup: {
@@ -383,6 +403,17 @@ export async function GET(request: NextRequest) {
             },
           } as PipelineStage.Unwind
         );
+
+        // Apply deferred floor filter after $lookup in comparison pipeline too
+        if (deferFloorFilter) {
+          comparisonPipeline.push({
+            $match: {
+              'device.location.floor': query.floor,
+              'device.audit.deleted_at': { $exists: false },
+            },
+          } as PipelineStage.Match);
+        }
+      }
 
       comparisonPipeline.push(
         { $sort: { timestamp: 1 } } as PipelineStage.Sort,

@@ -56,7 +56,11 @@ export function getRedisClient(): Redis | null {
       // TLS configuration for Upstash
       tls:
         process.env.REDIS_TLS === 'true' || redisUrl.startsWith('rediss://')
-          ? { rejectUnauthorized: false }
+          ? {
+              rejectUnauthorized: process.env.REDIS_TLS_INSECURE === 'true'
+                ? false
+                : process.env.NODE_ENV === 'production',
+            }
           : undefined,
       // Connection timeouts
       connectTimeout: 10000,

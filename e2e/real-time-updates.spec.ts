@@ -83,9 +83,9 @@ test.describe('Real-time Updates', () => {
         'text=/\\d{1,2}:\\d{2}|ago|updated|last sync/i'
       );
 
-      // Timestamps may or may not be visible depending on UI design
+      // Dashboard should display at least one timestamp or "last updated" indicator
       const count = await timestamps.count();
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should have refresh capability', async ({ page }) => {
@@ -137,9 +137,9 @@ test.describe('Real-time Updates', () => {
         '[data-testid="sensor-value"], [class*="reading"], text=/\\d+\\.?\\d*\\s*(°[CF]|%|ppm|lux|W)/i'
       );
 
-      // Should have some reading values if devices exist
+      // Dashboard with seeded data should show at least one sensor reading value
       const count = await readingValues.count();
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should display status indicators', async ({ page }) => {
@@ -151,8 +151,9 @@ test.describe('Real-time Updates', () => {
         '[data-testid="status-indicator"], [class*="status"], [class*="indicator"], [class*="badge"]'
       );
 
+      // Dashboard should show at least one status indicator for loaded devices
       const count = await statusIndicators.count();
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should display device health metrics', async ({ page }) => {
@@ -164,8 +165,9 @@ test.describe('Real-time Updates', () => {
         '[data-testid="health-widget"], [class*="health"], text=/health|online|offline|active|warning|critical/i'
       );
 
+      // Dashboard should display at least one health metric or status label
       const count = await healthContent.count();
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -195,7 +197,8 @@ test.describe('Real-time Updates', () => {
         '[data-testid="anomaly"], [class*="anomaly"], text=/anomal/i'
       );
 
-      // May or may not have anomalies
+      // Anomalies are data-dependent and may legitimately be absent when no
+      // anomalous readings exist, so >= 0 is intentional here
       const count = await anomalyContent.count();
       expect(count).toBeGreaterThanOrEqual(0);
     });
@@ -209,8 +212,9 @@ test.describe('Real-time Updates', () => {
         '[data-testid="alerts-panel"], [class*="alert"], [class*="notification"], text=/alert|warning|critical/i'
       );
 
+      // Dashboard should display at least one alert or status notification
       const count = await alertsPanel.count();
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -237,8 +241,9 @@ test.describe('Real-time Updates', () => {
         '[data-testid="device-marker"], [class*="marker"], [class*="pin"], svg circle, svg rect'
       );
 
+      // Floor plan with seeded data should display at least one device marker
       const count = await deviceMarkers.count();
-      expect(count).toBeGreaterThanOrEqual(0);
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should show device tooltip on hover', async ({ page }) => {
@@ -258,7 +263,8 @@ test.describe('Real-time Updates', () => {
         await page.waitForTimeout(500);
         const tooltip = page.locator('[role="tooltip"], [class*="tooltip"], [class*="popover"]');
 
-        // Tooltip may or may not appear
+        // Tooltip rendering depends on the UI implementation and whether the
+        // hovered element supports tooltips, so >= 0 is intentional here
         expect(await tooltip.count()).toBeGreaterThanOrEqual(0);
       }
     });

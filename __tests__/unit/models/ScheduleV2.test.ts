@@ -330,12 +330,9 @@ describe('ScheduleV2 Model', () => {
           ScheduleV2.complete(schedule._id.toString(), 'admin@test.com')
         ).rejects.toThrow(ScheduleTransitionError);
 
-        try {
-          await ScheduleV2.complete(schedule._id.toString(), 'admin@test.com');
-        } catch (error) {
-          expect(error).toBeInstanceOf(ScheduleTransitionError);
-          expect((error as ScheduleTransitionError).code).toBe('ALREADY_COMPLETED');
-        }
+        await expect(
+          ScheduleV2.complete(schedule._id.toString(), 'admin@test.com')
+        ).rejects.toHaveProperty('code', 'ALREADY_COMPLETED');
       });
 
       it('should throw CANNOT_COMPLETE_CANCELLED for cancelled schedule', async () => {
@@ -343,12 +340,13 @@ describe('ScheduleV2 Model', () => {
           createScheduleInput({ device_id: 'device_cancel_complete', status: 'cancelled' })
         );
 
-        try {
-          await ScheduleV2.complete(schedule._id.toString(), 'admin@test.com');
-        } catch (error) {
-          expect(error).toBeInstanceOf(ScheduleTransitionError);
-          expect((error as ScheduleTransitionError).code).toBe('CANNOT_COMPLETE_CANCELLED');
-        }
+        await expect(
+          ScheduleV2.complete(schedule._id.toString(), 'admin@test.com')
+        ).rejects.toThrow(ScheduleTransitionError);
+
+        await expect(
+          ScheduleV2.complete(schedule._id.toString(), 'admin@test.com')
+        ).rejects.toHaveProperty('code', 'CANNOT_COMPLETE_CANCELLED');
       });
     });
 
@@ -377,12 +375,13 @@ describe('ScheduleV2 Model', () => {
           createScheduleInput({ device_id: 'device_complete_cancel', status: 'completed' })
         );
 
-        try {
-          await ScheduleV2.cancel(schedule._id.toString(), 'admin@test.com');
-        } catch (error) {
-          expect(error).toBeInstanceOf(ScheduleTransitionError);
-          expect((error as ScheduleTransitionError).code).toBe('CANNOT_CANCEL_COMPLETED');
-        }
+        await expect(
+          ScheduleV2.cancel(schedule._id.toString(), 'admin@test.com')
+        ).rejects.toThrow(ScheduleTransitionError);
+
+        await expect(
+          ScheduleV2.cancel(schedule._id.toString(), 'admin@test.com')
+        ).rejects.toHaveProperty('code', 'CANNOT_CANCEL_COMPLETED');
       });
 
       it('should throw ALREADY_CANCELLED for cancelled schedule', async () => {
@@ -390,12 +389,13 @@ describe('ScheduleV2 Model', () => {
           createScheduleInput({ device_id: 'device_dup_cancel', status: 'cancelled' })
         );
 
-        try {
-          await ScheduleV2.cancel(schedule._id.toString(), 'admin@test.com');
-        } catch (error) {
-          expect(error).toBeInstanceOf(ScheduleTransitionError);
-          expect((error as ScheduleTransitionError).code).toBe('ALREADY_CANCELLED');
-        }
+        await expect(
+          ScheduleV2.cancel(schedule._id.toString(), 'admin@test.com')
+        ).rejects.toThrow(ScheduleTransitionError);
+
+        await expect(
+          ScheduleV2.cancel(schedule._id.toString(), 'admin@test.com')
+        ).rejects.toHaveProperty('code', 'ALREADY_CANCELLED');
       });
     });
   });

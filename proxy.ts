@@ -9,7 +9,7 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 // Check if E2E testing mode is enabled via environment variable
-const isE2ETestingMode = process.env.E2E_TESTING === 'true';
+const isE2ETestingMode = process.env.NODE_ENV !== 'production' && process.env.E2E_TESTING === 'true';
 const allowedOrgSlugs = (process.env.CLERK_ALLOWED_ORG_SLUGS || 'users')
   .split(',')
   .map(value => value.trim().toLowerCase())

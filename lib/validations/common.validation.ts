@@ -340,6 +340,7 @@ export const coordinatesSchema = z
     y: z.number().describe('Y coordinate'),
     z: z.number().optional().describe('Z coordinate (height/elevation)'),
   })
+  .strict()
   .optional();
 
 /**

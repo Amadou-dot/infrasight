@@ -13,15 +13,19 @@ export function useDevicesList(
     queryFn: async () => {
       // Fetch all pages if no pagination params provided
       if (!filters.page && !filters.limit) {
-        const allDevices: DeviceV2Response[] = [];
-        let page = 1;
-        let hasMore = true;
+        // Fetch first page to get total pages
+        const firstResponse = await v2Api.devices.list({ ...filters, limit: 100, page: 1 });
+        const allDevices: DeviceV2Response[] = [...firstResponse.data];
+        const totalPages = Math.min(firstResponse.pagination?.pages ?? 1, 20);
 
-        while (hasMore && page <= 20) {
-          const response = await v2Api.devices.list({ ...filters, limit: 100, page });
-          allDevices.push(...response.data);
-          hasMore = response.pagination?.hasNext ?? false;
-          page++;
+        if (totalPages > 1) {
+          // Fetch remaining pages in parallel
+          const pagePromises = [];
+          for (let p = 2; p <= totalPages; p++) {
+            pagePromises.push(v2Api.devices.list({ ...filters, limit: 100, page: p }));
+          }
+          const results = await Promise.all(pagePromises);
+          results.forEach(r => allDevices.push(...r.data));
         }
 
         return allDevices;

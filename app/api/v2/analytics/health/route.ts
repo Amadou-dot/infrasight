@@ -20,6 +20,9 @@ import { validateQuery } from '@/lib/validations/validator';
 import { getOrSet, CACHE_TTL, healthKey } from '@/lib/cache';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 
+// Auth
+import { requireOrgMembership } from '@/lib/auth';
+
 // ============================================================================
 // Query Schema
 // ============================================================================
@@ -46,6 +49,9 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    // Require org membership for read access
+    const authContext = await requireOrgMembership();
+
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
@@ -63,7 +69,7 @@ export async function GET(request: NextRequest) {
     const query = validationResult.data as HealthAnalyticsQuery;
 
     // Generate cache key based on filters
-    const cacheKey = healthKey({
+    const cacheKey = healthKey(authContext.orgId, {
       building_id: query.building_id,
       floor: query.floor,
       department: query.department,
@@ -145,6 +151,7 @@ export async function GET(request: NextRequest) {
               status: 1,
             }
           )
+            .limit(50)
             .maxTimeMS(5000)
             .lean(),
 
@@ -161,6 +168,7 @@ export async function GET(request: NextRequest) {
               'health.battery_level': 1,
             }
           )
+            .limit(50)
             .maxTimeMS(5000)
             .lean(),
 
@@ -178,6 +186,7 @@ export async function GET(request: NextRequest) {
               'health.error_count': 1,
             }
           )
+            .limit(50)
             .maxTimeMS(5000)
             .lean(),
 
@@ -195,6 +204,7 @@ export async function GET(request: NextRequest) {
               'metadata.last_maintenance': 1,
             }
           )
+            .limit(50)
             .maxTimeMS(5000)
             .lean(),
 
@@ -236,6 +246,7 @@ export async function GET(request: NextRequest) {
               'metadata.next_maintenance': 1,
             }
           )
+            .limit(50)
             .maxTimeMS(5000)
             .lean(),
         ]);

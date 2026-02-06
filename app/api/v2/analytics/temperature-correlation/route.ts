@@ -10,6 +10,7 @@ import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import { handleError, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
+import { requireOrgMembership } from '@/lib/auth';
 import { z } from 'zod';
 import { validateQuery } from '@/lib/validations/validator';
 import {
@@ -44,6 +45,9 @@ type TemperatureCorrelationQuery = z.infer<typeof temperatureCorrelationQuerySch
 
 export async function GET(request: NextRequest) {
   try {
+    // Require org membership for read access
+    await requireOrgMembership();
+
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;

@@ -78,12 +78,13 @@ describe('Cache Index Exports', () => {
       analyticsKey,
     } = require('@/lib/cache');
 
-    expect(deviceKey('test_001')).toBe('device:test_001');
-    expect(devicesListKey()).toBe('devices:list:default');
-    expect(metadataKey()).toBe('metadata:default');
-    expect(healthKey()).toBe('health:default');
-    expect(latestReadingsKey()).toBe('readings:latest:devices:all:types:all');
-    expect(analyticsKey('test')).toBe('analytics:test:default');
+    const orgId = 'test_org';
+    expect(deviceKey(orgId, 'test_001')).toBe(`org:${orgId}:device:test_001`);
+    expect(devicesListKey(orgId)).toBe(`org:${orgId}:devices:list:default`);
+    expect(metadataKey(orgId)).toBe(`org:${orgId}:metadata:default`);
+    expect(healthKey(orgId)).toBe(`org:${orgId}:health:default`);
+    expect(latestReadingsKey(orgId)).toBe(`org:${orgId}:readings:latest:devices:all:types:all`);
+    expect(analyticsKey(orgId, 'test')).toBe(`org:${orgId}:analytics:test:default`);
   });
 
   it('should generate patterns correctly via index exports', () => {
@@ -96,12 +97,13 @@ describe('Cache Index Exports', () => {
       analyticsPattern,
     } = require('@/lib/cache');
 
-    expect(devicePattern()).toBe('device:*');
-    expect(devicesListPattern()).toBe('devices:list:*');
-    expect(metadataPattern()).toBe('metadata:*');
-    expect(healthPattern()).toBe('health:*');
-    expect(readingsPattern()).toBe('readings:latest:*');
-    expect(analyticsPattern()).toBe('analytics:*');
+    const orgId = 'test_org';
+    expect(devicePattern(orgId)).toBe(`org:${orgId}:device:*`);
+    expect(devicesListPattern(orgId)).toBe(`org:${orgId}:devices:list:*`);
+    expect(metadataPattern(orgId)).toBe(`org:${orgId}:metadata:*`);
+    expect(healthPattern(orgId)).toBe(`org:${orgId}:health:*`);
+    expect(readingsPattern(orgId)).toBe(`org:${orgId}:readings:latest:*`);
+    expect(analyticsPattern(orgId)).toBe(`org:${orgId}:analytics:*`);
   });
 });
 

@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       throw ApiError.forbidden('Admin role required to include deleted devices');
 
     // Generate cache key based on query params
-    const cacheKey = metadataKey({
+    const cacheKey = metadataKey(authContext.orgId, {
       include_stats: includeStats,
       include_deleted: includeDeleted,
     });

@@ -201,12 +201,15 @@ test.describe('Error Handling', () => {
 
         await page.waitForTimeout(1000);
 
-        // Should show no results or empty state
-        const noResults = page.locator('text=/no result|not found|no match/i');
-        const hasNoResults = (await noResults.count()) > 0;
+        // Should show no results message or the list should be empty
+        const noResults = page.locator('text=/no result|not found|no match|no device/i');
+        const deviceRows = page.locator('[data-testid="device-card"], [class*="device-card"], [class*="DeviceCard"], tr[data-testid]');
 
-        // Either shows no results message or empty list
-        expect(hasNoResults || true).toBe(true);
+        const hasNoResultsMessage = (await noResults.count()) > 0;
+        const hasNoDeviceRows = (await deviceRows.count()) === 0;
+
+        // Either a "no results" message is shown OR the device list is empty
+        expect(hasNoResultsMessage || hasNoDeviceRows).toBe(true);
       }
     });
   });
@@ -238,8 +241,8 @@ test.describe('Error Handling', () => {
             '[class*="error"], [class*="invalid"], [aria-invalid="true"], text=/required|invalid|error/i'
           );
 
-          // May or may not have validation depending on form state
-          expect(await validationMessages.count()).toBeGreaterThanOrEqual(0);
+          // Submitting an empty or invalid form should produce at least one validation message
+          expect(await validationMessages.count()).toBeGreaterThanOrEqual(1);
         }
       }
     });

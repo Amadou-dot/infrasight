@@ -28,6 +28,9 @@ import type { NextRequest } from 'next/server';
 import { getOrSet, CACHE_TTL, analyticsKey } from '@/lib/cache';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 
+// Auth
+import { requireOrgMembership } from '@/lib/auth';
+
 // ============================================================================
 // Helper: Get date format for bucketing
 // ============================================================================
@@ -57,6 +60,9 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
+    // Require org membership for read access
+    const authContext = await requireOrgMembership();
+
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
@@ -74,7 +80,7 @@ export async function GET(request: NextRequest) {
     const query = validationResult.data as AnomalyAnalyticsQuery;
 
     // Generate cache key based on query parameters
-    const cacheKey = analyticsKey('anomalies', {
+    const cacheKey = analyticsKey(authContext.orgId, 'anomalies', {
       device_id: query.device_id,
       type: query.type,
       startDate: query.startDate,

@@ -13,6 +13,9 @@ import '@testing-library/jest-dom';
 // Set test timeout
 jest.setTimeout(30000);
 
+// Set CRON_SECRET for simulate endpoint tests
+process.env.CRON_SECRET = 'test-cron-secret';
+
 // ============================================================================
 // Global Clerk Auth Mock
 // ============================================================================

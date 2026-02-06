@@ -226,33 +226,33 @@ export function handleError(error: unknown, options: ErrorHandlerOptions = {}): 
     }
     // Connection errors
     else if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ETIMEDOUT')) {
-      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Database connection error', {
-        originalMessage: error.message,
-      });
+      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Database connection error',
+        process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
+      );
       shouldLog = true;
     }
     // Other MongoDB errors
     else {
-      apiError = new ApiError(ErrorCodes.DATABASE_ERROR, 500, 'A database error occurred', {
-        originalMessage: error.message,
-      });
+      apiError = new ApiError(ErrorCodes.DATABASE_ERROR, 500, 'A database error occurred',
+        process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
+      );
       shouldLog = true;
     }
   // Standard Error instances
   else if (error instanceof Error) {
     // Check for common error patterns
     if (error.message?.toLowerCase().includes('timeout'))
-      apiError = new ApiError(ErrorCodes.GATEWAY_TIMEOUT, 504, 'Request timed out', {
-        originalMessage: error.message,
-      });
+      apiError = new ApiError(ErrorCodes.GATEWAY_TIMEOUT, 504, 'Request timed out',
+        process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
+      );
     else if (error.message?.toLowerCase().includes('network'))
-      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Network error occurred', {
-        originalMessage: error.message,
-      });
+      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Network error occurred',
+        process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
+      );
     else
-      apiError = new ApiError(ErrorCodes.INTERNAL_ERROR, 500, 'An unexpected error occurred', {
-        originalMessage: error.message,
-      });
+      apiError = new ApiError(ErrorCodes.INTERNAL_ERROR, 500, 'An unexpected error occurred',
+        process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
+      );
 
     // Preserve original stack trace
     apiError.stack = error.stack;
