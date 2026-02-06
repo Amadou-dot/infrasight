@@ -411,29 +411,41 @@ describe('Authentication Integration Tests', () => {
   // Public Route Tests
   // ==========================================================================
 
-  describe('Public Routes', () => {
-    beforeEach(() => {
-      mockUnauthenticated();
-    });
-
+  describe('CRON_SECRET Protected Routes', () => {
     describe('GET /api/v2/cron/simulate', () => {
-      it('should be accessible without authentication (no 401)', async () => {
-        // Create a test device first so simulate has something to work with
+      it('should return 401 without valid CRON_SECRET Bearer token', async () => {
+        const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate');
+        const response = await simulateReadings(request);
+
+        expect(response.status).toBe(401);
+      });
+
+      it('should return 401 with invalid CRON_SECRET', async () => {
+        const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
+          headers: { Authorization: 'Bearer wrong-secret' },
+        });
+        const response = await simulateReadings(request);
+
+        expect(response.status).toBe(401);
+      });
+
+      it('should succeed with valid CRON_SECRET Bearer token', async () => {
+        // Create a test device so simulate has something to work with
         mockAuthenticated();
         const deviceInput = createDeviceInput();
         deviceInput._id = 'device_simulate_test';
         await DeviceV2.create(deviceInput);
 
-        // Now test simulate without auth
-        mockUnauthenticated();
-        const response = await simulateReadings();
+        const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        });
+        const response = await simulateReadings(request);
 
         const data = await parseResponse<{
           success: boolean;
           count?: number;
         }>(response);
 
-        // The key test: should NOT return 401 (auth not required)
         expect(response.status).toBe(200);
         expect(data.success).toBe(true);
         expect(data.count).toBeGreaterThan(0);
