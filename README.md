@@ -9,14 +9,11 @@
     <img src="https://img.shields.io/badge/Live%20Preview-000000?style=for-the-badge&logo=vercel&logoColor=white">
   </a>
 
-  <img src="https://img.shields.io/badge/Next.js%2015-000000?style=for-the-badge&logo=nextdotjs&logoColor=white">
+  <img src="https://img.shields.io/badge/Next.js%2016-000000?style=for-the-badge&logo=nextdotjs&logoColor=white">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
   <img src="https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white">
   <img src="https://img.shields.io/badge/Pusher-300D4F?style=for-the-badge&logo=pusher&logoColor=white">
-  <!-- NOTE: After setting up Codecov for this repository, replace YOUR_USERNAME and YOUR_TOKEN in the badge URLs below with the actual GitHub username/organization and Codecov token. -->
-  <a href="https://codecov.io/gh/YOUR_USERNAME/infrasight">
-    <img src="https://codecov.io/gh/YOUR_USERNAME/infrasight/branch/main/graph/badge.svg?token=YOUR_TOKEN" alt="Coverage">
-  </a>
+  <img src="https://img.shields.io/badge/Clerk-6C47FF?style=for-the-badge&logo=clerk&logoColor=white">
 </p>
 
 <p>
@@ -32,7 +29,13 @@
 - **Real-Time Updates**: Live sensor data via Pusher WebSocket connections
 - **Device Health Tracking**: Monitor status, uptime, battery levels, and signal strength
 - **Floor Plan Visualization**: Interactive floor plans with device status indicators
-- **Multi-Sensor Support**: Temperature, humidity, CO2, power, occupancy, and more
+- **Multi-Sensor Support**: 15 sensor types including temperature, humidity, CO2, power, occupancy, and more
+
+### Authentication & RBAC
+
+- **Clerk Authentication**: Secure sign-in/sign-up with organization-based access control
+- **Role-Based Permissions**: Admin (full CRUD) and Member (read-only) roles
+- **Organization Gating**: Only users in allowed organizations can access the dashboard
 
 ### V2 Enhancements
 
@@ -40,31 +43,37 @@
 - **Comprehensive Audit Trails**: Complete change history for all devices
 - **Device Health Scoring**: Calculated health metrics with predictive indicators
 - **Predictive Maintenance**: Forecasting for maintenance scheduling
+- **Maintenance Scheduling**: Create, track, and manage maintenance tasks with bulk support and status machine (scheduled/completed/cancelled)
+- **PDF Report Generation**: On-demand device health reports with per-building or all-buildings scope
 - **Temperature Correlation**: Cross-device temperature analysis
 - **Enhanced Anomaly Detection**: ML-based anomaly scoring and trends
 
 ### Security & Performance
 
 - **Rate Limiting**: Configurable limits for API protection
-- **Caching**: Redis-backed response caching
+- **Caching**: Redis-backed response caching with automatic invalidation
 - **Zod Validation**: Type-safe input validation on all endpoints
 - **Error Handling**: Consistent error codes and responses
 - **Sentry Integration**: Error tracking and performance monitoring
+- **Prometheus Metrics**: Request latency, error rates, cache stats, and ingestion metrics
 
 ---
 
 ## Tech Stack
 
-| Category          | Technologies                                                                                                                                                   |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Frontend**      | [Next.js 15](https://nextjs.org/) with [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/) |
-| **Backend**       | [MongoDB](https://www.mongodb.com/) with [Mongoose](https://mongoosejs.com/) (timeseries collections)                                                          |
-| **Validation**    | [Zod](https://zod.dev/) for schema validation                                                                                                                  |
-| **Real-Time**     | [Pusher](https://pusher.com/) for WebSocket connections                                                                                                        |
-| **Caching**       | [Redis](https://redis.io/) / [Upstash](https://upstash.com/)                                                                                                   |
-| **UI Components** | [Radix UI](https://www.radix-ui.com/), [shadcn/ui](https://ui.shadcn.com/)                                                                                     |
-| **Charts**        | [Recharts](https://recharts.org/) for data visualization                                                                                                       |
-| **Monitoring**    | [Sentry](https://sentry.io/) for error tracking                                                                                                                |
+| Category           | Technologies                                                                                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**       | [Next.js 16](https://nextjs.org/) with [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/) |
+| **Backend**        | [MongoDB](https://www.mongodb.com/) with [Mongoose](https://mongoosejs.com/) (timeseries collections)                                                          |
+| **Authentication** | [Clerk](https://clerk.com/) for authentication & organization-based RBAC                                                                                       |
+| **Validation**     | [Zod](https://zod.dev/) for schema validation                                                                                                                  |
+| **Real-Time**      | [Pusher](https://pusher.com/) for WebSocket connections                                                                                                        |
+| **State**          | [TanStack Query](https://tanstack.com/query) for server state, [TanStack Table](https://tanstack.com/table) for data tables                                    |
+| **Caching**        | [Redis](https://redis.io/) / [Upstash](https://upstash.com/)                                                                                                   |
+| **UI Components**  | [Radix UI](https://www.radix-ui.com/), [shadcn/ui](https://ui.shadcn.com/)                                                                                     |
+| **Charts**         | [Recharts](https://recharts.org/) for data visualization                                                                                                       |
+| **PDF**            | [pdf-lib](https://pdf-lib.js.org/) for report generation                                                                                                       |
+| **Monitoring**     | [Sentry](https://sentry.io/) for error tracking, Prometheus metrics                                                                                            |
 
 ---
 
@@ -88,7 +97,8 @@
 - Node.js 18+
 - MongoDB database (local or [Atlas](https://www.mongodb.com/cloud/atlas))
 - [Pusher](https://pusher.com/) account for real-time features
-- (Optional) [Redis](https://redis.io/) / [Upstash](https://upstash.com/) for rate limiting
+- [Clerk](https://clerk.com/) account for authentication
+- (Optional) [Redis](https://redis.io/) / [Upstash](https://upstash.com/) for caching and rate limiting
 
 ### Installation
 
@@ -124,6 +134,18 @@ PUSHER_CLUSTER=your_cluster
 # Pusher (Client-side)
 NEXT_PUBLIC_PUSHER_KEY=your_key
 NEXT_PUBLIC_PUSHER_CLUSTER=your_cluster
+
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_publishable_key
+CLERK_SECRET_KEY=your_secret_key
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/
+
+# RBAC Organization Access
+CLERK_ALLOWED_ORG_SLUGS=users
+NEXT_PUBLIC_CLERK_ALLOWED_ORG_SLUGS=users
 ```
 
 See [Environment Setup Guide](./docs/environment.md) for complete configuration options.
@@ -161,7 +183,11 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 | `pnpm test:unit`         | Run unit tests only                     |
 | `pnpm test:integration`  | Run integration tests only              |
 | `pnpm test:e2e`          | Run end-to-end tests with Playwright    |
+| `pnpm test:api`          | Test V2 API endpoints                   |
 | `pnpm lint`              | Run ESLint                              |
+| `pnpm lint:fix`          | Auto-fix lint issues                    |
+| `pnpm format`            | Format with Prettier                    |
+| `pnpm format:check`      | Check formatting                        |
 
 ---
 
@@ -169,51 +195,86 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ```
 infrasight/
-├── app/                    # Next.js App Router
-│   ├── api/v2/            # V2 API routes
-│   └── page.tsx           # Dashboard page
-├── components/            # React components
-│   ├── DeviceGrid.tsx     # Device list grid
-│   ├── FloorPlan.tsx      # Interactive floor plan
+├── app/                        # Next.js App Router
+│   ├── api/v2/                 # V2 API routes (25 endpoints)
+│   │   ├── devices/            # Device CRUD + history
+│   │   ├── readings/           # Reading queries + ingest + latest
+│   │   ├── analytics/          # Health, energy, anomalies, forecast, correlation
+│   │   ├── schedules/          # Maintenance scheduling CRUD
+│   │   ├── reports/            # PDF report generation
+│   │   ├── audit/              # Cross-device audit trail
+│   │   ├── metadata/           # System metadata
+│   │   └── metrics/            # Prometheus metrics
+│   ├── devices/                # Device list & deleted devices pages
+│   ├── analytics/              # Analytics dashboard
+│   ├── maintenance/            # Maintenance dashboard
+│   ├── floor-plan/             # Floor plan visualization
+│   ├── settings/               # User settings
+│   ├── sign-in/                # Clerk sign-in
+│   ├── sign-up/                # Clerk sign-up
+│   └── page.tsx                # Dashboard home page
+├── components/                 # React components
+│   ├── devices/
+│   │   ├── CreateDeviceModal.tsx    # Device creation (admin only)
+│   │   └── TagInput.tsx             # Tag input for device metadata
+│   ├── ScheduleList.tsx             # Paginated schedule list
+│   ├── ScheduleServiceModal.tsx     # Schedule creation (bulk support)
+│   ├── ScheduleStatusBadge.tsx      # Status badge component
+│   ├── GenerateReportModal.tsx      # PDF report generation
 │   └── ...
-├── docs/                  # Documentation
-│   ├── api-v2.md          # API reference
-│   ├── models-v2.md       # Data models
-│   ├── environment.md     # Configuration
-│   ├── testing-v2.md      # Testing guide
-│   └── runbook.md         # Operations
-├── lib/                   # Utilities
-│   ├── api/               # API client and response helpers
-│   ├── errors/            # Error handling
-│   ├── validations/v2/    # Zod schemas
-│   └── db.ts              # Database connection
-├── models/v2/             # Mongoose models
-│   ├── DeviceV2.ts        # Device model
-│   └── ReadingV2.ts       # Reading model (timeseries)
-├── scripts/v2/            # Database scripts
-│   ├── seed-v2.ts         # Seed data
-│   └── simulate.ts        # Reading simulation
-└── types/v2/              # TypeScript types
+├── docs/                       # Documentation
+├── lib/                        # Utilities
+│   ├── api/                    # API client and response helpers
+│   ├── auth/                   # RBAC utilities (requireAdmin, requireOrgMembership)
+│   ├── cache/                  # Redis caching with invalidation
+│   ├── errors/                 # Error handling
+│   ├── middleware/              # Request validation, body size, headers
+│   ├── monitoring/             # Sentry, Prometheus metrics, logging
+│   ├── query/                  # React Query hooks
+│   ├── ratelimit/              # Rate limiting config and middleware
+│   ├── redis/                  # Redis client configuration
+│   ├── validations/v2/         # Zod schemas
+│   └── db.ts                   # Database connection
+├── models/v2/                  # Mongoose models
+│   ├── DeviceV2.ts             # Device model
+│   ├── ReadingV2.ts            # Reading model (timeseries)
+│   └── ScheduleV2.ts           # Maintenance schedule model
+├── scripts/v2/                 # Database scripts
+│   ├── seed-v2.ts              # Seed data
+│   └── simulate.ts             # Reading simulation
+├── types/v2/                   # TypeScript types
+│   └── schedule.types.ts       # Schedule types
+├── proxy.ts                    # Clerk middleware (route protection)
+├── __tests__/                  # Jest test suites
+│   ├── unit/                   # Unit tests
+│   └── integration/api/        # API integration tests
+└── e2e/                        # Playwright E2E tests
 ```
 
 ---
 
 ## API Overview
 
-### Core Endpoints
+### Device Management
 
-| Method | Endpoint                  | Description                 |
-| ------ | ------------------------- | --------------------------- |
-| GET    | `/api/v2/devices`         | List devices with filtering |
-| POST   | `/api/v2/devices`         | Create a new device         |
-| GET    | `/api/v2/devices/:id`     | Get device details          |
-| PATCH  | `/api/v2/devices/:id`     | Update a device             |
-| DELETE | `/api/v2/devices/:id`     | Soft delete a device        |
-| GET    | `/api/v2/readings`        | Query readings              |
-| POST   | `/api/v2/readings/ingest` | Bulk ingest readings        |
-| GET    | `/api/v2/readings/latest` | Get latest readings         |
+| Method | Endpoint                       | Description            |
+| ------ | ------------------------------ | ---------------------- |
+| GET    | `/api/v2/devices`              | List/filter devices    |
+| POST   | `/api/v2/devices`              | Create a new device    |
+| GET    | `/api/v2/devices/:id`          | Get device details     |
+| PATCH  | `/api/v2/devices/:id`          | Update a device        |
+| DELETE | `/api/v2/devices/:id`          | Soft delete a device   |
+| GET    | `/api/v2/devices/:id/history`  | Device audit history   |
 
-### Analytics Endpoints
+### Reading Data
+
+| Method | Endpoint                  | Description          |
+| ------ | ------------------------- | -------------------- |
+| GET    | `/api/v2/readings`        | Query readings       |
+| GET    | `/api/v2/readings/latest` | Get latest readings  |
+| POST   | `/api/v2/readings/ingest` | Bulk ingest readings |
+
+### Analytics
 
 | Method | Endpoint                                    | Description             |
 | ------ | ------------------------------------------- | ----------------------- |
@@ -222,6 +283,25 @@ infrasight/
 | GET    | `/api/v2/analytics/anomalies`               | Anomaly detection       |
 | GET    | `/api/v2/analytics/maintenance-forecast`    | Maintenance predictions |
 | GET    | `/api/v2/analytics/temperature-correlation` | Temperature analysis    |
+
+### Maintenance Scheduling
+
+| Method | Endpoint                  | Description          |
+| ------ | ------------------------- | -------------------- |
+| GET    | `/api/v2/schedules`       | List schedules       |
+| POST   | `/api/v2/schedules`       | Create schedule(s)   |
+| GET    | `/api/v2/schedules/:id`   | Get schedule details |
+| PATCH  | `/api/v2/schedules/:id`   | Update schedule      |
+| DELETE | `/api/v2/schedules/:id`   | Cancel schedule      |
+
+### Reports & System
+
+| Method | Endpoint                          | Description                |
+| ------ | --------------------------------- | -------------------------- |
+| GET    | `/api/v2/reports/device-health`   | Generate PDF health report |
+| GET    | `/api/v2/audit`                   | Cross-device audit trail   |
+| GET    | `/api/v2/metadata`                | System metadata            |
+| GET    | `/api/v2/metrics`                 | Prometheus metrics         |
 
 See [API Documentation](./docs/api-v2.md) for complete reference.
 
@@ -250,7 +330,8 @@ docker run -p 3000:3000 --env-file .env.production infrasight
 
 - [ ] Configure MongoDB Atlas with proper security
 - [ ] Set up Pusher production credentials
-- [ ] Configure Redis/Upstash for rate limiting
+- [ ] Configure Clerk (organization, roles, allowed org slugs)
+- [ ] Configure Redis/Upstash for caching and rate limiting
 - [ ] Enable Sentry error tracking
 - [ ] Set up API key authentication
 - [ ] Configure proper CORS settings

@@ -10,7 +10,7 @@
 
 The migration from v1 to v2 is **complete**. All code now uses v2 exclusively:
 
-- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance, 90-day TTL)
+- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance, 90-day TTL), `schedules_v2` (maintenance scheduling)
 - **V2 API**: All endpoints under `/api/v2/`
 - **V1 Deprecated**: All v1 files moved to `_deprecated` folders and excluded from TypeScript compilation
 
@@ -176,7 +176,12 @@ import { v2Api } from '@/lib/api/v2-client';
 
 const response = await v2Api.devices.list({ floor: 1, status: 'active' });
 // response.data is DeviceV2Response[]
+
+const schedules = await v2Api.schedules.list({ status: 'scheduled' });
+const reportBlob = await v2Api.reports.generateDeviceHealth({ scope: 'all' });
 ```
+
+**Client namespaces**: `v2Api.devices`, `v2Api.readings`, `v2Api.analytics`, `v2Api.schedules`, `v2Api.reports`, `v2Api.metadata`, `v2Api.audit`
 
 Prefer this over raw `fetch()` for type safety.
 
@@ -201,12 +206,18 @@ const { data: anomalies } = useAnomalies({ minScore: 0.7 });
 - `useMaintenanceForecast()` - Predictive maintenance data
 - `useMetadata()` - System metadata
 - `useAnomalies(params)` - Anomaly detection results
+- `useSchedulesList(filters)` - List maintenance schedules with filtering
+- `useScheduleDetail(id, options)` - Single schedule detail
+- `useCreateSchedule()` - Create schedule(s) mutation with auto-invalidation
+- `useUpdateSchedule()` - Update schedule mutation
+- `useCompleteSchedule()` - Mark schedule as completed
+- `useCancelSchedule()` - Cancel schedule
 
 Hooks handle caching, refetching, and error states automatically via React Query.
 
 ## V2 API Endpoints Reference
 
-The v2 API provides 19 comprehensive endpoints organized into 6 categories:
+The v2 API provides 25 comprehensive endpoints organized into 8 categories:
 
 ### Device Management (6 endpoints)
 
@@ -230,6 +241,18 @@ The v2 API provides 19 comprehensive endpoints organized into 6 categories:
 - **GET /api/v2/analytics/health** - Device health dashboard and alerts
 - **GET /api/v2/analytics/temperature-correlation** - Temperature correlation and diagnosis
 - **GET /api/v2/analytics/maintenance-forecast** - Predictive maintenance analytics
+
+### Maintenance Scheduling (5 endpoints)
+
+- **GET /api/v2/schedules** - List schedules with pagination, filtering (status, service_type, device_id, date range)
+- **POST /api/v2/schedules** - Create schedule(s) with bulk support (1-100 devices per request)
+- **GET /api/v2/schedules/[id]** - Get single schedule (optional: include device details)
+- **PATCH /api/v2/schedules/[id]** - Update schedule (reschedule, change status/notes)
+- **DELETE /api/v2/schedules/[id]** - Cancel schedule (sets status to 'cancelled')
+
+### Reports (1 endpoint)
+
+- **GET /api/v2/reports/device-health** - Generate aggregate PDF report (all buildings or per-building scope)
 
 ### System & Monitoring (3 endpoints)
 
@@ -257,6 +280,7 @@ The v2 API provides 19 comprehensive endpoints organized into 6 categories:
 ```
 models/
   v2/DeviceV2.ts, ReadingV2.ts    # Production models (90-day TTL, audit trails)
+  v2/ScheduleV2.ts                # Maintenance scheduling model (status machine, audit trails)
   v1 (deprecated)/                 # Archived v1 models (excluded from compilation)
 lib/
   db.ts                            # Global cached connection (prevents hot-reload leak)
@@ -266,7 +290,7 @@ lib/
     v2-client.ts                   # Typed client for v2 endpoints
     response.ts, pagination.ts     # Response helpers and pagination utilities
   query/                           # React Query integration
-    hooks/                         # API hooks (useDevicesList, useHealthAnalytics, etc.)
+    hooks/                         # API hooks (useDevicesList, useSchedulesList, etc.)
     queryClient.ts                 # Query client configuration
   deprecated/                      # Archived migration utilities
   cache/                           # Redis caching with invalidation
@@ -281,24 +305,35 @@ app/
   page.tsx                         # Dashboard home page
   settings/page.tsx                # User settings (theme, profile, sign-out)
   analytics/page.tsx               # Analytics dashboard
-  devices/page.tsx                 # Device list view
+  devices/page.tsx                 # Device list view (+ Add Device modal for admins)
   devices/deleted/page.tsx         # Deleted devices (admin only)
   floor-plan/page.tsx              # Floor plan visualization
-  maintenance/page.tsx             # Maintenance dashboard
+  maintenance/page.tsx             # Maintenance dashboard (+ scheduling)
+  unauthorized/page.tsx            # Unauthorized org membership page
   sign-in/[[...sign-in]]/page.tsx  # Clerk sign-in page
   sign-up/[[...sign-up]]/page.tsx  # Clerk sign-up page
   api/
-    v2/                            # Production API routes (19 endpoints)
+    v2/                            # Production API routes (25 endpoints)
       devices/                     # Device CRUD + history
       readings/                    # Reading queries + ingest + latest
       analytics/                   # 5 analytics endpoints
+      schedules/                   # Maintenance scheduling CRUD
+      reports/                     # PDF report generation
       audit/, metadata/, metrics/  # System endpoints
       cron/simulate/               # Synthetic data generator
     _v1-deprecated/                # Archived v1 routes (ignored by Next.js)
 proxy.ts                           # Clerk middleware for route protection (Next.js 16 renamed middleware.ts to proxy.ts)
 scripts/v2/                        # seed-v2, simulate, test-api, create-indexes, verify-indexes
 components/                        # React components (all use 'use client')
+  devices/CreateDeviceModal.tsx    # Device creation form (admin only)
+  devices/TagInput.tsx             # Tag input component for device metadata
+  ScheduleList.tsx                 # Paginated schedule list with filters
+  ScheduleServiceModal.tsx         # Schedule creation modal (multi-device, bulk)
+  ScheduleStatusBadge.tsx          # Status badge (scheduled/completed/cancelled)
+  ServiceTypeBadge.tsx             # Service type badge (firmware/calibration/emergency/maintenance)
+  GenerateReportModal.tsx          # PDF report generation modal
 types/v2/                          # TypeScript types for v2 API contracts
+  schedule.types.ts                # Schedule types (ServiceType, ScheduleStatus, etc.)
 __tests__/                         # Jest test suites
   unit/                            # Unit tests (models, validations, auth, utils)
   integration/api/                 # API integration tests
@@ -318,7 +353,7 @@ The v2 API includes enterprise-grade features for production deployment:
 - **Implementation**: Upstash Redis-backed rate limiter
 - **Default Limits**: 100 requests/minute for POST operations
 - **Middleware**: `applyRateLimit()` in `lib/ratelimit/`
-- **Endpoints**: Applied to device creation, reading ingestion
+- **Endpoints**: Applied to device creation, reading ingestion, schedule mutations
 
 ### Caching Strategy
 
@@ -398,6 +433,11 @@ function MyComponent() {
 | `/api/v2/analytics/*` | GET | `requireOrgMembership()` |
 | `/api/v2/audit` | GET | `requireAdmin()` |
 | `/api/v2/metrics` | GET | `requireAdmin()` |
+| `/api/v2/schedules` | GET | `requireOrgMembership()` |
+| `/api/v2/schedules` | POST | `requireAdmin()` |
+| `/api/v2/schedules/:id` | GET | `requireOrgMembership()` |
+| `/api/v2/schedules/:id` | PATCH/DELETE | `requireAdmin()` |
+| `/api/v2/reports/device-health` | GET | `requireAdmin()` |
 | `/api/v2/metadata` | GET | `requireOrgMembership()` |
 
 ### Monitoring & Observability
@@ -427,16 +467,18 @@ The project includes comprehensive test coverage across unit, integration, and E
 ```
 __tests__/
   unit/                          # Unit tests
-    models/                      # Model tests (DeviceV2, ReadingV2)
-    validations/                 # Zod schema validation tests
+    models/                      # Model tests (DeviceV2, ReadingV2, ScheduleV2)
+    validations/                 # Zod schema validation tests (device, reading, schedule, report)
     auth/                        # Auth and RBAC utility tests
-    lib/                         # RBAC client hook tests
+    lib/                         # RBAC client hook tests, query hooks, v2-client
     utils/                       # Utility function tests
   integration/api/               # API integration tests
     devices.test.ts              # Device CRUD endpoints
     readings.test.ts             # Reading endpoints
     analytics.test.ts            # Analytics endpoints
     audit.test.ts                # Audit trail endpoints
+    schedules.integration.test.ts # Schedule CRUD endpoints
+    reports.integration.test.ts  # Report generation endpoints
 e2e/                             # Playwright E2E tests
   dashboard.spec.ts              # Dashboard functionality
   device-detail.spec.ts          # Device detail page
@@ -484,6 +526,18 @@ The v2 API uses comprehensive Zod schemas for all operations:
 - **listReadingsQuerySchema**: Time range (required), device filter, quality filters, value range
 - **latestReadingsQuerySchema**: Latest readings per device with quality metrics
 - **readingAnalyticsQuerySchema**: Aggregation (raw/avg/sum/min/max/count), granularity (second to month), grouping (device/type/floor/room/building/department)
+
+### Schedule Validation
+
+- **createScheduleSchema**: Bulk creation with 1-100 device_ids, service_type, future date, optional notes
+- **updateScheduleSchema**: Partial updates (scheduled_date, status, notes)
+- **listSchedulesQuerySchema**: Pagination, sorting (5 fields), filtering (status, service_type, device_id, date range)
+- **getScheduleQuerySchema**: Optional `include_device` flag for device details
+- **scheduleIdParamSchema**: MongoDB ObjectId validation
+
+### Report Validation
+
+- **reportGenerateQuerySchema**: Scope (`all` or `building`), building_id (required when scope is `building`)
 
 ### Common Validation Helpers
 
@@ -573,6 +627,26 @@ await ReadingV2.bulkInsertReadings([
 ]);
 ```
 
+**ScheduleV2 Methods:**
+
+```typescript
+// Find schedules by device
+const schedules = await ScheduleV2.findByDevice('device_001', 'scheduled');
+
+// Find upcoming scheduled maintenance (next 30 days)
+const upcoming = await ScheduleV2.findUpcoming(30, { service_type: 'calibration' });
+
+// Atomically complete a schedule (validates status transition)
+await ScheduleV2.complete(scheduleId, 'admin@example.com');
+
+// Atomically cancel a schedule (validates status transition)
+await ScheduleV2.cancel(scheduleId, 'admin@example.com');
+```
+
+**Status Transitions**: `scheduled` -> `completed` | `cancelled`. Completed/cancelled schedules cannot transition further. Invalid transitions throw `ScheduleTransitionError`.
+
+**Service Types**: `firmware_update`, `calibration`, `emergency_fix`, `general_maintenance`
+
 ### Debugging Connection Issues
 
 - Check MongoDB connection: `lib/db.ts` has 5s timeout
@@ -596,12 +670,14 @@ await ReadingV2.bulkInsertReadings([
 10. **Device type mismatch**: Ensure reading type matches device type—enforced at validation layer
 11. **RBAC enforcement**: Always use `requireAdmin()` for mutations and `requireOrgMembership()` for reads—never skip role checks
 12. **Client-side RBAC**: Use `useRbac()` hook for UI hints only—always enforce permissions server-side in API routes
+13. **Schedule status transitions**: Only `scheduled` -> `completed`/`cancelled` is valid—completed and cancelled are terminal states. Use `ScheduleV2.complete()` and `ScheduleV2.cancel()` for atomic transitions
+14. **Bulk schedule limits**: Schedule creation limited to 100 devices per request—batch larger operations
 
 ## Key Files to Reference
 
 ### Core Models & Data
 
-- V2 models: [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts)
+- V2 models: [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts), [models/v2/ScheduleV2.ts](models/v2/ScheduleV2.ts)
 - Database connection: [lib/db.ts](lib/db.ts)
 
 ### Validation & Error Handling
@@ -641,6 +717,12 @@ await ReadingV2.bulkInsertReadings([
 - E2E tests: [e2e/](e2e/)
 - Jest config: [jest.config.js](jest.config.js)
 - Playwright config: [playwright.config.ts](playwright.config.ts)
+
+### Frontend Components (Key)
+
+- Device creation: [components/devices/CreateDeviceModal.tsx](components/devices/CreateDeviceModal.tsx)
+- Schedule management: [components/ScheduleList.tsx](components/ScheduleList.tsx), [components/ScheduleServiceModal.tsx](components/ScheduleServiceModal.tsx)
+- Report generation: [components/GenerateReportModal.tsx](components/GenerateReportModal.tsx)
 
 ### Documentation
 
