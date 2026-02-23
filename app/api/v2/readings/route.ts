@@ -15,6 +15,7 @@ import { validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonPaginated } from '@/lib/api/response';
 import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
+import { requireOrgMembership } from '@/lib/auth';
 
 // ============================================================================
 // GET /api/v2/readings - Query Readings
@@ -22,6 +23,7 @@ import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/
 
 export async function GET(request: NextRequest) {
   return withErrorHandler(async () => {
+    await requireOrgMembership();
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;

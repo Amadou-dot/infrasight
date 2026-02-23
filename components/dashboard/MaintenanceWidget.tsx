@@ -49,14 +49,14 @@ export default function MaintenanceWidget({ onItemClick, maxItems = 4 }: Mainten
 
             if (d.type === 'temperature' || d.type === 'humidity' || d.type === 'pressure')
               maintType = 'calibration';
-            else if (d.firmware_version && index % 3 === 0) maintType = 'firmware';
             else if (d.status === 'error') maintType = 'repair';
+            else if (d.firmware_version) maintType = 'firmware';
 
             return {
               id: d._id,
               title:
                 maintType === 'firmware'
-                  ? `Firmware Update v${d.firmware_version || '2.4'}`
+                  ? `Firmware Update v${d.firmware_version}`
                   : maintType === 'calibration'
                     ? 'Sensor Calibration'
                     : maintType === 'repair'
@@ -73,7 +73,7 @@ export default function MaintenanceWidget({ onItemClick, maxItems = 4 }: Mainten
         setError(null);
       } catch (err) {
         console.error('Error fetching maintenance:', err);
-        setError('Failed to load maintenance data');
+        if (showLoading) setError('Failed to load maintenance data');
       } finally {
         if (showLoading) setLoading(false);
       }

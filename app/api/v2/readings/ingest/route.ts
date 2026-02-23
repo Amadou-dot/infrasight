@@ -211,9 +211,9 @@ async function handleIngest(request: NextRequest) {
         } catch (error: unknown) {
           // Handle bulk write errors (some may have succeeded)
           let successfulInsertsInBatch = 0;
-          if (error && typeof error === 'object' && 'insertedDocs' in error) {
-            const bulkError = error as { insertedDocs: unknown[] };
-            successfulInsertsInBatch = bulkError.insertedDocs?.length || 0;
+          if (error && typeof error === 'object' && 'insertedCount' in error) {
+            const bulkError = error as { insertedCount: number };
+            successfulInsertsInBatch = bulkError.insertedCount ?? 0;
             results.inserted += successfulInsertsInBatch;
           }
 

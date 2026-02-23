@@ -414,9 +414,10 @@ export async function GET(request: NextRequest) {
     // Generate PDF
     const pdfBytes = await generatePdf(reportData);
 
-    // Format filename with date
+    // Format filename with date (sanitize building_id to prevent header injection)
     const dateStr = new Date().toISOString().split('T')[0];
-    const scopeSuffix = scope === 'building' ? `${building_id}-` : '';
+    const sanitizedBuildingId = building_id ? building_id.replace(/[^a-zA-Z0-9\-_]/g, '') : '';
+    const scopeSuffix = scope === 'building' ? `${sanitizedBuildingId}-` : '';
     const filename = `infrasight-report-${scopeSuffix}${dateStr}.pdf`;
 
     // Return PDF response (convert Uint8Array to Buffer for Response compatibility)

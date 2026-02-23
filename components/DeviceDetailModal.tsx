@@ -67,6 +67,8 @@ export default function DeviceDetailModal({ deviceId, isOpen, onClose }: DeviceD
       return;
     }
 
+    const abortController = new AbortController();
+
     const fetchDeviceData = async () => {
       try {
         setLoading(true);
@@ -74,6 +76,7 @@ export default function DeviceDetailModal({ deviceId, isOpen, onClose }: DeviceD
 
         // Fetch device details
         const deviceResponse = await v2Api.devices.getById(deviceId);
+        if (abortController.signal.aborted) return;
         setDevice(deviceResponse.data);
 
         // Fetch recent readings
@@ -86,12 +89,14 @@ export default function DeviceDetailModal({ deviceId, isOpen, onClose }: DeviceD
           limit: 100,
         });
 
+        if (abortController.signal.aborted) return;
         if (readingsResponse.success && readingsResponse.data)
           setRecentReadings(readingsResponse.data);
 
         // Fetch audit log
         try {
           const auditResponse = await v2Api.devices.getHistory(deviceId);
+          if (abortController.signal.aborted) return;
           if (auditResponse.success && auditResponse.data?.history) {
             // Map DeviceHistoryEntry to AuditLogEntry format expected by AuditLogViewer
             const mappedEntries: AuditLogEntry[] = auditResponse.data.history.map(entry => ({
@@ -109,17 +114,20 @@ export default function DeviceDetailModal({ deviceId, isOpen, onClose }: DeviceD
             setAuditLog(mappedEntries);
           }
         } catch (err) {
+          if (abortController.signal.aborted) return;
           console.warn('Audit log not available:', err);
         }
       } catch (err) {
+        if (abortController.signal.aborted) return;
         setError(err instanceof Error ? err.message : 'Failed to load device details');
         console.error('Error fetching device data:', err);
       } finally {
-        setLoading(false);
+        if (!abortController.signal.aborted) setLoading(false);
       }
     };
 
     fetchDeviceData();
+    return () => abortController.abort();
   }, [deviceId, isOpen]);
 
   const getStatusIcon = (status: string) => {

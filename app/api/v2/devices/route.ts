@@ -259,10 +259,11 @@ async function handleCreateDevice(request: NextRequest) {
 
     const deviceData = validationResult.data;
 
-    // Check for duplicate serial number
-    const existingDevice = await DeviceV2.findOne({
-      serial_number: deviceData.serial_number,
-    }).lean();
+    // Check for duplicate serial number and ID in parallel
+    const [existingDevice, existingId] = await Promise.all([
+      DeviceV2.findOne({ serial_number: deviceData.serial_number }).lean(),
+      DeviceV2.findById(deviceData._id).lean(),
+    ]);
 
     if (existingDevice)
       throw new ApiError(
@@ -272,8 +273,6 @@ async function handleCreateDevice(request: NextRequest) {
         { field: 'serial_number', value: deviceData.serial_number }
       );
 
-    // Check for duplicate ID
-    const existingId = await DeviceV2.findById(deviceData._id).lean();
     if (existingId)
       throw new ApiError(
         ErrorCodes.DEVICE_ID_EXISTS,

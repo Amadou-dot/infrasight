@@ -44,7 +44,6 @@ export default function CriticalIssuesPanel({
 
   // Stable reference time for fallback timestamps - initialized lazily
   const fallbackTimeRef = useRef<number | null>(null);
-  // eslint-disable-next-line react-hooks/purity -- Intentional: lazy initialization of fallback time
   if (fallbackTimeRef.current === null) fallbackTimeRef.current = Date.now();
 
   // Calculate issues using useMemo (only recalculate when data changes)

@@ -16,6 +16,7 @@ import { validateInput, validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonPaginated } from '@/lib/api/response';
 import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
+import { requireAdmin } from '@/lib/auth';
 
 // ============================================================================
 // History Entry Type
@@ -34,6 +35,7 @@ interface HistoryEntry {
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
+    await requireAdmin();
     await dbConnect();
 
     const { id } = await params;

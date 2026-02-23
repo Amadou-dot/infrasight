@@ -12,8 +12,6 @@ import {
 import { useHealthAnalytics, useMaintenanceForecast, useAnomalies } from '@/lib/query/hooks';
 import { AlertTriangle, FileText, Gauge, Monitor, Zap } from 'lucide-react';
 import { useState } from 'react';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import { useUser } from '@clerk/nextjs';
 import { useRbac } from '@/lib/auth/rbac-client';
 
@@ -64,14 +62,6 @@ export default function Home() {
   };
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-      <ToastContainer
-        position="bottom-center"
-        autoClose={false}
-        pauseOnFocusLoss
-        pauseOnHover
-        theme="colored"
-      />
-
       {/* Header */}
       <header className="mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

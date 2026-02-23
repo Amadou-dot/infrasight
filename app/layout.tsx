@@ -9,6 +9,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from '@/lib/query/queryClient';
 import { PusherProvider } from '@/lib/pusher-context';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -46,6 +48,13 @@ export default function RootLayout({
               <PusherProvider>
                 <TopNav />
                 <main className="min-h-screen">{children}</main>
+                <ToastContainer
+                  position="bottom-center"
+                  autoClose={false}
+                  pauseOnFocusLoss
+                  pauseOnHover
+                  theme="colored"
+                />
               </PusherProvider>
             </ClerkThemeProvider>
           </ThemeProvider>

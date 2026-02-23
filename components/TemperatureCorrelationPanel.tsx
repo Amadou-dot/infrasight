@@ -176,7 +176,7 @@ export default function TemperatureCorrelationPanel({
             Temperature Analysis
           </div>
           <Badge variant={diagnosisStyle.badge}>
-            {correlation.diagnosis.replace('_', ' ').toUpperCase()}
+            {correlation.diagnosis.replaceAll('_', ' ').toUpperCase()}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -189,7 +189,7 @@ export default function TemperatureCorrelationPanel({
             <div className="h-2 bg-linear-to-r from-blue-200 via-amber-200 to-red-500 rounded-full">
               <div
                 className="h-full bg-red-600 rounded-full"
-                style={{ width: `${Math.min((currentDeviceTemp / 100) * 100, 100)}%` }}
+                style={{ width: `${Math.min((currentDeviceTemp / 50) * 100, 100)}%` }}
               />
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function TemperatureCorrelationPanel({
             <div className="h-2 bg-linear-to-r from-blue-200 via-amber-200 to-red-500 rounded-full">
               <div
                 className="h-full bg-blue-600 rounded-full"
-                style={{ width: `${Math.min((currentAmbientTemp / 100) * 100, 100)}%` }}
+                style={{ width: `${Math.min((currentAmbientTemp / 50) * 100, 100)}%` }}
               />
             </div>
           </div>
@@ -265,7 +265,7 @@ export default function TemperatureCorrelationPanel({
             <div className="mt-0.5">{diagnosisStyle.icon}</div>
             <div className="flex-1">
               <p className="font-semibold mb-1">
-                {correlation.diagnosis.replace('_', ' ').toUpperCase()}
+                {correlation.diagnosis.replaceAll('_', ' ').toUpperCase()}
               </p>
               <p className="text-sm text-muted-foreground">
                 {getDiagnosisExplanation(correlation.diagnosis)}

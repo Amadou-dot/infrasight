@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { ArchiveX, ShieldAlert } from 'lucide-react';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDevicesList } from '@/lib/query/hooks';
 import { queryKeys } from '@/lib/query/queryClient';
@@ -97,7 +96,14 @@ export default function DeletedDevicesPage() {
     setCurrentPage(1);
   };
 
-  if (isLoaded && !isAdmin)
+  if (!isLoaded)
+    return (
+      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+
+  if (!isAdmin)
     return (
       <div className="min-h-screen bg-background p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-3">
@@ -114,14 +120,6 @@ export default function DeletedDevicesPage() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-      <ToastContainer
-        position="bottom-center"
-        autoClose={false}
-        pauseOnFocusLoss
-        pauseOnHover
-        theme="colored"
-      />
-
       <header className="mb-6">
         <div className="flex items-center gap-3 mb-2">
           <ArchiveX className="h-8 w-8 text-destructive" />

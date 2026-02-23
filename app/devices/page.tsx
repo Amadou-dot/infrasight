@@ -18,8 +18,7 @@ import Pagination from '@/components/Pagination';
 import DeviceInventoryCard from '@/components/DeviceInventoryCard';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { CreateDeviceModal } from '@/components/devices/CreateDeviceModal';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 import { useDevicesList } from '@/lib/query/hooks';
 import { queryKeys } from '@/lib/query/queryClient';
 import { v2Api } from '@/lib/api/v2-client';
@@ -259,14 +258,6 @@ export default function DevicesPage() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-      <ToastContainer
-        position="bottom-center"
-        autoClose={false}
-        pauseOnFocusLoss
-        pauseOnHover
-        theme="colored"
-      />
-
       {/* Header */}
       <header className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

@@ -296,6 +296,7 @@ export const latestReadingsQuerySchema = z.object({
   // Required: Device IDs
   device_ids: z
     .union([z.array(deviceIdSchema), z.string().transform(val => val.split(','))])
+    .optional()
     .describe('Device IDs to get latest readings for'),
 
   // Optional: Type filter
@@ -350,7 +351,6 @@ export const readingAnalyticsQuerySchema = z.object({
   // Group by options
   group_by: z.enum(['device', 'type', 'floor', 'room', 'building', 'department']).optional(),
 
-  // Comparison period
   // Comparison period for trend analysis
   compare_with: z
     .enum(['previous_period', 'same_period_last_week', 'same_period_last_month'])
@@ -358,6 +358,9 @@ export const readingAnalyticsQuerySchema = z.object({
 
   // Pagination for grouped results
   ...paginationSchema.shape,
+}).refine(data => data.device_id || data.startDate, {
+  message: 'Either device_id or startDate must be provided to prevent full collection scans',
+  path: ['device_id', 'startDate'],
 });
 
 /**

@@ -99,7 +99,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 // PATCH /api/v2/devices/[id] - Update Device
 // ============================================================================
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handlePatchDevice(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     // Require admin
     const authContext = await requireAdmin();
@@ -173,9 +173,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     for (const field of topLevelFields)
       if (field in updateData) updateObj[field] = updateData[field as keyof typeof updateData];
 
-    // Map 'model' to 'device_model'
-    if ('model' in updateData) updateObj.device_model = updateData.model;
-
     // Handle nested configuration updates
     if (updateData.configuration)
       for (const [key, value] of Object.entries(updateData.configuration))
@@ -215,6 +212,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return jsonSuccess(updatedDevice, 'Device updated successfully');
   })();
 }
+
+export const PATCH = withRateLimit(handlePatchDevice);
 
 // ============================================================================
 // DELETE /api/v2/devices/[id] - Soft Delete Device

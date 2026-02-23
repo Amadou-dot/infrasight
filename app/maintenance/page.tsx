@@ -8,8 +8,6 @@ import MaintenanceTimeline from '@/components/MaintenanceTimeline';
 import ScheduleServiceModal from '@/components/ScheduleServiceModal';
 import ScheduleList from '@/components/ScheduleList';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
 import { useRbac } from '@/lib/auth/rbac-client';
 
@@ -150,14 +148,6 @@ export default function MaintenancePage() {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-      <ToastContainer
-        position="bottom-center"
-        autoClose={false}
-        pauseOnFocusLoss
-        pauseOnHover
-        theme="colored"
-      />
-
       {/* Header */}
       <header className="mb-6 md:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

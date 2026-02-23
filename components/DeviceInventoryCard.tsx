@@ -164,8 +164,7 @@ function formatDeviceType(type: string): string {
 
 // Calculate uptime display
 function formatUptime(uptimePercentage: number): string {
-  const days = Math.floor(uptimePercentage);
-  return `Uptime: ${days}d`;
+  return `Uptime: ${uptimePercentage.toFixed(1)}%`;
 }
 
 // Get secondary stat based on device type

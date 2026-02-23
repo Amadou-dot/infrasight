@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { usePusherReadings } from '@/lib/pusher-context';
+import type { PusherReading } from '@/lib/pusher-context';
 import { useEnergyAnalytics } from '@/lib/query/hooks';
 import {
   AreaChart,
@@ -25,6 +26,12 @@ interface ChartDataPoint {
   timestamp: string;
 }
 
+interface RawDataPoint {
+  time_bucket?: string;
+  timestamp?: string;
+  value?: number;
+}
+
 export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
   // Fetch energy data with React Query
   const {
@@ -45,13 +52,6 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
   // Process chart data
   const data = useMemo(() => {
     if (!energyData) return [];
-
-    // Handle the v2 API response structure - can have either timestamp or time_bucket
-    interface RawDataPoint {
-      time_bucket?: string;
-      timestamp?: string;
-      value?: number;
-    }
 
     let rawResults: RawDataPoint[];
 
@@ -92,13 +92,15 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
   }, [data]);
 
   // Real-time updates via centralized Pusher context
-  usePusherReadings((newReadings) => {
+  const handlePusherReadings = useCallback((newReadings: PusherReading[]) => {
     // Only proceed if there's a power reading in the batch
     const hasPowerReadings = newReadings.some(r => r.metadata.type === 'power');
     if (hasPowerReadings)
       // Re-fetch data to keep it consistent with the aggregation logic
       refetch();
-  });
+  }, [refetch]);
+
+  usePusherReadings(handlePusherReadings);
 
   const primaryColor = isSpiking ? '#f97316' : '#6366f1'; // Orange-500 vs Indigo-500
   const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400

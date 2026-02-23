@@ -4,8 +4,6 @@ import { useState, useMemo, useEffect } from 'react';
 import FloorPlan from '@/components/FloorPlan';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { Select } from '@/components/ui/select';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import { Map } from 'lucide-react';
 import { useMetadata } from '@/lib/query/hooks';
 
@@ -45,14 +43,6 @@ export default function FloorPlanPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black p-4 md:p-8">
-      <ToastContainer
-        position="bottom-center"
-        autoClose={false}
-        pauseOnFocusLoss
-        pauseOnHover
-        theme="colored"
-      />
-
       {/* Header */}
       <header className="mb-6 md:mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

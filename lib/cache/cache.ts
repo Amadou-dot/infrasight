@@ -194,8 +194,8 @@ export async function getOrSet<T>(
   const fresh = await fetchFn();
 
   // Cache the result (non-blocking)
-  set(key, fresh, options).catch(() => {
-    // Error already logged in set()
+  set(key, fresh, options).catch((err) => {
+    logger.warn('Cache set failed in getOrSet', { key, error: err instanceof Error ? err.message : String(err) });
   });
 
   return fresh;
