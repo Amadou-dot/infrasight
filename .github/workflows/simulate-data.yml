@@ -12,7 +12,9 @@ jobs:
 
     steps:
       - name: Call simulation endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -X GET https://infrasight.aseck.dev/api/v2/cron/simulate \
-            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
             -f || echo "Request failed"

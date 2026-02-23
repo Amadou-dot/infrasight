@@ -87,7 +87,7 @@ export const deviceConfigurationSchema = z.object({
   sampling_interval: samplingIntervalSchema.default(60).describe('Sampling interval in seconds'),
   calibration_date: futureDateSchema.optional().describe('Last calibration date'),
   calibration_offset: z.number().default(0).describe('Calibration offset value'),
-});
+}).strict();
 
 /**
  * Device location schema
@@ -98,7 +98,7 @@ export const deviceLocationSchema = z.object({
   room_name: roomNameSchema,
   coordinates: coordinatesSchema,
   zone: zoneSchema,
-});
+}).strict();
 
 /**
  * Device metadata schema (operational)
@@ -110,7 +110,7 @@ export const deviceMetadataSchema = z.object({
   warranty_expiry: futureDateSchema.optional().describe('Warranty expiration date'),
   last_maintenance: pastDateSchema.optional().describe('Last maintenance date'),
   next_maintenance: futureDateSchema.optional().describe('Next scheduled maintenance date'),
-});
+}).strict();
 
 /**
  * Device audit trail schema
@@ -122,7 +122,7 @@ export const deviceAuditSchema = z.object({
   updated_by: userIdentifierSchema.default('sys-migration-agent'),
   deleted_at: z.date().optional().describe('Soft delete timestamp'),
   deleted_by: userIdentifierSchema.optional().describe('User who deleted the device'),
-});
+}).strict();
 
 /**
  * Last error schema for health monitoring
@@ -131,7 +131,7 @@ export const lastErrorSchema = z.object({
   timestamp: z.date(),
   message: errorMessageSchema,
   code: errorCodeSchema,
-});
+}).strict();
 
 /**
  * Device health schema
@@ -153,7 +153,7 @@ export const deviceHealthSchema = z.object({
     .optional()
     .describe('Battery level (for battery-powered devices)'),
   signal_strength: signalStrengthSchema.optional().describe('Signal strength'),
-});
+}).strict();
 
 /**
  * Device compliance schema
@@ -167,7 +167,7 @@ export const deviceComplianceSchema = z.object({
     .default('internal')
     .describe('Data classification level'),
   retention_days: retentionDaysSchema.default(90).describe('Data retention period in days'),
-});
+}).strict();
 
 // ============================================================================
 // DEVICE CREATION SCHEMA (POST)

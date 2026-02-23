@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useEffect } from 'react';
-import { getPusherClient } from '@/lib/pusher-client';
+import { useMemo } from 'react';
+import { usePusherReadings } from '@/lib/pusher-context';
 import { useEnergyAnalytics } from '@/lib/query/hooks';
 import {
   AreaChart,
@@ -17,15 +17,6 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 
 interface AnomalyChartProps {
   selectedFloor: number | 'all';
-}
-
-interface PusherReading {
-  metadata: {
-    device_id: string;
-    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
-  };
-  timestamp: string;
-  value: number;
 }
 
 interface ChartDataPoint {
@@ -100,23 +91,14 @@ export default function EnergyUsageChart({ selectedFloor }: AnomalyChartProps) {
     return current > avg * 1.2;
   }, [data]);
 
-  // Real-time updates via Pusher
-  useEffect(() => {
-    const pusher = getPusherClient();
-    const channel = pusher.subscribe('InfraSight');
-
-    channel.bind('new-readings', (newReadings: PusherReading[]) => {
-      // Only proceed if there's a power reading in the batch
-      const hasPowerReadings = newReadings.some(r => r.metadata.type === 'power');
-      if (hasPowerReadings)
-        // Re-fetch data to keep it consistent with the aggregation logic
-        refetch();
-    });
-
-    return () => {
-      pusher.unsubscribe('InfraSight');
-    };
-  }, [refetch]);
+  // Real-time updates via centralized Pusher context
+  usePusherReadings((newReadings) => {
+    // Only proceed if there's a power reading in the batch
+    const hasPowerReadings = newReadings.some(r => r.metadata.type === 'power');
+    if (hasPowerReadings)
+      // Re-fetch data to keep it consistent with the aggregation logic
+      refetch();
+  });
 
   const primaryColor = isSpiking ? '#f97316' : '#6366f1'; // Orange-500 vs Indigo-500
   const gradientColor = isSpiking ? '#fb923c' : '#818cf8'; // Orange-400 vs Indigo-400

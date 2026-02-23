@@ -2,7 +2,9 @@ import dbConnect from '@/lib/db';
 import { pusherServer } from '@/lib/pusher';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2, { type ReadingType, type ReadingUnit } from '@/models/v2/ReadingV2';
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
+
+const cronSecret = process.env.CRON_SECRET;
 
 // ============================================================================
 // VALUE GENERATORS BY DEVICE TYPE
@@ -220,7 +222,21 @@ async function generateReadings() {
 // API ROUTE HANDLER
 // ============================================================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Require CRON_SECRET — fail-closed if not configured
+  if (!cronSecret) {
+    return NextResponse.json(
+      { success: false, error: 'CRON_SECRET is not configured' },
+      { status: 503 }
+    );
+  }
+
+  const authHeader = request.headers.get('authorization');
+  const provided = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (provided !== cronSecret) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     // 1. Generate mock data
     const newReadings = await generateReadings();

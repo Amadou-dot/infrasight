@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { getPusherClient } from '@/lib/pusher-client';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { usePusherReadings } from '@/lib/pusher-context';
+import type { PusherReading } from '@/lib/pusher-context';
 import { v2Api } from '@/lib/api/v2-client';
 import type { DeviceV2Response } from '@/types/v2';
 import {
@@ -54,15 +55,6 @@ interface Reading {
   value: number;
   timestamp: string;
   type: string;
-}
-
-interface PusherReading {
-  metadata: {
-    device_id: string;
-    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
-  };
-  timestamp: string;
-  value: number;
 }
 
 export default function DeviceGrid({
@@ -159,12 +151,9 @@ export default function DeviceGrid({
     if (data.length > 0) fetchReadings();
   }, [data]);
 
-  // Real-time updates with Pusher
-  useEffect(() => {
-    const pusher = getPusherClient();
-    const channel = pusher.subscribe('InfraSight');
-
-    channel.bind('new-readings', (newReadings: PusherReading[]) => {
+  // Real-time updates via centralized Pusher context
+  usePusherReadings(
+    useCallback((newReadings: PusherReading[]) => {
       setReadings(prev => {
         const next = { ...prev };
         newReadings.forEach(reading => {
@@ -178,12 +167,8 @@ export default function DeviceGrid({
         });
         return next;
       });
-    });
-
-    return () => {
-      pusher.unsubscribe('InfraSight');
-    };
-  }, []);
+    }, [])
+  );
 
   const filteredData = useMemo(() => {
     return data.filter(device => {

@@ -14,7 +14,7 @@ import {
   VALID_DEVICE_TYPES,
 } from '../../setup/factories';
 
-import { GET as GET_SIMULATE } from '@/app/api/v2/cron/simulate/route';
+import { GET as GET_SIMULATE_RAW } from '@/app/api/v2/cron/simulate/route';
 
 // Mock pusher to avoid network errors in tests
 jest.mock('@/lib/pusher', () => ({
@@ -22,6 +22,16 @@ jest.mock('@/lib/pusher', () => ({
     trigger: jest.fn().mockResolvedValue(undefined),
   },
 }));
+
+/**
+ * Helper to call simulate endpoint with valid CRON_SECRET Bearer token
+ */
+function GET_SIMULATE() {
+  const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  });
+  return GET_SIMULATE_RAW(request);
+}
 
 /**
  * Helper to parse JSON response
@@ -44,9 +54,6 @@ describe('Simulate Cron API Integration Tests', () => {
       // Ensure no devices exist
       await DeviceV2.deleteMany({});
 
-      const request = new NextRequest(
-        'http://localhost:3000/api/v2/cron/simulate'
-      );
       const response = await GET_SIMULATE();
       const data = await parseResponse<{
         success: boolean;
