@@ -213,8 +213,9 @@ describe('Analytics API Integration Tests', () => {
       expect(response.status).toBe(200);
     });
 
-    it('should accept query without strict time range requirement', async () => {
-      const request = createMockGetRequest('energy');
+    it('should accept query with device_id and no time range', async () => {
+      // Time range is optional — either device_id or startDate is required to prevent full scans
+      const request = createMockGetRequest('energy', { device_id: 'device_001' });
       const response = await GET_ENERGY(request);
       const data = await parseResponse<{ success: boolean }>(response);
 
