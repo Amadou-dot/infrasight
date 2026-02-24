@@ -459,7 +459,7 @@ function DeviceRow({ device, selected, onToggle }: DeviceRowProps) {
         </div>
       </div>
       <span className="text-xs capitalize px-2 py-0.5 rounded-full bg-muted">
-        {device.type.replace('_', ' ')}
+        {device.type.replaceAll('_', ' ')}
       </span>
     </div>
   );

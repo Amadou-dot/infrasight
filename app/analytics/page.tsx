@@ -5,8 +5,6 @@ import DeviceHealthWidget from '@/components/DeviceHealthWidget';
 import EnergyUsageChart from '@/components/AnomalyChart';
 import GenerateReportModal from '@/components/GenerateReportModal';
 import { Select } from '@/components/ui/select';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import { BarChart3, FileText } from 'lucide-react';
 import { useMetadata } from '@/lib/query/hooks';
 import { useRbac } from '@/lib/auth/rbac-client';
@@ -29,14 +27,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black p-4 md:p-8">
-      <ToastContainer
-        position="bottom-center"
-        autoClose={false}
-        pauseOnFocusLoss
-        pauseOnHover
-        theme="colored"
-      />
-
       {/* Header */}
       <header className="mb-6 md:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

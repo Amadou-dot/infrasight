@@ -8,7 +8,7 @@ import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
-import { handleError, ApiError, ErrorCodes } from '@/lib/errors';
+import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 import { requireOrgMembership } from '@/lib/auth';
 import { z } from 'zod';
@@ -44,7 +44,7 @@ type TemperatureCorrelationQuery = z.infer<typeof temperatureCorrelationQuerySch
 // ============================================================================
 
 export async function GET(request: NextRequest) {
-  try {
+  return withErrorHandler(async () => {
     // Require org membership for read access
     await requireOrgMembership();
 
@@ -188,8 +188,5 @@ export async function GET(request: NextRequest) {
     };
 
     return jsonSuccess(response);
-  } catch (error) {
-    const { error: apiError } = handleError(error);
-    return apiError.toResponse();
-  }
+  })();
 }

@@ -28,7 +28,7 @@ import { requireOrgMembership } from '@/lib/auth';
 // ============================================================================
 
 const maintenanceForecastQuerySchema = z.object({
-  days_ahead: z.union([z.number(), z.string().transform(v => parseInt(v, 10))]).default(7),
+  days_ahead: z.union([z.number(), z.string().transform(v => parseInt(v, 10))]).pipe(z.number().int().min(1, 'days_ahead must be at least 1')).default(7),
   severity_threshold: z.enum(['critical', 'warning', 'all']).default('all'),
   building_id: z.string().optional(),
   floor: z.union([z.number(), z.string().transform(v => parseInt(v, 10))]).optional(),

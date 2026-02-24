@@ -1,10 +1,10 @@
+import crypto from 'crypto';
 import dbConnect from '@/lib/db';
 import { pusherServer } from '@/lib/pusher';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2, { type ReadingType, type ReadingUnit } from '@/models/v2/ReadingV2';
 import { type NextRequest, NextResponse } from 'next/server';
-
-const cronSecret = process.env.CRON_SECRET;
+import { logger } from '@/lib/monitoring';
 
 // ============================================================================
 // VALUE GENERATORS BY DEVICE TYPE
@@ -223,6 +223,9 @@ async function generateReadings() {
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  // Read CRON_SECRET at request time so rotated values are picked up
+  const cronSecret = process.env.CRON_SECRET;
+
   // Require CRON_SECRET — fail-closed if not configured
   if (!cronSecret) {
     return NextResponse.json(
@@ -233,7 +236,11 @@ export async function GET(request: NextRequest) {
 
   const authHeader = request.headers.get('authorization');
   const provided = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (provided !== cronSecret) {
+  if (
+    !provided ||
+    provided.length !== cronSecret.length ||
+    !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(cronSecret))
+  ) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -254,7 +261,14 @@ export async function GET(request: NextRequest) {
     await ReadingV2.bulkInsertReadings(newReadings);
 
     // 3. Trigger Real-time Update (The "Hot" Path)
-    await pusherServer.trigger('InfraSight', 'new-readings', newReadings);
+    try {
+      await pusherServer.trigger('InfraSight', 'new-readings', newReadings);
+    } catch (pusherError) {
+      logger.error('Pusher trigger failed after successful DB write', {
+        error: pusherError instanceof Error ? pusherError.message : String(pusherError),
+        readingsCount: newReadings.length,
+      });
+    }
 
     // Count anomalies for response
     const anomalyCount = newReadings.filter(r => r.quality.is_anomaly).length;
@@ -266,7 +280,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Simulation error:', error);
+    logger.error('Simulation error', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ success: false, error: 'Simulation failed' }, { status: 500 });
   }
 }

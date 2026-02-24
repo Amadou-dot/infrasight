@@ -43,10 +43,11 @@ export default function AnomalyDetectionChart({ hours = 6 }: AnomalyDetectionCha
     limit: 1000,
   });
 
-  const error = fetchError ? 'Failed to load data' : null;
-
   // Fetch readings total for normal count calculation (still need this one call)
   const [totalReadings, setTotalReadings] = useState(0);
+  const [readingsError, setReadingsError] = useState<string | null>(null);
+
+  const error = fetchError ? 'Failed to load data' : readingsError;
 
   useEffect(() => {
     const fetchReadingsTotal = async () => {
@@ -57,8 +58,10 @@ export default function AnomalyDetectionChart({ hours = 6 }: AnomalyDetectionCha
           limit: 1,
         });
         setTotalReadings(readingsRes.pagination?.total || 0);
-      } catch {
-        // Ignore errors, will default to 0
+        setReadingsError(null);
+      } catch (err) {
+        console.error('Failed to fetch readings total:', err);
+        setReadingsError('Failed to load readings data');
       }
     };
     fetchReadingsTotal();
@@ -124,7 +127,7 @@ export default function AnomalyDetectionChart({ hours = 6 }: AnomalyDetectionCha
           <div>
             <h3 className="text-lg font-semibold text-foreground">Anomaly Detection</h3>
             <p className="text-sm text-muted-foreground">
-              Network traffic analysis over last {hours} hours
+              Sensor anomaly analysis over last {hours} hours
             </p>
           </div>
         </div>
@@ -141,7 +144,7 @@ export default function AnomalyDetectionChart({ hours = 6 }: AnomalyDetectionCha
           <div>
             <h3 className="text-lg font-semibold text-foreground">Anomaly Detection</h3>
             <p className="text-sm text-muted-foreground">
-              Network traffic analysis over last {hours} hours
+              Sensor anomaly analysis over last {hours} hours
             </p>
           </div>
         </div>

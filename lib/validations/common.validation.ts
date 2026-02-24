@@ -182,7 +182,8 @@ export const serialNumberSchema = z
 export const buildingIdSchema = z
   .string()
   .min(1, 'Building ID is required')
-  .max(50, 'Building ID must be 50 characters or less');
+  .max(50, 'Building ID must be 50 characters or less')
+  .regex(/^[a-zA-Z0-9_-]+$/, { message: 'Building ID contains invalid characters' });
 
 /**
  * Floor number validation
@@ -245,7 +246,7 @@ export const anomalyScoreSchema = z
 /**
  * Threshold validation (positive number)
  */
-export const thresholdSchema = z.number().describe('Threshold value');
+export const thresholdSchema = z.number().min(0, 'Threshold must be non-negative').describe('Threshold value');
 
 /**
  * Sampling interval validation (in seconds)

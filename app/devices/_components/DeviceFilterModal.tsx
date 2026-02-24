@@ -128,7 +128,7 @@ export default function DeviceFilterModal({
                   onClick={() => onToggleFilterValue('type', type)}
                   className="capitalize"
                 >
-                  {type.replace('_', ' ')}
+                  {type.replaceAll('_', ' ')}
                   {pendingFilters.type.includes(type) && <X className="h-3 w-3 ml-1" />}
                 </Button>
               ))}

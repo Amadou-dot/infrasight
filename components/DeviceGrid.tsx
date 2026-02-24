@@ -68,11 +68,16 @@ export default function DeviceGrid({
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [_loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   // Mobile state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [openRoomCombobox, setOpenRoomCombobox] = useState(false);
+
+  // Advanced filters
+  const [filterRoom, setFilterRoom] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   // Reset filters when floor changes
   useEffect(() => {
@@ -85,11 +90,6 @@ export default function DeviceGrid({
     if (selectedRoom && selectedRoom !== 'all') setFilterRoom(selectedRoom);
     else if (selectedRoom === 'all') setFilterRoom('all');
   }, [selectedRoom]);
-
-  // Advanced filters
-  const [filterRoom, setFilterRoom] = useState('all');
-  const [filterType, setFilterType] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
 
   // Metadata options
   const rooms = useMemo(() => {

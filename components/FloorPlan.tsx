@@ -38,7 +38,7 @@ export default function FloorPlan({
 }: FloorPlanProps) {
   const [devices, setDevices] = useState<DeviceV2Response[]>([]);
   const [readings, setReadings] = useState<Record<string, Reading>>({});
-  const [_loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const alertedDevices = useRef<Set<string>>(new Set());
 
   // UI State
@@ -141,7 +141,7 @@ export default function FloorPlan({
 
         if (criticalThreshold && reading.value > criticalThreshold) {
           if (!alertedDevices.current.has(device._id + '_critical')) {
-            toast.error(`CRITICAL: ${roomName} is ${reading.value}°F!`);
+            toast.error(`CRITICAL: ${roomName} is ${getFormattedValue(device, reading.value)}!`);
             alertedDevices.current.add(device._id + '_critical');
             alertedDevices.current.delete(device._id + '_warning');
           }
@@ -150,7 +150,7 @@ export default function FloorPlan({
             !alertedDevices.current.has(device._id + '_warning') &&
             !alertedDevices.current.has(device._id + '_critical')
           ) {
-            toast.warn(`WARNING: ${roomName} is ${reading.value}°F`);
+            toast.warn(`WARNING: ${roomName} is ${getFormattedValue(device, reading.value)}`);
             alertedDevices.current.add(device._id + '_warning');
           }
         } else {
@@ -249,9 +249,10 @@ export default function FloorPlan({
     return grouped;
   }, [devices, selectedFloor, selectedBuilding]);
 
-  const sortedFloors = Object.keys(groupedDevices)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const sortedFloors = useMemo(
+    () => Object.keys(groupedDevices).map(Number).sort((a, b) => a - b),
+    [groupedDevices]
+  );
 
   // Initialize collapsed floors (all except first)
   useEffect(() => {

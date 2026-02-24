@@ -63,12 +63,13 @@ export default function CriticalDevicesList({
         // 1. Offline devices (highest priority)
         if (health.alerts?.offline_devices?.devices)
           health.alerts.offline_devices.devices.forEach(d => {
+            const fullDevice = deviceMap.get(d._id.toString());
             criticalDevices.push({
               id: d._id,
               name: d.serial_number || 'Unknown Device',
               room: d.location?.room_name || 'Unknown',
               floor: d.location?.floor || 0,
-              type: 'unknown',
+              type: fullDevice?.type || 'unknown',
               issue: 'offline',
               details: 'Device offline',
             });
@@ -77,12 +78,13 @@ export default function CriticalDevicesList({
         // 2. Error devices
         if (health.alerts?.error_devices?.devices)
           health.alerts.error_devices.devices.forEach(d => {
+            const fullDevice = deviceMap.get(d._id.toString());
             criticalDevices.push({
               id: d._id,
               name: d.serial_number || 'Unknown Device',
               room: d.location?.room_name || 'Unknown',
-              floor: 0,
-              type: 'unknown',
+              floor: fullDevice?.location?.floor || 0,
+              type: fullDevice?.type || 'unknown',
               issue: 'error',
               details: 'Device error',
             });
@@ -91,12 +93,13 @@ export default function CriticalDevicesList({
         // 3. Low battery devices
         if (health.alerts?.low_battery_devices?.devices)
           health.alerts.low_battery_devices.devices.forEach(d => {
+            const fullDevice = deviceMap.get(d._id.toString());
             criticalDevices.push({
               id: d._id,
               name: d.serial_number || 'Unknown Device',
               room: d.location?.room_name || 'Unknown',
-              floor: 0,
-              type: 'unknown',
+              floor: fullDevice?.location?.floor || 0,
+              type: fullDevice?.type || 'unknown',
               issue: 'low_battery',
               details: d.health?.battery_level
                 ? `Battery: ${d.health.battery_level}%`
@@ -137,7 +140,7 @@ export default function CriticalDevicesList({
         setError(null);
       } catch (err) {
         console.error('Failed to fetch critical devices:', err);
-        setError('Failed to load critical devices');
+        if (showLoading) setError('Failed to load critical devices');
       } finally {
         if (showLoading) setLoading(false);
       }

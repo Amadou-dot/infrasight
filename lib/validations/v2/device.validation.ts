@@ -85,7 +85,7 @@ export const deviceConfigurationSchema = z.object({
   threshold_warning: thresholdSchema.describe('Warning threshold value'),
   threshold_critical: thresholdSchema.describe('Critical threshold value'),
   sampling_interval: samplingIntervalSchema.default(60).describe('Sampling interval in seconds'),
-  calibration_date: futureDateSchema.optional().describe('Last calibration date'),
+  calibration_date: pastDateSchema.optional().describe('Last calibration date'),
   calibration_offset: z.number().default(0).describe('Calibration offset value'),
 }).strict();
 

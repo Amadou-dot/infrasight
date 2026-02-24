@@ -9,6 +9,7 @@
  */
 
 import Redis from 'ioredis';
+import { logger } from '../monitoring/logger';
 
 interface RedisCache {
   client: Redis | null;
@@ -46,7 +47,7 @@ export function getRedisClient(): Redis | null {
       maxRetriesPerRequest: 3,
       retryStrategy: times => {
         if (times > 3) {
-          console.error('[Redis] Max reconnection attempts reached');
+          logger.error('Redis max reconnection attempts reached');
           return null; // Stop retrying
         }
         return Math.min(times * 100, 3000); // Exponential backoff
@@ -69,7 +70,7 @@ export function getRedisClient(): Redis | null {
 
     client.on('connect', () => {
       cached!.isConnected = true;
-      console.log('[Redis] Connected successfully');
+      logger.info('Redis connected successfully');
     });
 
     client.on('ready', () => {
@@ -78,7 +79,7 @@ export function getRedisClient(): Redis | null {
 
     client.on('error', error => {
       // Only log non-connection errors or first connection error
-      if (!error.message.includes('ECONNREFUSED')) console.error('[Redis] Error:', error.message);
+      if (!error.message.includes('ECONNREFUSED')) logger.error('Redis error', { error: error.message });
 
       cached!.isConnected = false;
     });
@@ -88,20 +89,20 @@ export function getRedisClient(): Redis | null {
     });
 
     client.on('reconnecting', () => {
-      console.log('[Redis] Reconnecting...');
+      logger.info('Redis reconnecting');
     });
 
     cached!.client = client;
 
     // Initiate connection (non-blocking)
     cached!.connectionPromise = client.connect().catch(error => {
-      console.warn('[Redis] Initial connection failed:', error.message);
+      logger.warn('Redis initial connection failed', { error: error.message });
       cached!.isConnected = false;
     });
 
     return client;
   } catch (error) {
-    console.error('[Redis] Failed to create client:', error);
+    logger.error('Redis failed to create client', { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }
@@ -168,7 +169,7 @@ export async function safeRedisCommand<T>(
   try {
     return await command(client);
   } catch (error) {
-    console.warn('[Redis] Command failed:', (error as Error).message);
+    logger.warn('Redis command failed', { error: (error as Error).message });
     return null;
   }
 }
