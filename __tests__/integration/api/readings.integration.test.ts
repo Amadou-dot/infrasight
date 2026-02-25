@@ -791,8 +791,8 @@ describe('Readings API Integration Tests', () => {
     });
 
     describe('Validation Errors', () => {
-      it('should return 200 with empty results when no device_ids provided', async () => {
-        // device_ids is optional in the schema — omitting it returns all latest readings
+      it('should return all latest readings when no device_ids provided', async () => {
+        // device_ids is optional — omitting it returns latest readings for all devices
         const request = createMockGetRequest('/api/v2/readings/latest', {});
         const response = await GET_LATEST(request);
 

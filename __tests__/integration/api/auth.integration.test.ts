@@ -513,6 +513,7 @@ describe('Authentication Integration Tests', () => {
         mockAuthenticated(testUserId, testEmail, 'org:member');
         const request = new Request('http://localhost:3000/api/v2/metrics');
 
+        // withErrorHandler catches the ApiError and returns a 403 response rather than throwing
         const response = await getMetrics(request);
         expect(response.status).toBe(403);
       });
