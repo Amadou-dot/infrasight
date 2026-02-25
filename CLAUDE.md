@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Infrasight** is a real-time IoT sensor monitoring dashboard for building management, built with **Next.js 15** (Turbopack), **TypeScript**, **MongoDB** (Mongoose timeseries), and **Pusher** for real-time updates. It tracks environmental sensors across building floors and rooms.
+**Infrasight** is a real-time IoT sensor monitoring dashboard for building management, built with **Next.js 16** (Turbopack), **TypeScript**, **MongoDB** (Mongoose timeseries), and **Pusher** for real-time updates. It tracks environmental sensors across building floors and rooms.
 
 ## Critical Architecture Decisions
 
@@ -102,6 +102,7 @@ All checked at import time—app fails loudly if missing:
 - `LOG_LEVEL`: Logging level (debug/info/warn/error)
 - `RATE_LIMIT_ENABLED`: Enable rate limiting (true/false)
 - `CACHE_ENABLED`, `CACHE_METADATA_TTL`, `CACHE_HEALTH_TTL`: Cache configuration
+- `CRON_SECRET`: Secret token used by GitHub Actions cron job to authenticate the `/api/v2/cron/simulate` endpoint
 
 **Testing:**
 
@@ -285,13 +286,18 @@ models/
 lib/
   db.ts                            # Global cached connection (prevents hot-reload leak)
   validations/v2/                  # Zod schemas for all v2 operations
+  validations/common.validation.ts # Shared validation helpers
+  validations/validator.ts         # Validation utilities
   errors/                          # ApiError + error handling utilities
   api/
     v2-client.ts                   # Typed client for v2 endpoints
     response.ts, pagination.ts     # Response helpers and pagination utilities
+  pusher.ts                        # Server-side Pusher configuration
+  pusher-context.tsx               # Pusher React context provider
   query/                           # React Query integration
     hooks/                         # API hooks (useDevicesList, useSchedulesList, etc.)
     queryClient.ts                 # Query client configuration
+    types.ts                       # React Query type definitions
   deprecated/                      # Archived migration utilities
   cache/                           # Redis caching with invalidation
   monitoring/                      # Sentry, Prometheus metrics, logging, tracing
@@ -303,10 +309,17 @@ lib/
 app/
   layout.tsx                       # Root layout with ClerkProvider
   page.tsx                         # Dashboard home page
+  not-found.tsx                    # 404 page
+  global-error.tsx                 # Global error boundary
   settings/page.tsx                # User settings (theme, profile, sign-out)
   analytics/page.tsx               # Analytics dashboard
   devices/page.tsx                 # Device list view (+ Add Device modal for admins)
   devices/deleted/page.tsx         # Deleted devices (admin only)
+  devices/_components/             # Colocated device page components
+    DeviceCardSkeleton.tsx         # Loading skeleton for device cards
+    DeviceFilterModal.tsx          # Device filter modal
+    DeviceSearchBar.tsx            # Device search bar
+    DeviceStatusCards.tsx          # Device status summary cards
   floor-plan/page.tsx              # Floor plan visualization
   maintenance/page.tsx             # Maintenance dashboard (+ scheduling)
   unauthorized/page.tsx            # Unauthorized org membership page
@@ -325,13 +338,39 @@ app/
 proxy.ts                           # Clerk middleware for route protection (Next.js 16 renamed middleware.ts to proxy.ts)
 scripts/v2/                        # seed-v2, simulate, test-api, create-indexes, verify-indexes
 components/                        # React components (all use 'use client')
+  dashboard/                       # Dashboard-specific widgets
+    AnomalyDetectionChart.tsx      # Anomaly chart visualization
+    CriticalIssuesPanel.tsx        # Critical issues panel
+    MaintenanceWidget.tsx          # Maintenance summary widget
+    StatCard.tsx                   # Stat card component
+    SystemHealthWidget.tsx         # System health widget
   devices/CreateDeviceModal.tsx    # Device creation form (admin only)
   devices/TagInput.tsx             # Tag input component for device metadata
+  AlertsPanel.tsx                  # Alerts panel
+  AnomalyChart.tsx                 # Anomaly chart component
+  AuditLogViewer.tsx               # Audit log viewer
+  CriticalDevicesList.tsx          # Critical devices list
+  DeviceDetailModal.tsx            # Device detail modal
+  DeviceGrid.tsx                   # Device grid view
+  DeviceHealthWidget.tsx           # Device health widget
+  DeviceInventoryCard.tsx          # Device inventory card
+  FloorPlan.tsx                    # Floor plan component
+  MaintenanceForecastWidget.tsx    # Maintenance forecast widget
+  MaintenanceStatusCards.tsx       # Maintenance status cards
+  MaintenanceTimeline.tsx          # Maintenance timeline
+  Pagination.tsx                   # Pagination component
+  PrioritySummaryCards.tsx         # Priority summary cards
   ScheduleList.tsx                 # Paginated schedule list with filters
   ScheduleServiceModal.tsx         # Schedule creation modal (multi-device, bulk)
   ScheduleStatusBadge.tsx          # Status badge (scheduled/completed/cancelled)
   ServiceTypeBadge.tsx             # Service type badge (firmware/calibration/emergency/maintenance)
   GenerateReportModal.tsx          # PDF report generation modal
+  TemperatureCorrelationPanel.tsx  # Temperature correlation panel
+  TopNav.tsx                       # Top navigation bar
+  clerk-theme-provider.tsx         # Clerk theme integration
+  mode-toggle.tsx                  # Light/dark mode toggle
+  theme-provider.tsx               # Theme provider wrapper
+  user-button-with-theme.tsx       # Clerk UserButton with theme support
 types/v2/                          # TypeScript types for v2 API contracts
   schedule.types.ts                # Schedule types (ServiceType, ScheduleStatus, etc.)
 __tests__/                         # Jest test suites
@@ -342,6 +381,9 @@ instrumentation.ts                 # Next.js instrumentation hook for Sentry
 sentry.*.config.ts                 # Sentry configuration (client, server, edge)
 playwright.config.ts               # Playwright E2E configuration
 jest.config.js                     # Jest configuration
+.github/workflows/
+  test-coverage.yml                # CI test coverage workflow
+  simulate-data.yml                # Cron job: generate synthetic readings via GitHub Actions
 ```
 
 ## Phase 5: Security, Performance & Monitoring

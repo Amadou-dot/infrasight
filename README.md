@@ -316,16 +316,6 @@ See [API Documentation](./docs/api-v2.md) for complete reference.
 3. Configure environment variables
 4. Deploy
 
-### Docker
-
-```bash
-# Build image
-docker build -t infrasight .
-
-# Run container
-docker run -p 3000:3000 --env-file .env.production infrasight
-```
-
 ### Production Checklist
 
 - [ ] Configure MongoDB Atlas with proper security
