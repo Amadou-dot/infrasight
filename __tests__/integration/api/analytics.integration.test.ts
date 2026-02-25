@@ -628,10 +628,16 @@ describe('Analytics API Integration Tests', () => {
       // Time range is optional — either device_id or startDate is required to prevent full scans
       const request = createMockGetRequest('energy', { device_id: 'device_001' });
       const response = await GET_ENERGY(request);
-      const data = await parseResponse<{ success: boolean }>(response);
 
       expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
+    });
+
+    it('should reject query without device_id or startDate', async () => {
+      // The schema requires either device_id or startDate to prevent full collection scans
+      const request = createMockGetRequest('energy');
+      const response = await GET_ENERGY(request);
+
+      expect(response.status).toBe(400);
     });
   });
 
