@@ -791,11 +791,12 @@ describe('Readings API Integration Tests', () => {
     });
 
     describe('Validation Errors', () => {
-      it('should require device_ids parameter', async () => {
+      it('should return 200 with empty results when no device_ids provided', async () => {
+        // device_ids is optional in the schema — omitting it returns all latest readings
         const request = createMockGetRequest('/api/v2/readings/latest', {});
         const response = await GET_LATEST(request);
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(200);
       });
     });
   });

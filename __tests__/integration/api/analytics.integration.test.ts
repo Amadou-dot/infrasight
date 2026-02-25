@@ -213,13 +213,12 @@ describe('Analytics API Integration Tests', () => {
       expect(response.status).toBe(200);
     });
 
-    it('should accept query without strict time range requirement', async () => {
+    it('should reject query without device_id or startDate', async () => {
+      // The schema requires either device_id or startDate to prevent full collection scans
       const request = createMockGetRequest('energy');
       const response = await GET_ENERGY(request);
-      const data = await parseResponse<{ success: boolean }>(response);
 
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(response.status).toBe(400);
     });
   });
 
