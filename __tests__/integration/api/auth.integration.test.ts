@@ -411,16 +411,16 @@ describe('Authentication Integration Tests', () => {
   // Public Route Tests
   // ==========================================================================
 
-  describe('CRON_SECRET Protected Routes', () => {
+  describe('SEED_SECRET Protected Routes', () => {
     describe('GET /api/v2/cron/simulate', () => {
-      it('should return 401 without valid CRON_SECRET Bearer token', async () => {
+      it('should return 401 without valid SEED_SECRET Bearer token', async () => {
         const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate');
         const response = await simulateReadings(request);
 
         expect(response.status).toBe(401);
       });
 
-      it('should return 401 with invalid CRON_SECRET', async () => {
+      it('should return 401 with invalid SEED_SECRET', async () => {
         const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
           headers: { Authorization: 'Bearer wrong-secret' },
         });
@@ -429,7 +429,7 @@ describe('Authentication Integration Tests', () => {
         expect(response.status).toBe(401);
       });
 
-      it('should succeed with valid CRON_SECRET Bearer token', async () => {
+      it('should succeed with valid SEED_SECRET Bearer token', async () => {
         // Create a test device so simulate has something to work with
         mockAuthenticated();
         const deviceInput = createDeviceInput();
@@ -437,7 +437,7 @@ describe('Authentication Integration Tests', () => {
         await DeviceV2.create(deviceInput);
 
         const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
-          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+          headers: { Authorization: `Bearer ${process.env.SEED_SECRET}` },
         });
         const response = await simulateReadings(request);
 

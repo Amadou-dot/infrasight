@@ -146,7 +146,13 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/
 # RBAC Organization Access
 CLERK_ALLOWED_ORG_SLUGS=users
 NEXT_PUBLIC_CLERK_ALLOWED_ORG_SLUGS=users
+
+# Cron Route Authentication
+SEED_SECRET=replace-with-a-long-random-secret
 ```
+
+`SEED_SECRET` is required for `GET /api/v2/cron/simulate`. Call the route with
+`Authorization: Bearer <SEED_SECRET>`.
 
 See [Environment Setup Guide](./docs/environment.md) for complete configuration options.
 

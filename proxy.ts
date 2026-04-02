@@ -5,7 +5,7 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/unauthorized',
-  '/api/v2/cron/simulate', // Keep simulate public for GitHub Actions cron job
+  '/api/v2/cron/simulate', // Keep simulate public for external scheduler access
 ]);
 
 // Check if E2E testing mode is enabled via environment variable
@@ -26,12 +26,12 @@ export default clerkMiddleware(async (auth, request) => {
     const orgSlug = session.orgSlug?.toLowerCase() || null;
     if (!orgSlug || (allowedOrgSlugs.length > 0 && !allowedOrgSlugs.includes(orgSlug))) {
       // API routes get a JSON 403 error; page routes get a redirect
-      if (request.nextUrl.pathname.startsWith('/api/')) {
+      if (request.nextUrl.pathname.startsWith('/api/')) 
         return NextResponse.json(
           { success: false, error: { code: 'FORBIDDEN', message: 'Organization membership required' } },
           { status: 403 }
         );
-      }
+      
       const url = new URL('/unauthorized', request.url);
       return NextResponse.redirect(url);
     }

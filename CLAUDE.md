@@ -102,7 +102,7 @@ All checked at import time—app fails loudly if missing:
 - `LOG_LEVEL`: Logging level (debug/info/warn/error)
 - `RATE_LIMIT_ENABLED`: Enable rate limiting (true/false)
 - `CACHE_ENABLED`, `CACHE_METADATA_TTL`, `CACHE_HEALTH_TTL`: Cache configuration
-- `CRON_SECRET`: Secret token used by GitHub Actions cron job to authenticate the `/api/v2/cron/simulate` endpoint
+- `SEED_SECRET`: Secret token used by your external scheduler (for example, n8n) to authenticate the `/api/v2/cron/simulate` endpoint
 
 **Testing:**
 
@@ -383,7 +383,6 @@ playwright.config.ts               # Playwright E2E configuration
 jest.config.js                     # Jest configuration
 .github/workflows/
   test-coverage.yml                # CI test coverage workflow
-  simulate-data.yml                # Cron job: generate synthetic readings via GitHub Actions
 ```
 
 ## Phase 5: Security, Performance & Monitoring
@@ -412,7 +411,7 @@ The v2 API includes enterprise-grade features for production deployment:
 - **Components**: `UserButton` in TopNav, `useUser()` hook for user data
 - **Routes**: `/sign-in`, `/sign-up` for authentication pages
 - **Protected Routes**: All dashboard and API routes require sign-in and org membership
-- **Public Routes**: Only `/api/v2/cron/simulate` is public (for GitHub Actions cron job)
+- **Public Routes**: Only `/api/v2/cron/simulate` is public (for external scheduler access)
 - **API Auth Utilities**: `lib/auth/` provides RBAC helpers for API routes
 - **Audit Tracking**: All mutation operations track the authenticated user's email in audit trails
 

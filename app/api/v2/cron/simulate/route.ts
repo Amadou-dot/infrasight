@@ -223,26 +223,26 @@ async function generateReadings() {
 // ============================================================================
 
 export async function GET(request: NextRequest) {
-  // Read CRON_SECRET at request time so rotated values are picked up
-  const cronSecret = process.env.CRON_SECRET;
+  // Read SEED_SECRET at request time so rotated values are picked up
+  const seedSecret = process.env.SEED_SECRET;
 
-  // Require CRON_SECRET — fail-closed if not configured
-  if (!cronSecret) {
+  // Require SEED_SECRET — fail-closed if not configured
+  if (!seedSecret) 
     return NextResponse.json(
-      { success: false, error: 'CRON_SECRET is not configured' },
+      { success: false, error: 'SEED_SECRET is not configured' },
       { status: 503 }
     );
-  }
+  
 
   const authHeader = request.headers.get('authorization');
   const provided = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (
     !provided ||
-    provided.length !== cronSecret.length ||
-    !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(cronSecret))
-  ) {
+    provided.length !== seedSecret.length ||
+    !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(seedSecret))
+  ) 
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
+  
 
   try {
     // 1. Generate mock data
