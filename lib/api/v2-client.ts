@@ -265,21 +265,66 @@ export const readingsApi = {
 
 export interface EnergyAnalyticsQuery {
   period?: string;
+  startDate?: string;
+  endDate?: string;
+  deviceId?: string | string[];
+  device_id?: string | string[];
   floor?: number;
-  granularity?: 'minute' | 'hour' | 'day';
-  aggregationType?: 'sum' | 'avg' | 'min' | 'max';
+  granularity?: 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month';
+  aggregationType?: 'sum' | 'avg' | 'min' | 'max' | 'count';
+  aggregation?: 'sum' | 'avg' | 'min' | 'max' | 'count';
   deviceType?: string;
+  type?: string;
   includeInvalid?: boolean;
-  groupBy?: 'floor' | 'room' | 'type' | 'department';
+  include_invalid?: boolean;
+  groupBy?: 'device' | 'floor' | 'room' | 'type' | 'department' | 'building';
+  group_by?: 'device' | 'floor' | 'room' | 'type' | 'department' | 'building';
 }
 
-export interface EnergyDataPoint {
-  timestamp: string;
+export interface EnergyAnalyticsResult {
+  time_bucket: string;
   value: number;
-  quality?: {
-    validReadings: number;
-    totalReadings: number;
-    percentageValid: number;
+  count: number;
+  min_value: number;
+  max_value: number;
+  first_timestamp: string;
+  last_timestamp: string;
+  device_id?: string;
+  type?: string;
+  floor?: number;
+  room?: string;
+  building?: string;
+  department?: string;
+}
+
+export interface EnergyAnalyticsResponse {
+  results: EnergyAnalyticsResult[];
+  comparison: {
+    results: EnergyAnalyticsResult[];
+    label: string;
+    time_range: {
+      start: string;
+      end: string;
+    };
+    total_points: number;
+    summary: {
+      current_total: number;
+      comparison_total: number;
+      percentage_change: number | null;
+      trend: 'increase' | 'decrease' | 'stable' | 'no_data';
+    };
+  } | null;
+  metadata: {
+    granularity: 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month';
+    aggregation_type: string;
+    total_points: number;
+    excluded_invalid: number;
+    group_by: string | null;
+    time_range: {
+      start?: string;
+      end?: string;
+    };
+    compare_with: string | null;
   };
 }
 
@@ -416,12 +461,19 @@ export interface AnomalyResponse {
       avg_score: number;
     }>;
   };
-  trends: Record<string, unknown>;
+  trends: AnomalyTrendPoint[] | null;
   filters_applied: {
     device_id: string | null;
     type: string | null;
     time_range: Record<string, unknown>;
   };
+}
+
+export interface AnomalyTrendPoint {
+  time_bucket: string;
+  count: number;
+  avg_score: number;
+  max_score: number;
 }
 
 export const analyticsApi = {
@@ -435,8 +487,23 @@ export const analyticsApi = {
    *  - includeInvalid → include_invalid
    *  - groupBy → group_by
    */
-  async energy(query: EnergyAnalyticsQuery = {}): Promise<ApiSuccessResponse<EnergyDataPoint[]>> {
-    const { period, aggregationType, deviceType, includeInvalid, groupBy, ...rest } = query;
+  async energy(
+    query: EnergyAnalyticsQuery = {}
+  ): Promise<ApiSuccessResponse<EnergyAnalyticsResponse>> {
+    const {
+      period,
+      aggregationType,
+      aggregation,
+      deviceType,
+      type,
+      includeInvalid,
+      include_invalid,
+      groupBy,
+      group_by,
+      deviceId,
+      device_id,
+      ...rest
+    } = query;
 
     // Resolve period shorthand to startDate/endDate
     const serverParams: Record<string, unknown> = { ...rest };
@@ -452,10 +519,11 @@ export const analyticsApi = {
       }
     }
 
-    if (aggregationType) serverParams.aggregation = aggregationType;
-    if (deviceType) serverParams.type = deviceType;
-    if (includeInvalid !== undefined) serverParams.include_invalid = includeInvalid;
-    if (groupBy) serverParams.group_by = groupBy;
+    if (deviceId ?? device_id) serverParams.device_id = deviceId ?? device_id;
+    if (aggregationType ?? aggregation) serverParams.aggregation = aggregationType ?? aggregation;
+    if (deviceType ?? type) serverParams.type = deviceType ?? type;
+    if (includeInvalid ?? include_invalid) serverParams.include_invalid = includeInvalid ?? include_invalid;
+    if (groupBy ?? group_by) serverParams.group_by = groupBy ?? group_by;
 
     const queryString = buildQueryString(serverParams);
     return apiCall(`/api/v2/analytics/energy${queryString}`);
@@ -476,14 +544,34 @@ export const analyticsApi = {
    */
   async anomalies(
     query: {
-      deviceId?: string;
+      deviceId?: string | string[];
+      device_id?: string | string[];
       startDate?: string;
       endDate?: string;
       minScore?: number;
+      min_score?: number;
+      bucketGranularity?: 'minute' | 'hour' | 'day' | 'week' | 'month';
+      bucket_granularity?: 'minute' | 'hour' | 'day' | 'week' | 'month';
       limit?: number;
     } = {}
   ): Promise<ApiSuccessResponse<AnomalyResponse>> {
-    const queryString = buildQueryString(query as Record<string, unknown>);
+    const {
+      deviceId,
+      device_id,
+      minScore,
+      min_score,
+      bucketGranularity,
+      bucket_granularity,
+      ...rest
+    } = query;
+    const serverParams: Record<string, unknown> = { ...rest };
+
+    if (deviceId ?? device_id) serverParams.device_id = deviceId ?? device_id;
+    if (minScore ?? min_score) serverParams.min_score = minScore ?? min_score;
+    if (bucketGranularity ?? bucket_granularity)
+      serverParams.bucket_granularity = bucketGranularity ?? bucket_granularity;
+
+    const queryString = buildQueryString(serverParams);
     return apiCall(`/api/v2/analytics/anomalies${queryString}`);
   },
 

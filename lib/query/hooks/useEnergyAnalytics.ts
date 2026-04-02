@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { v2Api, type EnergyAnalyticsQuery } from '@/lib/api/v2-client';
+import {
+  v2Api,
+  type EnergyAnalyticsQuery,
+  type EnergyAnalyticsResponse,
+} from '@/lib/api/v2-client';
 import { queryKeys } from '../queryClient';
 import type { QueryConfig } from '../types';
 
 export function useEnergyAnalytics(
   params: EnergyAnalyticsQuery = {},
-  config?: QueryConfig<unknown>
+  config?: QueryConfig<EnergyAnalyticsResponse>
 ) {
   return useQuery({
     queryKey: queryKeys.analytics.energy(params as Record<string, unknown>),

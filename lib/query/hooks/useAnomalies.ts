@@ -4,10 +4,11 @@ import { queryKeys } from '../queryClient';
 import type { QueryConfig } from '../types';
 
 interface UseAnomaliesParams {
-  deviceId?: string;
+  deviceId?: string | string[];
   startDate?: string;
   endDate?: string;
   minScore?: number;
+  bucketGranularity?: 'minute' | 'hour' | 'day' | 'week' | 'month';
   limit?: number;
 }
 
