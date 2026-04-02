@@ -334,12 +334,14 @@ describe('analyticsApi.anomalies', () => {
       startDate: '2024-01-01',
       endDate: '2024-01-31',
       minScore: 0.7,
+      bucketGranularity: 'hour',
       limit: 50,
     });
 
     const calledUrl = mockFetch.mock.calls[0][0] as string;
-    expect(calledUrl).toContain('deviceId=device_001');
-    expect(calledUrl).toContain('minScore=0.7');
+    expect(calledUrl).toContain('device_id=device_001');
+    expect(calledUrl).toContain('min_score=0.7');
+    expect(calledUrl).toContain('bucket_granularity=hour');
     expect(calledUrl).toContain('limit=50');
   });
 });

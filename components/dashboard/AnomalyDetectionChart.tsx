@@ -1,16 +1,10 @@
 'use client';
 
-import { v2Api } from '@/lib/api/v2-client';
-import { useAnomalies } from '@/lib/query/hooks';
+import { useAnomalies, useEnergyAnalytics } from '@/lib/query/hooks';
+import { buildAnomalyDetectionChartData } from '@/lib/utils/anomaly-chart';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-interface ChartDataPoint {
-  time: string;
-  normal: number;
-  anomaly: number;
-}
 
 interface AnomalyDetectionChartProps {
   hours?: number;
@@ -19,7 +13,7 @@ interface AnomalyDetectionChartProps {
 export default function AnomalyDetectionChart({ hours = 6 }: AnomalyDetectionChartProps) {
   // Calculate time range - memoize to prevent infinite re-renders
   // Round to nearest minute to avoid constant changes
-  const { startDateISO, endDateISO, startDate } = useMemo(() => {
+  const { startDateISO, endDateISO, endDate } = useMemo(() => {
     const now = new Date();
     // Round down to nearest minute to stabilize the value
     now.setSeconds(0, 0);
@@ -28,97 +22,46 @@ export default function AnomalyDetectionChart({ hours = 6 }: AnomalyDetectionCha
     return {
       startDateISO: start.toISOString(),
       endDateISO: end.toISOString(),
-      startDate: start,
+      endDate: end,
     };
   }, [hours]);
 
   // Fetch anomalies with React Query
   const {
     data: anomaliesData,
-    isLoading,
+    isLoading: isLoadingAnomalies,
     error: fetchError,
   } = useAnomalies({
     startDate: startDateISO,
     endDate: endDateISO,
-    limit: 1000,
+    bucketGranularity: 'hour',
+    limit: 1,
   });
 
-  // Fetch readings total for normal count calculation (still need this one call)
-  const [totalReadings, setTotalReadings] = useState(0);
-  const [readingsError, setReadingsError] = useState<string | null>(null);
+  const {
+    data: totalReadingsData,
+    isLoading: isLoadingTotals,
+    error: totalsError,
+  } = useEnergyAnalytics({
+    startDate: startDateISO,
+    endDate: endDateISO,
+    granularity: 'hour',
+    aggregationType: 'count',
+    includeInvalid: true,
+  });
 
-  const error = fetchError ? 'Failed to load data' : readingsError;
-
-  useEffect(() => {
-    const fetchReadingsTotal = async () => {
-      try {
-        const readingsRes = await v2Api.readings.list({
-          startDate: startDateISO,
-          endDate: endDateISO,
-          limit: 1,
-        });
-        setTotalReadings(readingsRes.pagination?.total || 0);
-        setReadingsError(null);
-      } catch (err) {
-        console.error('Failed to fetch readings total:', err);
-        setReadingsError('Failed to load readings data');
-      }
-    };
-    fetchReadingsTotal();
-  }, [startDateISO, endDateISO]);
+  const isLoading = isLoadingAnomalies || isLoadingTotals;
+  const error = fetchError || totalsError ? 'Failed to load data' : null;
 
   // Process chart data
   const data = useMemo(() => {
-    if (!anomaliesData) return [];
-
-    const anomalies = anomaliesData.anomalies || [];
-
-    // Create hourly buckets using epoch hour as key for reliable matching
-    const hourlyBuckets: Map<number, { time: string; normal: number; anomaly: number }> = new Map();
-
-    // Initialize buckets for each hour (including current hour)
-    for (let i = 0; i <= hours; i++) {
-      const bucketTime = new Date(startDate.getTime() + i * 60 * 60 * 1000);
-      // Use epoch hour as key (floor to hour)
-      const epochHour = Math.floor(bucketTime.getTime() / (60 * 60 * 1000));
-      const timeLabel = bucketTime.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      hourlyBuckets.set(epochHour, { time: timeLabel, normal: 0, anomaly: 0 });
-    }
-
-    // Count anomalies per hour
-    anomalies.forEach(a => {
-      const timestamp = new Date(a.timestamp);
-      const epochHour = Math.floor(timestamp.getTime() / (60 * 60 * 1000));
-
-      const bucket = hourlyBuckets.get(epochHour);
-      if (bucket) bucket.anomaly += 1;
+    return buildAnomalyDetectionChartData({
+      endDate,
+      hours,
+      totals: totalReadingsData?.results || [],
+      trends: anomaliesData?.trends || [],
     });
-
-    // Calculate normal readings per bucket (distribute evenly)
-    const totalAnomalies = anomaliesData.pagination?.total || anomalies.length;
-    const totalNormal = Math.max(0, totalReadings - totalAnomalies);
-    const bucketCount = hourlyBuckets.size;
-    const avgNormalPerHour = Math.floor(totalNormal / bucketCount);
-
-    hourlyBuckets.forEach(bucket => {
-      bucket.normal = avgNormalPerHour;
-    });
-
-    // Convert to chart data (sorted by time, take last 'hours' buckets)
-    const chartData: ChartDataPoint[] = Array.from(hourlyBuckets.entries())
-      .sort(([a], [b]) => a - b)
-      .slice(-hours) // Take only the last N hours
-      .map(([, bucket]) => ({
-        time: bucket.time,
-        normal: bucket.normal,
-        anomaly: bucket.anomaly,
-      }));
-
-    return chartData;
-  }, [anomaliesData, totalReadings, hours, startDate]);
+  }, [anomaliesData?.trends, totalReadingsData?.results, endDate, hours]);
 
   if (isLoading)
     return (
