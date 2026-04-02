@@ -24,11 +24,11 @@ jest.mock('@/lib/pusher', () => ({
 }));
 
 /**
- * Helper to call simulate endpoint with valid CRON_SECRET Bearer token
+ * Helper to call simulate endpoint with valid SEED_SECRET Bearer token
  */
 function GET_SIMULATE() {
   const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate', {
-    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    headers: { Authorization: `Bearer ${process.env.SEED_SECRET}` },
   });
   return GET_SIMULATE_RAW(request);
 }
@@ -41,8 +41,16 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 describe('Simulate Cron API Integration Tests', () => {
+  const originalSeedSecret = process.env.SEED_SECRET;
+
   beforeEach(() => {
     resetCounters();
+    process.env.SEED_SECRET = originalSeedSecret ?? 'test-seed-secret';
+  });
+
+  afterAll(() => {
+    if (originalSeedSecret === undefined) delete process.env.SEED_SECRET;
+    else process.env.SEED_SECRET = originalSeedSecret;
   });
 
   // ==========================================================================
@@ -50,6 +58,21 @@ describe('Simulate Cron API Integration Tests', () => {
   // ==========================================================================
 
   describe('Basic Functionality', () => {
+    it('should return 503 when SEED_SECRET is not configured', async () => {
+      delete process.env.SEED_SECRET;
+
+      const request = new NextRequest('http://localhost:3000/api/v2/cron/simulate');
+      const response = await GET_SIMULATE_RAW(request);
+      const data = await parseResponse<{
+        success: boolean;
+        error: string;
+      }>(response);
+
+      expect(response.status).toBe(503);
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('SEED_SECRET is not configured');
+    });
+
     it('should return 404 when no devices exist', async () => {
       // Ensure no devices exist
       await DeviceV2.deleteMany({});
@@ -213,9 +236,9 @@ describe('Simulate Cron API Integration Tests', () => {
         };
 
         const expectedUnit = expectedUnits[deviceType];
-        if (expectedUnit) {
+        if (expectedUnit) 
           expect(expectedUnit).toContain(reading!.metadata.unit);
-        }
+        
       });
     });
   });
@@ -239,9 +262,9 @@ describe('Simulate Cron API Integration Tests', () => {
       await DeviceV2.create(device);
 
       // Generate multiple readings to check range
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'temp_range_device',
@@ -262,9 +285,9 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'humidity_range_device',
@@ -285,9 +308,9 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'power_range_device',
@@ -308,9 +331,9 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'motion_range_device',
@@ -329,9 +352,9 @@ describe('Simulate Cron API Integration Tests', () => {
       });
       await DeviceV2.create(device);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'occupancy_range_device',
@@ -374,9 +397,9 @@ describe('Simulate Cron API Integration Tests', () => {
     });
 
     it('should generate confidence scores in valid range', async () => {
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'quality_device',
@@ -389,22 +412,22 @@ describe('Simulate Cron API Integration Tests', () => {
     });
 
     it('should generate anomaly scores based on is_anomaly flag', async () => {
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 20; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'quality_device',
       });
 
       readings.forEach((r) => {
-        if (r.quality?.is_anomaly) {
+        if (r.quality?.is_anomaly) 
           // Anomaly score should be 0.5-1.0 for anomalies
           expect(r.quality?.anomaly_score).toBeGreaterThanOrEqual(0.5);
-        } else {
+         else 
           // Anomaly score should be 0-0.3 for normal readings
           expect(r.quality?.anomaly_score).toBeLessThanOrEqual(0.3);
-        }
+        
       });
     });
   });
@@ -491,9 +514,9 @@ describe('Simulate Cron API Integration Tests', () => {
     });
 
     it('should have calibration offset in valid range', async () => {
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const readings = await ReadingV2.find({
         'metadata.device_id': 'processing_device',
@@ -525,9 +548,9 @@ describe('Simulate Cron API Integration Tests', () => {
 
     it('should generate some anomalies (5% probability)', async () => {
       // Generate multiple batches to statistically ensure some anomalies
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 10; i++) 
         await GET_SIMULATE();
-      }
+      
 
       const anomalyReadings = await ReadingV2.find({
         'quality.is_anomaly': true,
