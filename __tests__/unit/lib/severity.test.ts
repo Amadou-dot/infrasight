@@ -64,7 +64,7 @@ describe('calculateDeviceSeverity', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2025-06-15T12:00:00Z'));
+    jest.setSystemTime(new Date('2025-06-15T12:00:00Z').getTime());
   });
 
   afterEach(() => {
@@ -270,7 +270,7 @@ describe('getSeverityIcon', () => {
 describe('isWithinDays', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2025-06-15T12:00:00Z'));
+    jest.setSystemTime(new Date('2025-06-15T12:00:00Z').getTime());
   });
 
   afterEach(() => {
@@ -305,7 +305,7 @@ describe('isWithinDays', () => {
 describe('getDaysUntil', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2025-06-15T12:00:00Z'));
+    jest.setSystemTime(new Date('2025-06-15T12:00:00Z').getTime());
   });
 
   afterEach(() => {
@@ -337,7 +337,7 @@ describe('getDaysUntil', () => {
 describe('formatRelativeDate', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2025-06-15T12:00:00Z'));
+    jest.setSystemTime(new Date('2025-06-15T12:00:00Z').getTime());
   });
 
   afterEach(() => {
@@ -369,7 +369,7 @@ describe('formatRelativeDate', () => {
 describe('isPast', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2025-06-15T12:00:00Z'));
+    jest.setSystemTime(new Date('2025-06-15T12:00:00Z').getTime());
   });
 
   afterEach(() => {
@@ -396,7 +396,7 @@ describe('isPast', () => {
 describe('categorizeDevicesBySeverity', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2025-06-15T12:00:00Z'));
+    jest.setSystemTime(new Date('2025-06-15T12:00:00Z').getTime());
   });
 
   afterEach(() => {
@@ -426,7 +426,7 @@ describe('categorizeDevicesBySeverity', () => {
 describe('getDeviceSeverityCounts', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2025-06-15T12:00:00Z'));
+    jest.setSystemTime(new Date('2025-06-15T12:00:00Z').getTime());
   });
 
   afterEach(() => {
