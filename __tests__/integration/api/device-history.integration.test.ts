@@ -8,6 +8,11 @@
 import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import { createDeviceInput, resetCounters } from '../../setup/factories';
+import {
+  mockAuthAsAdmin,
+  mockAuthAsMember,
+  mockAuthAsUnauthenticated,
+} from '../../setup/auth-helpers';
 
 // Import the route handler
 import { GET } from '@/app/api/v2/devices/[id]/history/route';
@@ -39,6 +44,9 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 describe('Device History API Integration Tests', () => {
   beforeEach(() => {
     resetCounters();
+    // Restore the default role; helpers below replace the mock implementation, which
+    // would otherwise leak into later tests.
+    mockAuthAsAdmin();
   });
 
   // ==========================================================================
@@ -409,6 +417,33 @@ describe('Device History API Integration Tests', () => {
         expect(response.status).toBe(200);
         const createdEntry = data.data.find(h => ('action' in h ? h.action === 'created' : false));
         expect(createdEntry?.changes).toBeDefined();
+      });
+    });
+
+    describe('Access control', () => {
+      // Audit history is read-only and carries no secrets, so members (including
+      // read-only demo visitors) are allowed to read it.
+      it('should allow a member to read device history', async () => {
+        mockAuthAsMember();
+
+        const deviceData = createDeviceInput({ _id: 'history_device_member' });
+        await DeviceV2.create(deviceData);
+
+        const request = createMockGetRequest('history_device_member');
+        const params = Promise.resolve({ id: 'history_device_member' });
+        const response = await GET(request, { params });
+
+        expect(response.status).toBe(200);
+      });
+
+      it('should reject an unauthenticated request', async () => {
+        mockAuthAsUnauthenticated();
+
+        const request = createMockGetRequest('history_device_anon');
+        const params = Promise.resolve({ id: 'history_device_anon' });
+        const response = await GET(request, { params });
+
+        expect(response.status).toBe(401);
       });
     });
   });

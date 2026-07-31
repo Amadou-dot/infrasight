@@ -382,4 +382,118 @@ describe('Auth Module', () => {
       expect(handler).not.toHaveBeenCalled();
     });
   });
+
+  // ==========================================================================
+  // Demo mode
+  // ==========================================================================
+
+  describe('demo mode', () => {
+    const originalDemoMode = process.env.DEMO_MODE;
+
+    afterEach(() => {
+      if (originalDemoMode === undefined) delete process.env.DEMO_MODE;
+      else process.env.DEMO_MODE = originalDemoMode;
+    });
+
+    /** Simulate an anonymous visitor: no Clerk session at all. */
+    function mockAnonymousVisitor() {
+      const { auth, currentUser } = require('@clerk/nextjs/server');
+      auth.mockResolvedValue({
+        userId: null,
+        orgId: null,
+        orgSlug: null,
+        orgRole: null,
+      });
+      currentUser.mockResolvedValue(null);
+    }
+
+    it('should grant an anonymous visitor a member-role context when demo mode is on', async () => {
+      process.env.DEMO_MODE = 'true';
+      mockAnonymousVisitor();
+
+      const { getAuthContext } = require('@/lib/auth');
+      const context = await getAuthContext();
+
+      expect(context.userId).toBe('demo');
+      expect(context.orgRole).toBe('org:member');
+    });
+
+    it('should let an anonymous visitor read when demo mode is on', async () => {
+      process.env.DEMO_MODE = 'true';
+      mockAnonymousVisitor();
+
+      const { requireOrgMembership } = require('@/lib/auth');
+      const context = await requireOrgMembership();
+
+      expect(context.orgRole).toBe('org:member');
+    });
+
+    it('should block an anonymous visitor from admin actions when demo mode is on', async () => {
+      process.env.DEMO_MODE = 'true';
+      mockAnonymousVisitor();
+
+      const { requireAdmin } = require('@/lib/auth');
+
+      await expect(requireAdmin()).rejects.toThrow('Admin role required');
+    });
+
+    it('should reject an anonymous visitor when demo mode is off', async () => {
+      delete process.env.DEMO_MODE;
+      mockAnonymousVisitor();
+
+      const { getAuthContext } = require('@/lib/auth');
+
+      await expect(getAuthContext()).rejects.toThrow('Authentication required');
+    });
+
+    describe('isDemoReadableMethod()', () => {
+      it('should allow GET so visitors can browse pages and read APIs', () => {
+        const { isDemoReadableMethod } = require('@/lib/auth');
+
+        expect(isDemoReadableMethod('GET')).toBe(true);
+        expect(isDemoReadableMethod('HEAD')).toBe(true);
+      });
+
+      it('should refuse every mutating method', () => {
+        const { isDemoReadableMethod } = require('@/lib/auth');
+
+        for (const method of ['POST', 'PATCH', 'PUT', 'DELETE']) {
+          expect(isDemoReadableMethod(method)).toBe(false);
+        }
+      });
+
+      it('should refuse unknown methods rather than defaulting open', () => {
+        const { isDemoReadableMethod } = require('@/lib/auth');
+
+        expect(isDemoReadableMethod('TRACE')).toBe(false);
+        expect(isDemoReadableMethod('')).toBe(false);
+      });
+    });
+
+    it('should not downgrade a real signed-in admin while demo mode is on', async () => {
+      process.env.DEMO_MODE = 'true';
+
+      const { auth, currentUser } = require('@clerk/nextjs/server');
+      auth.mockResolvedValue({
+        userId: 'user_admin',
+        orgId: 'org_123',
+        orgSlug: 'users',
+        orgRole: 'org:admin',
+      });
+      currentUser.mockResolvedValue({
+        id: 'user_admin',
+        fullName: 'Admin User',
+        firstName: 'Admin',
+        lastName: 'User',
+        primaryEmailAddressId: 'email_admin',
+        emailAddresses: [{ id: 'email_admin', emailAddress: 'admin@example.com' }],
+      });
+
+      const { requireAdmin } = require('@/lib/auth');
+      const context = await requireAdmin();
+
+      expect(context.userId).toBe('user_admin');
+      expect(context.orgRole).toBe('org:admin');
+    });
+  });
 });

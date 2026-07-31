@@ -51,12 +51,60 @@ function assertOrgRole(orgRole: string | null): asserts orgRole is OrgRole {
 }
 
 // ============================================================================
+// DEMO MODE
+// ============================================================================
+
+/**
+ * Whether this deployment is a public read-only demo.
+ *
+ * When enabled, anonymous visitors are granted a synthetic `org:member` context so
+ * they can browse the app without signing up. Writes remain blocked because every
+ * mutation goes through `requireAdmin()`, which rejects the member role.
+ */
+export function isDemoMode(): boolean {
+  return process.env.DEMO_MODE === 'true';
+}
+
+/**
+ * Whether a request method is safe to serve to an anonymous demo visitor.
+ *
+ * Allow-list rather than deny-list: anything not explicitly read-only is refused, so a
+ * method we have not considered fails closed.
+ */
+export function isDemoReadableMethod(method: string): boolean {
+  return method === 'GET' || method === 'HEAD';
+}
+
+const DEMO_USER: AuthenticatedUser = {
+  userId: 'demo',
+  email: null,
+  fullName: 'Demo Visitor',
+  firstName: 'Demo',
+  lastName: 'Visitor',
+};
+
+function createDemoAuthContext(): AuthContext {
+  return {
+    userId: DEMO_USER.userId,
+    user: { ...DEMO_USER },
+    orgId: 'demo',
+    orgSlug: 'demo',
+    orgRole: 'org:member',
+  };
+}
+
+// ============================================================================
 // RBAC HELPERS
 // ============================================================================
 
 export async function getAuthContext(): Promise<AuthContext> {
-  const authResult = await requireAuth();
   const sessionAuth = await auth();
+
+  // Anonymous visitors on a demo deployment get read-only access. A real session
+  // always takes precedence, so signed-in users keep their actual role.
+  if (!sessionAuth.userId && isDemoMode()) return createDemoAuthContext();
+
+  const authResult = await requireAuth();
 
   assertAllowedOrg(sessionAuth.orgSlug ?? null);
   assertOrgRole(sessionAuth.orgRole ?? null);
