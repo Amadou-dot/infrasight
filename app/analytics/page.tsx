@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import AlertsPanel from '@/components/AlertsPanel';
 import DeviceHealthWidget from '@/components/DeviceHealthWidget';
 import EnergyUsageChart from '@/components/AnomalyChart';
 import GenerateReportModal from '@/components/GenerateReportModal';
@@ -10,6 +12,7 @@ import { useMetadata } from '@/lib/query/hooks';
 import { useAdminAction } from '@/lib/auth/rbac-client';
 
 export default function AnalyticsPage() {
+  const router = useRouter();
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const reportAction = useAdminAction();
@@ -78,6 +81,10 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <EnergyUsageChart selectedFloor={selectedFloor} />
         <DeviceHealthWidget selectedFloor={selectedFloor} />
+        <AlertsPanel
+          onDeviceClick={deviceId => router.push(`/devices/${deviceId}`)}
+          maxAlerts={8}
+        />
       </div>
 
       {/* Generate Report Modal */}
