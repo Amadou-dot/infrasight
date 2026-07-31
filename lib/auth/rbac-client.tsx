@@ -26,6 +26,40 @@ function getAllowedOrgSlugs(): string[] {
     .map(value => value.toLowerCase());
 }
 
+/** Whether this deployment is a public read-only demo. */
+export function isDemoModeClient(): boolean {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+}
+
+const DEMO_TOOLTIP = 'Admin only · this is a read-only demo';
+
+export interface AdminActionState {
+  /** Whether to render the control at all. */
+  visible: boolean;
+  /** Whether the control should be rendered in a disabled state. */
+  disabled: boolean;
+  /** Explanation to surface on hover, set only when the control is disabled. */
+  tooltip?: string;
+}
+
+/**
+ * Governs an admin-gated control.
+ *
+ * Outside demo mode this behaves like a plain `isAdmin` check. On a demo deployment the
+ * control is rendered disabled instead of hidden, so visitors can see that features like
+ * device creation and report generation exist rather than encountering a UI that appears
+ * to have nothing in it.
+ */
+export function useAdminAction(): AdminActionState {
+  const { isAdmin } = useRbac();
+
+  if (isAdmin) return { visible: true, disabled: false };
+
+  if (isDemoModeClient()) return { visible: true, disabled: true, tooltip: DEMO_TOOLTIP };
+
+  return { visible: false, disabled: true };
+}
+
 export function useRbac(): RbacState {
   const { isLoaded, isSignedIn, orgRole, orgSlug } = useAuth();
   const allowedOrgs = getAllowedOrgSlugs();

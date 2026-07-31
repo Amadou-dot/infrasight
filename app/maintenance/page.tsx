@@ -9,7 +9,7 @@ import ScheduleServiceModal from '@/components/ScheduleServiceModal';
 import ScheduleList from '@/components/ScheduleList';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { useMaintenanceForecast, useDevicesList } from '@/lib/query/hooks';
-import { useRbac } from '@/lib/auth/rbac-client';
+import { useAdminAction } from '@/lib/auth/rbac-client';
 
 // ============================================================================
 // CONSTANTS
@@ -25,7 +25,7 @@ const CALIBRATION_THRESHOLD_DAYS = 90;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export default function MaintenancePage() {
-  const { isAdmin } = useRbac();
+  const scheduleAction = useAdminAction();
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
@@ -162,10 +162,12 @@ export default function MaintenancePage() {
               Track device maintenance schedules, health status, and upcoming service needs.
             </p>
           </div>
-          {isAdmin && (
+          {scheduleAction.visible && (
             <Button
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
               onClick={() => setIsScheduleModalOpen(true)}
+              disabled={scheduleAction.disabled}
+              title={scheduleAction.tooltip}
             >
               <Plus className="h-4 w-4 mr-2" />
               Schedule Service

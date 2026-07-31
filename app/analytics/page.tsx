@@ -7,12 +7,12 @@ import GenerateReportModal from '@/components/GenerateReportModal';
 import { Select } from '@/components/ui/select';
 import { BarChart3, FileText } from 'lucide-react';
 import { useMetadata } from '@/lib/query/hooks';
-import { useRbac } from '@/lib/auth/rbac-client';
+import { useAdminAction } from '@/lib/auth/rbac-client';
 
 export default function AnalyticsPage() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const { isAdmin } = useRbac();
+  const reportAction = useAdminAction();
 
   // Fetch metadata with React Query
   const { data: metadata } = useMetadata();
@@ -45,10 +45,12 @@ export default function AnalyticsPage() {
           {/* Actions */}
           <div className="flex items-center gap-3">
             {/* Generate Report button (admin only) */}
-            {isAdmin && (
+            {reportAction.visible && (
               <button
                 onClick={() => setReportModalOpen(true)}
-                className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors"
+                disabled={reportAction.disabled}
+                title={reportAction.tooltip}
+                className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-cyan-500"
               >
                 <FileText className="h-4 w-4" />
                 Generate Report

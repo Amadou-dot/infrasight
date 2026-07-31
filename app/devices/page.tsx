@@ -22,7 +22,7 @@ import { toast } from 'react-toastify';
 import { useDevicesList } from '@/lib/query/hooks';
 import { queryKeys } from '@/lib/query/queryClient';
 import { v2Api } from '@/lib/api/v2-client';
-import { useRbac } from '@/lib/auth/rbac-client';
+import { useAdminAction, useRbac } from '@/lib/auth/rbac-client';
 
 import {
   DeviceStatusCards,
@@ -58,6 +58,7 @@ export default function DevicesPage() {
   const [deviceToDelete, setDeviceToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { isAdmin } = useRbac();
+  const createDeviceAction = useAdminAction();
 
   // Fetch all devices with React Query (cached, shared across components)
   const { data: devices = [], isLoading, error: fetchError } = useDevicesList();
@@ -270,10 +271,12 @@ export default function DevicesPage() {
               Manage connected IoT endpoints across all zones.
             </p>
           </div>
-          {isAdmin && (
+          {createDeviceAction.visible && (
             <Button
               className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white'
               onClick={() => setCreateModalOpen(true)}
+              disabled={createDeviceAction.disabled}
+              title={createDeviceAction.tooltip}
             >
               <Plus className='h-4 w-4 mr-2' />
               Add Device

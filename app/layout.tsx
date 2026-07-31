@@ -5,6 +5,7 @@ import './globals.css';
 import { ClerkThemeProvider } from '@/components/clerk-theme-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import TopNav from '@/components/TopNav';
+import DemoBanner from '@/components/DemoBanner';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from '@/lib/query/queryClient';
@@ -46,6 +47,7 @@ export default function RootLayout({
           >
             <ClerkThemeProvider>
               <PusherProvider>
+                <DemoBanner />
                 <TopNav />
                 <main className="min-h-screen">{children}</main>
                 <ToastContainer
