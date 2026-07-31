@@ -163,7 +163,11 @@ function generateValueForType(
       break;
 
     case 'power':
-      value = isAnomaly ? 8000 + Math.random() * 7000 : 100 + Math.random() * 4900 + normalJitter * 150;
+      // Jitter is worth up to ±200W here, so the normal band is floored at its documented
+      // minimum rather than allowed to drift below it (and, at the extreme, negative).
+      value = isAnomaly
+        ? 8000 + Math.random() * 7000
+        : Math.max(100, 100 + Math.random() * 4900 + normalJitter * 150);
       unit = 'watts';
       break;
 

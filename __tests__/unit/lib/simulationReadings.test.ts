@@ -1,5 +1,6 @@
 import {
   calculateAnomalyProbability,
+  generateSimulatedReadings,
   type SimulatedDevice,
   type SimulationProfile,
 } from '@/lib/simulation/readings';
@@ -46,5 +47,28 @@ describe('calculateAnomalyProbability', () => {
     expect(calculateAnomalyProbability(powerDevice, profile)).toBeGreaterThan(
       calculateAnomalyProbability(motionDevice, profile)
     );
+  });
+});
+
+describe('generateSimulatedReadings', () => {
+  it('keeps normal power readings inside the documented band', () => {
+    // Jitter used to be applied on top of the 100W floor, so a small enough base draw
+    // combined with negative jitter produced sub-100W — occasionally negative — watts.
+    // Enough samples that the old behaviour would fail this essentially every run.
+    const devices: SimulatedDevice[] = Array.from({ length: 500 }, (_, i) => ({
+      _id: `device_power_${i}`,
+      type: 'power',
+      location: { building_id: 'b1', floor: 1, room_name: '101' },
+    }));
+
+    const values: number[] = [];
+    for (let run = 0; run < 4; run++)
+      generateSimulatedReadings(devices).forEach(reading => values.push(reading.value as number));
+
+    expect(values).toHaveLength(2000);
+    values.forEach(value => {
+      expect(value).toBeGreaterThanOrEqual(100);
+      expect(value).toBeLessThanOrEqual(15000);
+    });
   });
 });
