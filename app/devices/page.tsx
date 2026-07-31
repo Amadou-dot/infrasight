@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { Monitor, Plus, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ import {
   DeviceSearchBar,
   DeviceFilterModal,
   INITIAL_FILTERS,
+  useDeviceFilterParams,
   type DeviceFilters,
 } from './_components';
 
@@ -43,7 +44,7 @@ const DEVICES_PER_PAGE = 16;
 // COMPONENT
 // ============================================================================
 
-export default function DevicesPage() {
+function DevicesPageContent() {
   const queryClient = useQueryClient();
 
   // Device selection state
@@ -68,17 +69,21 @@ export default function DevicesPage() {
       : 'Failed to load devices'
     : null;
 
-  // Search and floor filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
+  // Search, floor, filters and page all live in the URL so a filtered view is shareable
+  const {
+    searchInput,
+    setSearchInput,
+    floor: selectedFloor,
+    setFloor: setSelectedFloor,
+    filters,
+    setFilters,
+    page,
+    setPage,
+  } = useDeviceFilterParams();
 
-  // Filter modal state
+  // Filter modal state (the modal edits a draft until Apply commits it to the URL)
   const [filterModalOpen, setFilterModalOpen] = useState(false);
-  const [filters, setFilters] = useState<DeviceFilters>(INITIAL_FILTERS);
   const [pendingFilters, setPendingFilters] = useState<DeviceFilters>(INITIAL_FILTERS);
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
 
   // ============================================================================
   // COMPUTED VALUES
@@ -113,8 +118,8 @@ export default function DevicesPage() {
     if (selectedFloor !== 'all')
       filtered = filtered.filter(d => d.location.floor === selectedFloor);
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (searchInput.trim()) {
+      const query = searchInput.toLowerCase();
       filtered = filtered.filter(
         d =>
           d._id.toLowerCase().includes(query) ||
@@ -136,20 +141,16 @@ export default function DevicesPage() {
       filtered = filtered.filter(d => filters.department.includes(d.metadata?.department || ''));
 
     return filtered;
-  }, [devices, selectedFloor, searchQuery, filters]);
+  }, [devices, selectedFloor, searchInput, filters]);
 
-  // Pagination calculations
+  // Pagination calculations. Filter changes reset the page in the URL, but a pasted link
+  // can still point past the end of a narrower result set, so clamp on render.
   const totalPages = Math.ceil(filteredDevices.length / DEVICES_PER_PAGE);
+  const currentPage = Math.min(page, Math.max(totalPages, 1));
   const paginatedDevices = useMemo(() => {
     const startIndex = (currentPage - 1) * DEVICES_PER_PAGE;
     return filteredDevices.slice(startIndex, startIndex + DEVICES_PER_PAGE);
   }, [filteredDevices, currentPage]);
-
-  // Reset to page 1 when filters change - intentional state reset on filter change
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset pagination when filters change
-    setCurrentPage(1);
-  }, [selectedFloor, searchQuery, filters]);
 
   // Calculate status counts
   const statusCounts = useMemo(() => {
@@ -290,8 +291,8 @@ export default function DevicesPage() {
 
       {/* Search & Filters */}
       <DeviceSearchBar
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
         selectedFloor={selectedFloor}
         onFloorChange={setSelectedFloor}
         floors={floors}
@@ -347,7 +348,7 @@ export default function DevicesPage() {
           totalPages={totalPages}
           totalItems={filteredDevices.length}
           itemsPerPage={DEVICES_PER_PAGE}
-          onPageChange={setCurrentPage}
+          onPageChange={setPage}
           className="mt-6"
         />
       )}
@@ -425,5 +426,20 @@ export default function DevicesPage() {
         </AlertDialog>
       )}
     </div>
+  );
+}
+
+export default function DevicesPage() {
+  // The filter state is read from the URL, which requires a Suspense boundary.
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+          <DeviceCardSkeleton count={8} />
+        </div>
+      }
+    >
+      <DevicesPageContent />
+    </Suspense>
   );
 }
