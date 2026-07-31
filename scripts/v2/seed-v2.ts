@@ -12,6 +12,7 @@
 import mongoose from 'mongoose';
 import DeviceV2 from '../../models/v2/DeviceV2';
 import ReadingV2 from '../../models/v2/ReadingV2';
+import { assertSafeToWipe, describeTarget } from './db-guard';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -27,8 +28,26 @@ const mongoUri: string = MONGODB_URI;
 // Configuration
 // ============================================================================
 
-const NUM_DEVICES = 500;
-const READINGS_PER_DEVICE = 25;
+/** Read a positive integer from the environment, falling back to a default. */
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    console.error(`❌ ${name} must be a positive integer, got "${raw}"`);
+    process.exit(1);
+  }
+
+  return parsed;
+}
+
+const FORCE = process.argv.includes('--force');
+const NUM_DEVICES = envInt('NUM_DEVICES', 500);
+const READINGS_PER_DEVICE = envInt('READINGS_PER_DEVICE', 25);
+
+/** Spacing between generated readings, matching the one-hour steps used below. */
+const READING_INTERVAL_MS = 60 * 60 * 1000;
 
 // ============================================================================
 // Data Generators
@@ -293,14 +312,24 @@ function generateReading(deviceId: string, type: string, timestamp: Date): unkno
 async function seed(): Promise<void> {
   console.log('🌱 Starting V2 Database Seed\n');
 
+  // Refuse to destroy a non-local database unless explicitly forced. pnpm seed loads
+  // .env.local, which points at the hosted cluster serving the live demo.
+  try {
+    assertSafeToWipe(mongoUri, { force: FORCE });
+  } catch (error) {
+    console.error(`❌ ${(error as Error).message}`);
+    process.exit(1);
+  }
+
   try {
     // Connect to MongoDB
-    console.log('📡 Connecting to MongoDB...');
+    console.log(`📡 Connecting to MongoDB (${describeTarget(mongoUri)})...`);
     await mongoose.connect(mongoUri);
     console.log('✅ Connected to MongoDB\n');
 
-    // Clear existing V2 data (optional - comment out to append)
+    // Clear existing V2 data
     console.log('🧹 Clearing existing V2 data...');
+    if (FORCE) console.log('   ⚠️  --force: wiping a non-local database');
     await DeviceV2.deleteMany({});
     await ReadingV2.deleteMany({});
     console.log('✅ Cleared existing data\n');
@@ -322,9 +351,9 @@ async function seed(): Promise<void> {
       const deviceDoc = device as { _id: string; type: string };
       const readings = [];
 
-      // Generate readings over the past 7 days
+      // Readings step backwards from now, one hour apart
       for (let i = 0; i < READINGS_PER_DEVICE; i++) {
-        const timestamp = new Date(now - i * 60 * 60 * 1000); // 1 hour apart
+        const timestamp = new Date(now - i * READING_INTERVAL_MS);
         readings.push(generateReading(deviceDoc._id, deviceDoc.type, timestamp));
       }
 
@@ -343,7 +372,7 @@ async function seed(): Promise<void> {
     console.log(`  Readings: ${totalReadings}`);
     console.log(`  Readings per device: ${READINGS_PER_DEVICE}`);
     console.log(`  Device types: ${deviceTypes.length}`);
-    console.log(`  Time range: 7 days`);
+    console.log(`  Time range: ${READINGS_PER_DEVICE} hours (1 reading/hour)`);
     console.log('='.repeat(50));
 
     console.log('\n✅ Seed completed successfully!');
