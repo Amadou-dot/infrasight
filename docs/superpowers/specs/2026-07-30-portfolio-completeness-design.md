@@ -161,11 +161,32 @@ Compute the four stat-card deltas as period-over-period comparisons from real da
 a real comparison is not available, remove the trend indicator rather than invent one. A
 stat card with no arrow is honest; one with a frozen arrow is not.
 
-### 2.3 Confirm live data is flowing
+### 2.3 Raise simulate cron frequency
 
-The dashboard headline is "real-time". Verify the external scheduler is successfully
-hitting `/api/v2/cron/simulate` against production and that readings are landing within
-the last few minutes. A real-time dashboard showing static data is worse than no demo.
+The scheduler is confirmed running via n8n, but it refreshes **once daily**. The project
+headline is "Real-Time IoT Building Monitoring" and the README leads with live Pusher
+updates, yet a visitor spending two minutes on the site observes zero updates. The Pusher
+integration is invisible during every visit, and latest-reading timestamps can be hours
+stale.
+
+`generateSimulatedReadings()` emits one reading per active device per invocation, so each
+run produces roughly 500 readings against the seeded set:
+
+| Interval | Readings/day | Docs retained at 90-day TTL |
+| --- | --- | --- |
+| Daily (current) | 500 | 45K |
+| Every 5 min | 144K | ~13M |
+| Every 2 min | 360K | ~32M |
+| Every 1 min | 720K | ~65M |
+
+Frequency alone is too expensive at the current retention window, so this is a joint
+decision about interval *and* TTL. Every two minutes at a 7-day TTL retains ~2.5M
+documents and still demonstrates the TTL mechanism. Note that `expireAfterSeconds` is one
+of the few timeseries settings that can be changed in place via `collMod`, unlike
+`timeField` or `metaField`.
+
+Alternatives if storage is constrained: run at high frequency during a daily window only,
+or rotate a subset of devices per invocation rather than all of them.
 
 ## Phase 3 — Make it feel like a tool
 
