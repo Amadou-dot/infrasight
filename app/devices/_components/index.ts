@@ -9,3 +9,5 @@ export {
   DEVICE_TYPES,
 } from './DeviceFilterModal';
 export type { DeviceFilters, FilterOptions } from './DeviceFilterModal';
+export { useDeviceFilterParams, SEARCH_DEBOUNCE_MS } from './useDeviceFilterParams';
+export type { DeviceFilterParams } from './useDeviceFilterParams';

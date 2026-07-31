@@ -298,7 +298,6 @@ lib/
     hooks/                         # API hooks (useDevicesList, useSchedulesList, etc.)
     queryClient.ts                 # Query client configuration
     types.ts                       # React Query type definitions
-  deprecated/                      # Archived migration utilities
   cache/                           # Redis caching with invalidation
   monitoring/                      # Sentry, Prometheus metrics, logging, tracing
   ratelimit/                       # Rate limiting config and middleware
@@ -314,12 +313,14 @@ app/
   settings/page.tsx                # User settings (theme, profile, sign-out)
   analytics/page.tsx               # Analytics dashboard
   devices/page.tsx                 # Device list view (+ Add Device modal for admins)
+  devices/[id]/page.tsx            # Canonical, shareable device detail page
   devices/deleted/page.tsx         # Deleted devices (admin only)
   devices/_components/             # Colocated device page components
     DeviceCardSkeleton.tsx         # Loading skeleton for device cards
     DeviceFilterModal.tsx          # Device filter modal
     DeviceSearchBar.tsx            # Device search bar
     DeviceStatusCards.tsx          # Device status summary cards
+    useDeviceFilterParams.ts       # Device list filter state, synced to the URL
   floor-plan/page.tsx              # Floor plan visualization
   maintenance/page.tsx             # Maintenance dashboard (+ scheduling)
   unauthorized/page.tsx            # Unauthorized org membership page
@@ -345,12 +346,13 @@ components/                        # React components (all use 'use client')
     StatCard.tsx                   # Stat card component
     SystemHealthWidget.tsx         # System health widget
   devices/CreateDeviceModal.tsx    # Device creation form (admin only)
+  devices/DeviceDetailView.tsx     # Shared device detail presentation (modal + page)
+  devices/useDeviceDetail.ts       # Shared device detail data loading
   devices/TagInput.tsx             # Tag input component for device metadata
-  AlertsPanel.tsx                  # Alerts panel
+  AlertsPanel.tsx                  # Anomaly alerts list (analytics page)
   AnomalyChart.tsx                 # Anomaly chart component
   AuditLogViewer.tsx               # Audit log viewer
-  CriticalDevicesList.tsx          # Critical devices list
-  DeviceDetailModal.tsx            # Device detail modal
+  DeviceDetailModal.tsx            # Device detail modal (wraps DeviceDetailView)
   DeviceGrid.tsx                   # Device grid view
   DeviceHealthWidget.tsx           # Device health widget
   DeviceInventoryCard.tsx          # Device inventory card
