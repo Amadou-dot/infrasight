@@ -34,7 +34,6 @@
     "scripts/v1 (deprecated)",
     "app/api/_v1-deprecated",
     "models/v1 (deprecated)",
-    "lib/deprecated",
     "components/_deprecated"
   ]
 }
