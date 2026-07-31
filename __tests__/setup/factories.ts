@@ -29,7 +29,7 @@ import type {
  */
 let deviceCounter = 0;
 let _readingCounter = 0;
-const _readingV2Counter = 0;
+let readingV2Counter = 0;
 
 /**
  * Reset counters (for test isolation)
