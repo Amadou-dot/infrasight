@@ -279,6 +279,8 @@ export interface EnergyAnalyticsQuery {
   include_invalid?: boolean;
   groupBy?: 'device' | 'floor' | 'room' | 'type' | 'department' | 'building';
   group_by?: 'device' | 'floor' | 'room' | 'type' | 'department' | 'building';
+  /** Request a period-over-period comparison; populates `comparison` in the response. */
+  compare_with?: 'previous_period' | 'same_period_last_week' | 'same_period_last_month';
 }
 
 export interface EnergyAnalyticsResult {

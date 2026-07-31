@@ -9,11 +9,20 @@ import {
   StatCard,
   SystemHealthWidget,
 } from '@/components/dashboard';
-import { useHealthAnalytics, useMaintenanceForecast, useAnomalies } from '@/lib/query/hooks';
+import {
+  useHealthAnalytics,
+  useMaintenanceForecast,
+  useAnomalies,
+  useEnergyAnalytics,
+} from '@/lib/query/hooks';
 import { AlertTriangle, FileText, Gauge, Monitor, Zap } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useAdminAction } from '@/lib/auth/rbac-client';
+import { formatEnergy } from '@/lib/utils/format-energy';
+
+/** Window used for the energy total and its period-over-period comparison. */
+const ENERGY_WINDOW_HOURS = 24;
 
 export default function Home() {
   // User info from Clerk
@@ -24,6 +33,22 @@ export default function Home() {
   const { data: health, isLoading } = useHealthAnalytics();
   const { data: forecast } = useMaintenanceForecast({ days_ahead: 7 });
   const { data: _anomalies } = useAnomalies({ limit: 100 });
+
+  // Recomputed only when the window rolls over, so the query key stays stable across
+  // renders instead of refetching on every tick.
+  const energyRange = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end.getTime() - ENERGY_WINDOW_HOURS * 60 * 60 * 1000);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }, []);
+
+  const { data: energy, isLoading: energyLoading } = useEnergyAnalytics({
+    ...energyRange,
+    type: 'energy',
+    aggregation: 'sum',
+    granularity: 'hour',
+    compare_with: 'previous_period',
+  });
 
   // Modal state
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -39,15 +64,22 @@ export default function Home() {
     (forecast?.summary?.maintenance_overdue?.length ?? 0);
   const healthScore = health?.summary?.health_score ?? 0;
 
-  // Calculate energy usage (mock for now since we don't have real aggregated energy data)
-  // In a real scenario, this would come from an energy analytics endpoint
-  const energyUsage = '4.2 MWh';
+  // Energy consumed over the window, summed from real readings.
+  const energySummary = energy?.comparison?.summary;
+  const energyUsage = energySummary ? formatEnergy(energySummary.current_total) : '—';
 
-  // Calculate trends (mock - would need historical data for real trends)
-  const devicesTrend = { value: 12, isPositive: true };
-  const alertsTrend = { value: 2, isPositive: false };
-  const efficiencyTrend = { value: 1, isPositive: false };
-  const energyTrend = { value: 5, isPositive: false };
+  // Only energy has a historical series to compare against. Device counts, alert counts,
+  // and the health score are all computed from current state with nothing stored to
+  // compare to, so those cards show no trend rather than an invented one.
+  const percentageChange = energySummary?.percentage_change;
+  const energyTrend =
+    typeof percentageChange === 'number' && energySummary?.trend !== 'no_data'
+      ? {
+          value: Number(percentageChange.toFixed(1)),
+          // Consumption rising is bad news; the arrow still follows the real direction.
+          isPositive: percentageChange < 0,
+        }
+      : undefined;
 
   const handleDeviceClick = (deviceId: string) => {
     setSelectedDeviceId(deviceId);
@@ -109,7 +141,6 @@ export default function Home() {
           icon={Monitor}
           iconColor="text-cyan-400"
           iconBgColor="bg-cyan-500/20"
-          trend={devicesTrend}
         />
         <StatCard
           title="Active Alerts"
@@ -117,7 +148,6 @@ export default function Home() {
           icon={AlertTriangle}
           iconColor="text-red-400"
           iconBgColor="bg-red-500/20"
-          trend={alertsTrend}
         />
         <StatCard
           title="Efficiency Score"
@@ -125,11 +155,10 @@ export default function Home() {
           icon={Gauge}
           iconColor="text-green-400"
           iconBgColor="bg-green-500/20"
-          trend={efficiencyTrend}
         />
         <StatCard
           title="Energy Usage"
-          value={energyUsage}
+          value={energyLoading ? '—' : energyUsage}
           icon={Zap}
           iconColor="text-yellow-400"
           iconBgColor="bg-yellow-500/20"

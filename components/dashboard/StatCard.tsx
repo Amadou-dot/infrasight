@@ -10,7 +10,9 @@ interface StatCardProps {
   iconColor: string;
   iconBgColor: string;
   trend?: {
+    /** Signed percentage change. Its sign determines the arrow direction. */
     value: number;
+    /** Whether the change is good news. Determines colour, independently of direction. */
     isPositive: boolean;
   };
   onClick?: () => void;
@@ -52,9 +54,9 @@ export default function StatCard({
             trend.isPositive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
           )}
         >
-          <span>{trend.isPositive ? '↗' : '↘'}</span>
+          <span>{trend.value >= 0 ? '↗' : '↘'}</span>
           <span>
-            {trend.isPositive ? '+' : ''}
+            {trend.value > 0 ? '+' : ''}
             {trend.value}%
           </span>
         </div>

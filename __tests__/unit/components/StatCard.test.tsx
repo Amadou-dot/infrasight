@@ -50,6 +50,28 @@ describe('StatCard', () => {
     expect(screen.getByText('-5%')).toBeInTheDocument();
   });
 
+  // Direction and sentiment are independent: energy consumption rising is an increase
+  // (up arrow) but not a good thing (red). Conflating the two made the arrow lie.
+  it('points the arrow up for a rise that is bad news', () => {
+    const { container } = render(
+      <StatCard {...defaultProps} trend={{ value: 11.3, isPositive: false }} />
+    );
+
+    expect(screen.getByText('+11.3%')).toBeInTheDocument();
+    expect(screen.getByText('↗')).toBeInTheDocument();
+    expect(container.querySelector('.bg-red-500\\/10')).toBeInTheDocument();
+  });
+
+  it('points the arrow down for a fall that is good news', () => {
+    const { container } = render(
+      <StatCard {...defaultProps} trend={{ value: -8.4, isPositive: true }} />
+    );
+
+    expect(screen.getByText('-8.4%')).toBeInTheDocument();
+    expect(screen.getByText('↘')).toBeInTheDocument();
+    expect(container.querySelector('.bg-green-500\\/10')).toBeInTheDocument();
+  });
+
   it('calls onClick when clicked', () => {
     const onClick = jest.fn();
     render(<StatCard {...defaultProps} onClick={onClick} />);
