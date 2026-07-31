@@ -95,8 +95,7 @@ export function formatDate(date: string | Date | undefined) {
 }
 
 function formatReadingsForChart(recentReadings: ReadingV2Response[]) {
-  if (!recentReadings || recentReadings.length === 0) return [];
-
+  // Callers render an empty state instead of an empty chart, so there is no length guard here.
   return recentReadings
     .map((reading: ReadingV2Response) => ({
       time: new Date(reading.timestamp).toLocaleTimeString('en-US', {
