@@ -13,12 +13,12 @@ import { useHealthAnalytics, useMaintenanceForecast, useAnomalies } from '@/lib/
 import { AlertTriangle, FileText, Gauge, Monitor, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { useRbac } from '@/lib/auth/rbac-client';
+import { useAdminAction } from '@/lib/auth/rbac-client';
 
 export default function Home() {
   // User info from Clerk
   const { user } = useUser();
-  const { isAdmin } = useRbac();
+  const reportAction = useAdminAction();
 
   // Data fetching with React Query (automatic caching, deduplication)
   const { data: health, isLoading } = useHealthAnalytics();
@@ -86,10 +86,12 @@ export default function Home() {
           {/* Actions */}
           <div className="flex items-center justify-end gap-3">
             {/* Generate Report button */}
-            {isAdmin && (
+            {reportAction.visible && (
               <button
                 onClick={() => setReportModalOpen(true)}
-                className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors"
+                disabled={reportAction.disabled}
+                title={reportAction.tooltip}
+                className="flex gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-cyan-500"
               >
                 <FileText className="h-4 w-4" />
                 Generate Report
