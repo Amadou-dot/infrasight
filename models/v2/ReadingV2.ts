@@ -287,8 +287,8 @@ const ReadingV2Schema = new Schema<IReadingV2>(
       metaField: 'metadata',
       granularity: 'seconds',
     },
-    // TTL: 90 days (7,776,000 seconds)
-    expireAfterSeconds: 7776000,
+    // TTL: 7 days (604,800 seconds)
+    expireAfterSeconds: 604800,
   }
 );
 
@@ -428,7 +428,7 @@ export interface IReadingV2Model extends Model<IReadingV2> {
 /**
  * ReadingV2 Model
  * Collection: readings_v2 (MongoDB Timeseries)
- * TTL: 90 days
+ * TTL: 7 days
  */
 const ReadingV2: IReadingV2Model =
   (mongoose.models.ReadingV2 as IReadingV2Model) ||

@@ -35,7 +35,7 @@ Infrasight V2 uses MongoDB with Mongoose ODM for data persistence. The system co
 | Collection    | Model     | Type       | Purpose                           |
 | ------------- | --------- | ---------- | --------------------------------- |
 | `devices_v2`  | DeviceV2  | Standard   | Device registry with audit trails |
-| `readings_v2` | ReadingV2 | Timeseries | Sensor readings with 90-day TTL   |
+| `readings_v2` | ReadingV2 | Timeseries | Sensor readings with 7-day TTL    |
 
 ### Key Characteristics
 
@@ -43,7 +43,7 @@ Infrasight V2 uses MongoDB with Mongoose ODM for data persistence. The system co
 - **Soft Deletes**: Devices support soft deletion via `audit.deleted_at`
 - **Timeseries Collections**: Readings use MongoDB's native timeseries collection feature
 - **Audit Trails**: Complete change tracking on devices
-- **90-Day TTL**: Readings automatically expire after 90 days
+- **7-Day TTL**: Readings automatically expire after 7 days
 
 ---
 
@@ -336,7 +336,7 @@ DeviceV2Schema.pre('findOneAndUpdate', function () {
     metaField: 'metadata',       // Required: Bucketing key
     granularity: 'seconds'       // Optimization hint
   },
-  expireAfterSeconds: 7776000    // 90-day TTL
+  expireAfterSeconds: 604800     // 7-day TTL
 }
 ```
 

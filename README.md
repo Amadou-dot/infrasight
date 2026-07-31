@@ -39,7 +39,7 @@
 
 ### V2 Enhancements
 
-- **90-Day Data Retention**: Automatic TTL-based cleanup of historical readings
+- **7-Day Data Retention**: Automatic TTL-based cleanup of historical readings
 - **Comprehensive Audit Trails**: Complete change history for all devices
 - **Device Health Scoring**: Calculated health metrics with predictive indicators
 - **Predictive Maintenance**: Forecasting for maintenance scheduling

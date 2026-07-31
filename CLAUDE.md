@@ -10,7 +10,7 @@
 
 The migration from v1 to v2 is **complete**. All code now uses v2 exclusively:
 
-- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance, 90-day TTL), `schedules_v2` (maintenance scheduling)
+- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance, 7-day TTL), `schedules_v2` (maintenance scheduling)
 - **V2 API**: All endpoints under `/api/v2/`
 - **V1 Deprecated**: All v1 files moved to `_deprecated` folders and excluded from TypeScript compilation
 
@@ -23,7 +23,7 @@ Readings use MongoDB timeseries with **critical constraints**:
 - `timeField: 'timestamp'`, `metaField: 'metadata'`, `granularity: 'seconds'`
 - `metadata` field is the bucketing key—keep **LOW CARDINALITY** (device_id, type, unit, source only)
 - Cannot modify schema fields after creation without recreating collection
-- TTL: 90 days (`expireAfterSeconds`)
+- TTL: 7 days (`expireAfterSeconds`)
 - **15 Device/Reading Types**: temperature, humidity, occupancy, power, co2, pressure, light, motion, air_quality, water_flow, gas, vibration, voltage, current, energy
 - **35 Reading Units**: Comprehensive unit support (celsius, fahrenheit, kelvin, percent, ppm, watts, volts, lux, etc.)
 
@@ -280,7 +280,7 @@ The v2 API provides 25 comprehensive endpoints organized into 8 categories:
 
 ```
 models/
-  v2/DeviceV2.ts, ReadingV2.ts    # Production models (90-day TTL, audit trails)
+  v2/DeviceV2.ts, ReadingV2.ts    # Production models (7-day TTL, audit trails)
   v2/ScheduleV2.ts                # Maintenance scheduling model (status machine, audit trails)
   v1 (deprecated)/                 # Archived v1 models (excluded from compilation)
 lib/

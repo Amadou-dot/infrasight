@@ -612,7 +612,7 @@ pnpm create-indexes-v2
 
 #### TTL Cleanup (Automatic)
 
-Readings collection has automatic TTL cleanup (90 days). No manual action required.
+Readings collection has automatic TTL cleanup (7 days). No manual action required.
 
 #### Index Rebuild (Monthly)
 
