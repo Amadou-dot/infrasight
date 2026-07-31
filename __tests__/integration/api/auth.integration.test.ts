@@ -466,15 +466,16 @@ describe('Authentication Integration Tests', () => {
     });
 
     describe('GET /api/v2/audit', () => {
-      it('should return 403 when member', async () => {
+      // Audit trails are read-only and carry no secrets, so members — including
+      // read-only demo visitors — are allowed to read them.
+      it('should allow member', async () => {
         mockAuthenticated(testUserId, testEmail, 'org:member');
         const request = createMockGetRequest('/api/v2/audit');
         const response = await getAudit(request);
-        const data = await parseResponse<{ success: boolean; error: { code: string } }>(response);
+        const data = await parseResponse<{ success: boolean }>(response);
 
-        expect(response.status).toBe(403);
-        expect(data.success).toBe(false);
-        expect(data.error.code).toBe('FORBIDDEN');
+        expect(response.status).toBe(200);
+        expect(data.success).toBe(true);
       });
 
       it('should allow admin', async () => {
