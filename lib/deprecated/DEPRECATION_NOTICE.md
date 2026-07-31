@@ -30,7 +30,7 @@ The migration from v1 to v2 has been completed:
 | `devices` (v1) | Deprecated - read-only archive |
 | `readings` (v1) | Deprecated - will TTL expire (7-day) |
 | `devices_v2` | Active - production |
-| `readings_v2` | Active - production (90-day TTL) |
+| `readings_v2` | Active - production (7-day TTL) |
 
 ## Do Not
 

@@ -1441,7 +1441,7 @@ Rate limit headers:
 
 - Complete API rewrite with Zod validation
 - MongoDB timeseries collections for readings
-- 90-day TTL on readings
+- 7-day TTL on readings
 - Comprehensive audit trails
 - Device health metrics
 - Predictive maintenance analytics
