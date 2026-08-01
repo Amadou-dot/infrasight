@@ -33,6 +33,14 @@ Every task's requirements implicitly include this section.
 - **Alerts are never cached.** Deliberate departure from the other v2 read endpoints.
 - **Alerting is not a backfill engine.** A batch is reduced to one aggregate decision per (rule, device) pair; a breach→clear→breach batch yields one episode.
 - **Tests:** `pnpm test <path>` runs Jest. Node tests match `**/__tests__/**/*.test.ts`; component tests match `**/__tests__/**/*.test.tsx` (jsdom project). Clerk is globally mocked as `org:admin` in `__tests__/setup/jest.setup.ts`; override per-test with helpers from `__tests__/setup/auth-helpers.ts`.
+- **`npx tsc --noEmit` is NOT clean on this repo and never has been.** The branch starts with **39 pre-existing errors**, all inside `__tests__/` (`TS2352`/`TS2353` factory-cast noise, `TS2540` read-only `process.env` assignments, `TS18046` unknown-typed catches). Production code is clean; `pnpm test` passes because ts-jest runs with `isolatedModules: true` and does not typecheck. **The gate is "no NEW errors", never "no errors".** Compare against the recorded baseline:
+
+  **Wherever this plan says "run `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`", that is the gate.** The script runs `tsc`, diffs the result against the recorded baseline, and exits non-zero only on errors you introduced — printing exactly which ones. Never substitute a bare `npx tsc --noEmit` and never treat its non-zero exit as your failure.
+
+  **Fixing the 39 baseline errors is out of scope for this plan.** Note that Tasks 1 and 2 modify `__tests__/setup/factories.ts`, which is itself one of the baseline-error files; adding to it is fine as long as `tscheck` stays green.
+- **`pnpm lint` is NOT clean either.** The branch starts with **311 reported problems (308 errors)** — mostly `@typescript-eslint/no-require-imports` (145) and `curly` (116) in existing files. Same rule: the gate is **`./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck`**, which diffs `file|rule` pairs against the recorded baseline and fails only on additions. Never substitute a bare `pnpm lint`. Fixing baseline lint problems is out of scope.
+- **`pnpm build` IS clean at baseline** — a build failure is genuinely yours.
+- **`pnpm test` IS green at baseline: 85 suites, 2173 tests.** A failing pre-existing test is genuinely yours.
 - **Commit style:** conventional commits (`feat:`, `test:`, `fix:`, `refactor:`, `docs:`). Commit at the end of every task, never mid-task.
 
 ## File Structure
@@ -519,8 +527,8 @@ Then register it inside `createIndexes()` alongside the existing collections, fo
 
 - [ ] **Step 6: Verify the scripts still typecheck**
 
-Run: `pnpm lint && npx tsc --noEmit`
-Expected: no errors introduced by the new files.
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`
+Expected: lint clean; tscheck OK (no NEW type errors — the repo carries 39 pre-existing ones).
 
 - [ ] **Step 7: Commit**
 
@@ -1207,8 +1215,8 @@ const ALERT_V2_INDEXES: IndexDefinition[] = [
 
 - [ ] **Step 8: Verify everything typechecks and the suite is green**
 
-Run: `npx tsc --noEmit && pnpm test __tests__/unit/models`
-Expected: no type errors; all model tests pass.
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test __tests__/unit/models`
+Expected: tscheck OK (no NEW type errors); all model tests pass.
 
 - [ ] **Step 9: Commit**
 
@@ -2072,8 +2080,8 @@ export type {
 
 - [ ] **Step 10: Verify the whole validation suite and typecheck**
 
-Run: `npx tsc --noEmit && pnpm test __tests__/unit/validations`
-Expected: no type errors; all validation tests pass.
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test __tests__/unit/validations`
+Expected: tscheck OK (no NEW type errors); all validation tests pass.
 
 - [ ] **Step 11: Commit**
 
@@ -4274,7 +4282,7 @@ Expected: PASS.
 
 - [ ] **Step 6: Verify no regression across the whole suite**
 
-Run: `npx tsc --noEmit && pnpm test`
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test`
 Expected: full suite green. Coverage thresholds (`branches 55, functions 55, lines 75, statements 75`) must still hold — if `pnpm test:coverage` drops below them, the alerting modules need the missing branches covered before moving on.
 
 - [ ] **Step 7: Commit**
@@ -5553,7 +5561,7 @@ Expected: PASS, 16 tests.
 
 - [ ] **Step 6: Confirm the v2 surface is now 33 endpoints**
 
-Run: `pnpm test __tests__/integration/api && npx tsc --noEmit`
+Run: `pnpm test __tests__/integration/api && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`
 Expected: all integration suites green. The v2 API has gone from 25 endpoints to 33.
 
 - [ ] **Step 7: Commit**
@@ -6555,14 +6563,19 @@ Add the two memoized registration functions and include them in the provider val
 /**
  * Hook for components that need to react to real-time alert envelopes.
  *
- * Follows the exact shape of usePusherReadings: the callback is held in a ref so
- * a caller that does not memoize will not cause a re-subscribe on every render.
+ * The callback is held in a ref so a caller that does not memoize will not cause
+ * a re-subscribe on every render. The ref is refreshed in a commit-phase effect
+ * rather than assigned during render: assigning during render violates
+ * react-hooks/refs, and Pusher handlers only ever read the ref asynchronously,
+ * long after commit.
  */
 export function usePusherAlerts(callback: AlertsCallback): void {
   const ctx = useContext(PusherContext);
 
   const callbackRef = useRef<AlertsCallback>(callback);
-  callbackRef.current = callback;
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   useEffect(() => {
     if (!ctx) {
@@ -6585,6 +6598,17 @@ export function usePusherAlerts(callback: AlertsCallback): void {
 ```
 
 Also export the `AlertsCallback` type.
+
+**Apply the same change to the existing `usePusherReadings`** so the two sibling hooks in this file stay identical, replacing its bare `callbackRef.current = callback;` with the same commit-phase effect:
+
+```typescript
+  const callbackRef = useRef<ReadingsCallback>(callback);
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
+```
+
+This is a deliberate, human-approved deviation from "follow the existing shape verbatim": the existing shape is one of the 311 baseline lint problems (`lib/pusher-context.tsx | react-hooks/refs`), so copying it would introduce a *second* instance and fail `lintcheck`. Fixing both removes the violation instead of duplicating it, and `lintcheck` should report **310** problems afterwards rather than 311. The existing `__tests__/unit/lib/*` suites covering `usePusherReadings` must stay green — run them in Step 4.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -6670,7 +6694,7 @@ Render `<AlertToaster />` once, inside the same provider tree that already hosts
 
 - [ ] **Step 7: Verify the app builds**
 
-Run: `npx tsc --noEmit && pnpm build`
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm build`
 Expected: clean build. A failure mentioning `mongoose` inside a client component means `types/v2/alert.types.ts` picked up a server-only import — it must stay dependency-free.
 
 - [ ] **Step 8: Commit**
@@ -7085,7 +7109,7 @@ Filters are synced to the URL so `/alerts?status=resolved` is a shareable link: 
 
 - [ ] **Step 7: Verify build and tests**
 
-Run: `npx tsc --noEmit && pnpm test __tests__/unit/components && pnpm build`
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test __tests__/unit/components && pnpm build`
 Expected: clean.
 
 - [ ] **Step 8: Commit**
@@ -7367,8 +7391,8 @@ Two things to confirm against the existing code rather than assume:
 
 - [ ] **Step 5: Run tests and build**
 
-Run: `pnpm test __tests__/unit/components/AlertDetailView.test.tsx && npx tsc --noEmit`
-Expected: PASS, 6 tests; no type errors.
+Run: `pnpm test __tests__/unit/components/AlertDetailView.test.tsx && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`
+Expected: PASS, 6 tests; tscheck OK (no NEW type errors).
 
 - [ ] **Step 6: Commit**
 
@@ -7485,7 +7509,7 @@ Create `app/alerts/rules/page.tsx` with the same header shell as `app/alerts/pag
 
 - [ ] **Step 5: Run tests and build**
 
-Run: `pnpm test __tests__/unit/components && npx tsc --noEmit && pnpm build`
+Run: `pnpm test __tests__/unit/components && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm build`
 Expected: clean.
 
 - [ ] **Step 6: Commit**
@@ -7526,8 +7550,8 @@ In `app/analytics/page.tsx`, change the import to `import AnomalyPanel from '@/c
 
 - [ ] **Step 3: Verify the rename**
 
-Run: `npx tsc --noEmit && grep -rn "AlertsPanel" --include="*.tsx" . | grep -v node_modules`
-Expected: no type errors, no remaining `AlertsPanel` references.
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && grep -rn "AlertsPanel" --include="*.tsx" . | grep -v node_modules`
+Expected: tscheck OK (no NEW type errors), no remaining `AlertsPanel` references.
 
 - [ ] **Step 4: Write the failing widget test**
 
@@ -7665,7 +7689,7 @@ The badge is the single clearest signal that this is an operations tool rather t
 
 - [ ] **Step 7: Verify**
 
-Run: `pnpm test __tests__/unit/components && npx tsc --noEmit && pnpm build`
+Run: `pnpm test __tests__/unit/components && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm build`
 Expected: clean. `/alerts` must be reachable from the nav in both the desktop and mobile menus.
 
 - [ ] **Step 8: Commit**
@@ -8027,8 +8051,8 @@ Expected: PASS (some tests may `skip` if the seeded database has no alerts yet �
 
 - [ ] **Step 3: Full verification**
 
-Run: `pnpm lint && npx tsc --noEmit && pnpm test:coverage && pnpm build`
-Expected: lint clean, no type errors, coverage at or above `branches 55 / functions 55 / lines 75 / statements 75`, clean production build.
+Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test:coverage && pnpm build`
+Expected: lint clean, tscheck OK (no NEW type errors), coverage at or above `branches 55 / functions 55 / lines 75 / statements 75`, clean production build.
 
 - [ ] **Step 4: Commit**
 
@@ -8079,7 +8103,7 @@ Tasks 1, 2, 4, and 5 have no dependencies on each other and can be done in any o
 
 The phase is complete when all of the following hold:
 
-- `pnpm lint && npx tsc --noEmit && pnpm test:coverage && pnpm build` is clean, with coverage at or above the configured thresholds.
+- `./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test:coverage && pnpm build` is clean, with coverage at or above the configured thresholds.
 - `pnpm create-indexes-v2 && pnpm verify-indexes` reports all eight new alert indexes present.
 - A fresh `pnpm seed` followed by a few authenticated `GET /api/v2/cron/simulate` calls produces visible alerts on `/alerts`.
 - An anonymous visitor can read `/alerts`, `/alerts/[id]`, and `/alerts/rules`, and sees Acknowledge / Resolve / New rule **disabled with a tooltip** rather than hidden.
