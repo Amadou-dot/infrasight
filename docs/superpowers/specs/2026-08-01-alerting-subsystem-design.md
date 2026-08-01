@@ -1,7 +1,7 @@
 # Infrasight — Alerting Subsystem Design
 
 **Date:** 2026-08-01
-**Status:** Approved
+**Status:** Approved (revised after review)
 **Milestone:** Phase 4 — Alerting (issues #95–#100)
 **Parent:** [`2026-07-30-portfolio-completeness-design.md`](2026-07-30-portfolio-completeness-design.md)
 
@@ -11,8 +11,8 @@ Give Infrasight the thing that separates an operations tool from a dashboard: a 
 "tell me when this happens", and a workflow for the human who gets told.
 
 Phase 4 introduces two collections, an evaluation path on every write, four lifecycle
-states, nine API endpoints, and a real-time notification surface. This document resolves
-the design; issues #96 through #100 implement it.
+states, eight API endpoints, and a real-time notification surface. This document resolves
+the design; #96 through #100 implement it.
 
 ## Current state
 
@@ -76,7 +76,7 @@ convention does not apply. `ScheduleV2` is the right precedent here.
   enabled: boolean,                // default true
 
   selector: {
-    type: ReadingType,             // required — the one mandatory dimension
+    types?: ReadingType[],         // absent or empty = all types
     building_id?: string,
     floor?: number,
     zone?: string,
@@ -106,20 +106,37 @@ be silently uncovered — the failure mode where an alerting system quietly stop
 the thing you added it for.
 
 A selector resolves to a device set at evaluation time, so coverage is a property of the
-rule rather than a snapshot taken when it was written. `selector.type` is required because
-it is also the index key that makes evaluation cheap: rules are grouped by type once, and a
-reading only ever tests against rules for its own type.
+rule rather than a snapshot taken when it was written.
+
+### `selector.types` is a plural optional array
+
+An earlier draft made a single `selector.type` mandatory, on the theory that it was also
+the grouping key that keeps matching cheap. That was wrong for two of the three metrics.
+`battery_level` is a *device* property and `anomaly_score` is unit-free; both are
+meaningful across the whole fleet. Forcing such a rule to name one of fifteen types would
+silently cover a fifteenth of the devices it was written for — precisely the
+silent-uncoverage failure the previous section argues against, and the seed set includes
+exactly such a rule.
+
+`types` is therefore an optional array, absent meaning "all types". The grouping property
+is preserved by building the `Map<ReadingType, AlertRuleV2[]>` once per cache refresh
+rather than per reading: a type-less rule is appended to every bucket at build time, so
+matching remains O(readings × rules-for-that-type) at evaluation.
+
+Validation requires a non-empty `types` when `metric === 'value'`, because a bare value
+threshold across mixed units is meaningless — `30` is a reasonable temperature ceiling and
+an absurd power one. `anomaly_score` and `battery_level` may omit it.
 
 ### Metrics
 
 Three metrics, each a direct field read off the reading being evaluated — no derived
 quantities, no lookback windows:
 
-| Metric | Source | Range |
-| --- | --- | --- |
-| `value` | `reading.value` | unit-dependent |
-| `anomaly_score` | `reading.quality.anomaly_score` | 0–1 |
-| `battery_level` | `reading.context.battery_level` | 0–100 |
+| Metric | Source | Range | `types` required |
+| --- | --- | --- | --- |
+| `value` | `reading.value` | unit-dependent | yes |
+| `anomaly_score` | `reading.quality.anomaly_score` | 0–1 | no |
+| `battery_level` | `reading.context.battery_level` | 0–100 | no |
 
 Implemented as a `METRIC_ACCESSORS` lookup so adding a fourth is one line. Validation
 bounds thresholds per metric: `anomaly_score` to 0–1, `battery_level` to 0–100, `value`
@@ -139,10 +156,15 @@ the reversible off switch; deletion is the permanent one.
 ### Indexes
 
 ```typescript
-{ enabled: 1, 'selector.type': 1 }   // the evaluation hot path
-{ 'audit.deleted_at': 1 }            // findActive
-{ 'audit.created_at': -1 }           // list default sort
+{ enabled: 1, 'audit.deleted_at': 1 }   // the actual load predicate
+{ 'audit.created_at': -1 }              // list default sort
 ```
+
+The load query is `{ enabled: true, 'audit.deleted_at': { $exists: false } }`, matching
+`DeviceV2.findActive` (`models/v2/DeviceV2.ts:381`) — `$exists: false`, not `null`. An
+earlier draft indexed `{ enabled, 'selector.type' }` and called it "the evaluation hot
+path", which was wrong: rules are loaded wholesale and grouped in memory, so
+`selector.types` is never a query predicate.
 
 ## The Alert model
 
@@ -157,6 +179,7 @@ stretch during which one rule is breached on one device.
   device_id: string,
 
   status: 'pending' | 'firing' | 'acknowledged' | 'resolved',
+  is_open: boolean,                // === (status !== 'resolved'); see below
   severity: 'info' | 'warning' | 'critical',
 
   // Condition snapshot — an alert is self-describing even if the rule later changes
@@ -228,10 +251,7 @@ makes duration-of-outage reporting meaningful.
 ```typescript
 AlertV2Schema.index(
   { rule_id: 1, device_id: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { status: { $in: ['pending', 'firing', 'acknowledged'] } },
-  }
+  { unique: true, partialFilterExpression: { is_open: true } }
 );
 ```
 
@@ -244,6 +264,20 @@ allows unlimited *resolved* episodes for the same pair.
 This is the deduplication mechanism in full. There is no separate dedup key, fingerprint,
 or grouping pass.
 
+#### Why `is_open` rather than a status `$in`
+
+The natural predicate is `{ status: { $in: ['pending','firing','acknowledged'] } }`, but
+`$in` inside a `partialFilterExpression` requires **MongoDB 6.0 or later**. That would make
+`pnpm create-indexes-v2` fail at index-creation time against an older server, with a
+failure mode that only appears on deploy.
+
+A denormalized `is_open` boolean uses a plain equality predicate, supported since 3.2, and
+is a simpler thing to index. The cost is one field that must stay in sync with `status`.
+That invariant — `is_open === (status !== 'resolved')` — is maintained in exactly four
+places: the evaluator's bulk write, `AlertV2.acknowledge` (leaves it true),
+`AlertV2.resolve` (sets it false), and the staleness sweep. A unit test asserts it holds
+after every transition.
+
 ### Flapping suppression
 
 A sensor oscillating across a threshold would otherwise produce an episode per crossing.
@@ -255,18 +289,21 @@ Two independent controls:
   (rule, device) pair cannot open until the cooldown has elapsed since `audit.resolved_at`.
   This handles a condition that genuinely keeps recurring.
 
-Cooldown costs no extra round trip: the evaluator's episode query already loads open
-episodes for the batch, and widens its filter to also include recently-resolved ones.
-
 ### Indexes
 
 ```typescript
-{ rule_id: 1, device_id: 1 }              // partial unique, above
-{ status: 1, 'audit.created_at': -1 }     // active list, the default view
-{ device_id: 1, 'audit.created_at': -1 }  // device detail page
-{ severity: 1, status: 1 }                // severity filter
-{ 'audit.resolved_at': -1 }               // cooldown lookback + history view
+{ rule_id: 1, device_id: 1 }                        // partial unique on is_open, above
+{ rule_id: 1, device_id: 1, 'audit.resolved_at': -1 }  // cooldown lookback
+{ status: 1, 'audit.created_at': -1 }               // active list, the default view
+{ device_id: 1, 'audit.created_at': -1 }            // device detail page
+{ severity: 1, status: 1 }                          // severity filter
+{ is_open: 1, last_observed_at: 1 }                 // staleness sweep
 ```
+
+The cooldown index is not optional. The partial unique index is only usable by queries that
+match its filter, so a lookback over *resolved* episodes cannot use it, and there is no
+other `{ rule_id, device_id }` index to fall back on. Without this entry the cooldown query
+is a collection scan.
 
 ## Evaluation
 
@@ -280,38 +317,77 @@ evaluateReadings(
 ```
 
 Callers pass the device documents they already loaded, so evaluation adds no device query
-to either path. The ingest route already fetches devices for its existence check
-(`route.ts:144`) and the simulate route already selects them (`route.ts:42`); both need
-their projections widened to include `metadata.tags`.
+to either path. Both callers need their projections corrected:
+
+| Path | Current projection | Required |
+| --- | --- | --- |
+| `readings/ingest/route.ts:145-148` | `{ _id: 1 }` | add `type`, `location`, `metadata.tags` |
+| `cron/simulate/route.ts:43` | `{ _id, type, location }` | add `metadata.tags` |
+
+The ingest route currently projects the id alone, because its only use for the query is an
+existence check. It needs the selector-relevant fields added, not merely widened by one.
 
 ### The algorithm
 
-1. **Load active rules** — one cached query. Rules number in the tens and change rarely.
-2. **Group rules by `selector.type`** in memory.
-3. **Match** each reading against the rules for its own type, testing the device's
+1. **Load active rules** — one cached query, grouped into `Map<ReadingType, rules[]>` at
+   cache-build time.
+2. **Match** each reading against the rules for its own type, testing the device's
    `location.building_id`, `location.floor`, `location.zone`, and `metadata.tags` against
    the selector predicates.
-4. **Reduce to one observation per (rule, device) pair**, keeping the reading with the
-   latest `timestamp`. This is the step that bounds the work: a 10,000-reading batch
-   containing 40 readings per device collapses to at most (rules × devices) candidates
-   before a single database write is considered.
-5. **Load episode state** for the candidate pairs — one query, covering open episodes and
-   those resolved within the longest active cooldown.
+3. **Reduce to one decision per (rule, device) pair** — see below.
+4. **Load open episodes** for the candidate pairs — one query on the partial unique index.
+5. **Load recently-resolved episodes** for the same pairs, back to the longest active
+   cooldown — one query on the cooldown index.
 6. **Decide** every pair in memory: open, promote pending to firing, update `last_value`,
    auto-resolve, delete a cleared pending, or suppress under cooldown.
 7. **Write** — one `bulkWrite(ops, { ordered: false })`.
-8. **Notify** — one Pusher trigger for newly fired alerts, one for resolved.
+8. **Notify** — see "Notification delivery".
+
+### Step 3 is a semantic decision, not only a performance bound
+
+The obvious reduction — keep the newest reading per pair — is cheap but quietly changes
+what alerting means: a breach that occurs *and clears* inside a single batch would never be
+seen, and a 10,000-reading backfill would be evaluated only at its tip. That is harmless at
+the cron's one-reading-per-device cadence and not harmless at the batch size the ingest API
+advertises.
+
+The reduction is therefore **breach-aware**:
+
+- if *any* reading for the pair breaches, the pair is breaching;
+- `breached_since` comes from the **earliest** breaching reading in the batch;
+- `last_value` and `last_observed_at` come from the **latest** reading overall.
+
+Stated plainly, so no one has to infer it: **alerting evaluates the aggregate state of each
+device per request. It is not a backfill engine and does not replay a batch as a
+timeline.** A batch containing breach → clear → breach yields one episode, not two.
+Reconstructing episode history from a bulk historical import is out of scope.
+
+### Out-of-order batches must not rewind state
+
+`last_observed_at` and `last_value` are written from the batch's latest reading, which may
+still be *older* than what the episode already holds — a retried or delayed request. Left
+unguarded, that rewinds `last_observed_at` directly into the staleness sweep's path and can
+resolve a live alert as stale.
+
+Updates therefore use `$max` on `last_observed_at` and carry a
+`last_observed_at: { $lt: ts }` predicate for the fields that must move together with it.
+An update whose reading is older than the episode's high-water mark is a no-op.
 
 ### Cost
 
-Three queries, one bulk write, and one Pusher call per request — **constant in batch
-size**, whether the request carried 1 reading or 10,000. That is the concrete standard for
-issue #97's "bulk ingest performance stays within acceptable bounds", and it is a property
-of step 4 rather than a benchmark to be measured after the fact.
+Per request: **two queries, one bulk write, and one or two Pusher calls — constant in batch
+size** (plus a third query on a rule-cache miss). Whether the request carried 1 reading or
+10,000, the number of round trips is the same. That is a structural property of step 3, not
+a benchmark to be measured afterwards.
 
-The matching in steps 2–3 is O(readings × rules-for-that-type). With a realistic rule set
-this is single-digit microseconds against the tens of milliseconds `insertMany` already
-costs.
+**It is not constant in fleet size.** Work is linear in *candidate pairs*: a fleet-wide
+temperature rule across 500 seeded devices produces 500 pairs, which is the `$in` cardinality
+into steps 4–5 and the operation count into the bulk write. Constant round trips, linear
+payloads. At the current scale — hundreds of devices, tens of rules — this is comfortable;
+at tens of thousands of devices the pair set is what would need chunking first.
+
+The matching in steps 1–2 is O(readings × rules-for-that-type), single-digit microseconds
+against the tens of milliseconds `insertMany` already costs.
 
 ### Failure isolation
 
@@ -329,6 +405,26 @@ guarantee it:
 This mirrors the existing treatment of the Pusher trigger in the simulate route
 (`route.ts:62-70`), which already logs and swallows rather than failing a committed write.
 
+### Bulk write error handling
+
+`bulkWrite(..., { ordered: false })` throws `MongoBulkWriteError` carrying `writeErrors[]`,
+and "treat `E11000` as benign" has to be precise or it becomes "swallow everything":
+
+```typescript
+catch (err) {
+  const writeErrors = (err as MongoBulkWriteError)?.writeErrors ?? [];
+  const unexpected = writeErrors.filter(e => e.code !== 11000);
+  if (unexpected.length > 0) throw err;   // genuine failure — surface it
+  // every error was a duplicate open episode: another request won the race
+}
+```
+
+Only code `11000` is absorbed; anything else rethrows into the outer handler, which logs
+with detail and increments `alert_evaluation_errors_total`. Without this filter a genuine
+write failure would vanish into the same silent path as a benign race, and §Observability's
+claim that the error counter is the only signal of a broken evaluator would stop being
+true.
+
 ### Resolution and staleness
 
 An episode auto-resolves when a *new* reading shows the metric back within bounds. A device
@@ -339,15 +435,18 @@ active device on every run, so any alert on an active device is re-evaluated eve
 The real gap is a device that leaves the active set: decommissioned, soft-deleted, or
 silent because it broke.
 
-A sweep on the cron path only — one query per cron invocation, not per ingest — closes it:
+A sweep on the cron path only — one query per cron invocation, not per ingest — closes it.
+It selects open episodes (`is_open: true`) whose device is no longer active, or whose
+`last_observed_at` predates `STALE_AFTER_SECONDS` (default 1800), and then **branches on
+status**:
 
-- Open episodes whose device is no longer active resolve with `resolution:
-  'device_inactive'`.
-- Open episodes whose `last_observed_at` is older than `STALE_AFTER_SECONDS` (default
-  1800) resolve with `resolution: 'stale'`.
+| Swept episode status | Action | Rationale |
+| --- | --- | --- |
+| `pending` | **deleted** | consistent with "an episode that never fired is not history" |
+| `firing`, `acknowledged` | resolved, `resolution: 'device_inactive'` or `'stale'` | it did fire; the history is real |
 
-Both are recorded distinctly from `'auto'` so history does not claim a problem was fixed
-when the sensor merely went quiet.
+Both resolutions are recorded distinctly from `'auto'` so history never claims a problem
+was fixed when the sensor merely went quiet.
 
 ## API surface
 
@@ -393,20 +492,21 @@ read to classify the failure:
 
 ```typescript
 AlertV2.acknowledge(id, by)               // { _id, status: 'firing' } → acknowledged
-AlertV2.resolve(id, by, resolution)       // { _id, status: { $in: ['firing','acknowledged'] } } → resolved
+AlertV2.resolve(id, by, resolution)       // { _id, status: { $in: ['firing','acknowledged'] } } → resolved, is_open: false
 ```
 
-Illegal transitions throw `AlertTransitionError` — a typed error carrying a code, mirroring
-`ScheduleTransitionError`:
+Illegal transitions throw `AlertTransitionError` carrying a code, mirroring
+`ScheduleTransitionError`. `ScheduleV2` needs four codes because its two terminal targets
+are symmetric — either can block the other. Alerts are not symmetric: `acknowledged` sits
+*between* `firing` and `resolved`, so three codes cover every illegal case.
 
-| Code | Meaning |
-| --- | --- |
-| `ALREADY_ACKNOWLEDGED` | acknowledging an acknowledged alert |
-| `ALREADY_RESOLVED` | acting on a resolved alert |
-| `CANNOT_ACKNOWLEDGE_RESOLVED` | acknowledging after resolution |
-| `NOT_YET_FIRING` | acting on a pending alert |
+| Transition code | Raised when | Maps to `ErrorCodes` |
+| --- | --- | --- |
+| `ALREADY_ACKNOWLEDGED` | acknowledging an acknowledged alert | `ALERT_ALREADY_ACKNOWLEDGED` |
+| `ALREADY_RESOLVED` | acknowledging or resolving a resolved alert | `ALERT_ALREADY_RESOLVED` |
+| `NOT_YET_FIRING` | acting on a pending alert | `INVALID_ALERT_STATUS_TRANSITION` |
 
-The route maps these to `ApiError` at 422 through a `TRANSITION_CODE_MAP`, the same shape
+Routes map these to `ApiError` at **422** through a `TRANSITION_CODE_MAP`, the same shape
 as `app/api/v2/schedules/[id]/route.ts:123`.
 
 New entries in `lib/errors/errorCodes.ts`: `ALERT_NOT_FOUND`, `ALERT_RULE_NOT_FOUND`,
@@ -424,9 +524,11 @@ existing helpers in `common.validation.ts` (`deviceIdSchema`, `paginationSchema`
 - `updateAlertSchema` (status + optional note), `listAlertsQuerySchema`,
   `getAlertQuerySchema` (`include_device`), `alertIdParamSchema`
 
-Threshold bounds are enforced by a cross-field refinement on `metric`, so
-`{ metric: 'anomaly_score', threshold: 30 }` is rejected at the edge rather than producing
-a rule that can never fire.
+Two cross-field refinements on the rule schema, both rejecting at the edge rather than
+producing a rule that can never fire or can never be interpreted:
+
+- threshold bounds per metric — `{ metric: 'anomaly_score', threshold: 30 }` is rejected;
+- `selector.types` non-empty when `metric === 'value'`.
 
 ### Caching
 
@@ -434,42 +536,86 @@ a rule that can never fire.
 Pusher; a cache-aside layer would add staleness in exchange for nothing. This is a
 deliberate departure from the reflex established by the other v2 read endpoints.
 
-The active rule set *is* cached — TTL 60s, invalidated on every rule create, update, and
-delete — because it is read on every write path and changes almost never.
-`lib/cache/keys.ts` gains an `ALERT_RULES` prefix and an org-scoped `alertRulesKey(orgId)`
-generator following the existing `orgPrefix` convention.
+The active rule set *is* cached, TTL 60s, invalidated on every rule create, update, and
+delete — it is read on every write path and changes almost never.
+
+**The rule cache key is global, not org-scoped**, departing from every other generator in
+`lib/cache/keys.ts`. Three facts force this:
+
+1. No v2 model carries an org dimension. `orgId` is a Clerk session property used for cache
+   partitioning, never a stored field, so rules have nothing to be keyed by.
+2. `/api/v2/cron/simulate` authenticates with `SEED_SECRET` and establishes **no Clerk
+   context at all**. On the path that carries every reading in the deployment, there is no
+   `orgId` to compute.
+3. Multi-tenancy is explicitly out of scope in the parent design, and
+   `CLERK_ALLOWED_ORG_SLUGS` defaults to a single org.
+
+`lib/cache/keys.ts` gains an `ALERT_RULES` prefix and `alertRulesKey()` taking no
+arguments, with a comment recording why it skips `orgPrefix`. Giving `AlertRuleV2` an org
+field instead would mean inventing the multi-tenancy the parent doc rules out, to serve a
+cache key.
 
 ## Notification delivery
 
 ### Transport
 
-The existing `InfraSight` channel gains two events rather than a second channel being
+The existing `InfraSight` channel gains one event rather than a second channel being
 created. `PusherProvider` already owns exactly one subscription and multiplexes callbacks
-to subscribers (`lib/pusher-context.tsx:52-70`); adding events keeps subscription
-teardown in the one place that already handles it correctly, which satisfies #100's
-"subscriptions clean up on unmount" by construction.
+to subscribers (`lib/pusher-context.tsx:52-70`); adding events keeps subscription teardown
+in the one place that already handles it correctly, which satisfies #100's "subscriptions
+clean up on unmount" by construction.
 
-| Event | Payload |
-| --- | --- |
-| `alert-fired` | `[{ _id, rule_name, device_id, severity, metric, threshold, trigger_value, fired_at }]` |
-| `alert-resolved` | `[{ _id, device_id, resolution, actor }]` |
+### One event, tagged envelope
 
-`PusherContext` gains `subscribeAlerts` / `unsubscribeAlerts` and a `usePusherAlerts(cb)`
-hook, following the exact shape of `usePusherReadings`.
+An earlier draft used two event names behind a single `subscribeAlerts` registration. That
+does not work: `PusherContext` holds one callback set bound to one event name, so a
+subscriber receiving a bare array cannot tell which event produced it. Rather than
+duplicate the provider's multiplexing machinery per event, the payload carries the tag:
+
+```typescript
+type AlertEvent =
+  | { kind: 'fired';    alerts: FiredAlert[] }
+  | { kind: 'resolved'; alerts: ResolvedAlert[] }
+  | { kind: 'storm';    count: number; by_severity: Record<Severity, number>; since: string };
+```
+
+All three arrive on the single `alert-event` name. `PusherContext` gains
+`subscribeAlerts` / `unsubscribeAlerts` and a `usePusherAlerts(cb)` hook following the
+exact shape of `usePusherReadings`.
+
+### The payload must be bounded
+
+One trigger per evaluation is constant in *call count*, not in *body size*, and **Pusher
+caps an event at 10 KB**. A floor-wide condition firing across hundreds of devices in one
+cron run overflows that cap, the trigger throws, and this design swallows Pusher failures —
+so the UI would silently miss the single most dramatic event it exists to display. The
+failure mode is exactly inverted from what alerting is for.
+
+Two bounds, both required:
+
+- **Batch cap.** Above `ALERT_EVENT_MAX` (20) alerts in one evaluation, the individual
+  payload is discarded and a single `storm` event is sent instead: counts by severity and a
+  timestamp. The client raises one aggregate toast — "312 alerts firing" — and invalidates
+  the list query rather than rendering 312 toasts, which is also the better interface.
+- **Chunking below the cap.** Twenty alerts at roughly 200 bytes each is ~4 KB, inside the
+  limit with margin. The serialized body is measured before sending; anything still over
+  8 KB falls back to the storm event rather than being split, so ordering never matters.
+
+The same rule applies to `resolved`.
 
 ### Only firing raises a toast
 
-`alert-fired` produces a `react-toastify` toast styled by severity, linking to
-`/alerts/[id]`. `alert-resolved` is broadcast so open lists reconcile without a refetch,
-but raises no toast — nobody wants a popup per device when a floor-wide condition clears.
+`fired` produces a `react-toastify` toast styled by severity, linking to `/alerts/[id]`.
+`resolved` is broadcast so open lists reconcile without a refetch, but raises no toast —
+nobody wants a popup per device when a floor-wide condition clears.
 
 This structurally satisfies #100's "notifications do not fire for a viewer's own
 acknowledge and resolve actions": firing is always system-generated, so no viewer can ever
 cause a toast. The acting admin gets immediate feedback from their own mutation's
-optimistic update instead. `actor` is still carried on resolve payloads — set to `'system'`
-for automatic resolution and to the Clerk **user id** (never the email, since the payload
-reaches every connected client) for manual — so list reconciliation can distinguish the
-two.
+optimistic update instead. `actor` is still carried on resolved payloads — set to
+`'system'` for automatic resolution and to the Clerk **user id** (never the email, since
+the payload reaches every connected client) for manual — so list reconciliation can
+distinguish the two.
 
 Demo visitors receive these events. The Pusher client key is public and `PusherProvider`
 sits above the auth boundary, so an anonymous visitor watching `/alerts` sees alerts arrive
@@ -493,8 +639,14 @@ precedent in `app/devices/_components/useDeviceFilterParams.ts`. `/alerts/[id]` 
 chat mid-incident, calling `notFound()` for ids that do not resolve.
 
 The detail page shows the condition in plain language ("temperature above 30 °C for 5
-minutes"), a timeline across `breached_since → fired_at → acknowledged_at → resolved_at`, a
-link to the device, and the readings that bracketed the trigger.
+minutes"), a timeline across `breached_since → fired_at → acknowledged_at → resolved_at`,
+and a link to the device.
+
+It also shows the readings that bracketed the trigger. **No new endpoint is added for
+this**: the page issues a second call to the existing
+`GET /api/v2/readings?device_id=<id>&startDate=<fired_at − 15m>&endDate=<fired_at + 15m>`,
+which already satisfies that endpoint's required-time-range constraint. `getAlertQuerySchema`
+therefore stays at `include_device` only.
 
 ### Components
 
@@ -504,17 +656,24 @@ future drawer), `AlertSeverityBadge.tsx` and `AlertStatusBadge.tsx` (mirroring
 `ScheduleStatusBadge.tsx` / `ServiceTypeBadge.tsx`), `AlertRuleList.tsx`, and
 `CreateAlertRuleModal.tsx` (modelled on `CreateDeviceModal.tsx`).
 
-### Disposing of AlertsPanel
+### AlertsPanel is not orphaned — rename it, don't delete it
 
-Issue #99 suggests the orphaned `components/AlertsPanel.tsx` may be the right foundation.
-It is half right. Its *layout* is good — severity badge, device id, relative timestamp,
-click-through to the device — but its *data source* is `/analytics/anomalies`, and under
-this design anomalies and alerts are deliberately separate surfaces. Keeping the name on
-top of anomaly data is precisely the confusion this phase should remove.
+Issue #99 and parent §3.3 both describe `components/AlertsPanel.tsx` as orphaned. **That is
+stale.** It is imported at `app/analytics/page.tsx:5` and rendered at `:84`; commit
+`9c80aa9` *"refactor(ui): give AlertsPanel a home, drop CriticalDevicesList"* already
+discharged parent §3.3. An earlier draft of this document inherited the stale premise and
+proposed deleting the component, which would break the build.
 
-Resolution: lift the layout into `components/dashboard/ActiveAlertsWidget.tsx` backed by
-`GET /api/v2/alerts`, wire it into the dashboard, and delete `AlertsPanel.tsx`. This also
-discharges the orphaned-code half of parent §3.3.
+The diagnosis survives the correction: a component named `AlertsPanel` rendering anomaly
+data is exactly the confusion this phase exists to remove. The resolution changes:
+
+- **Rename it `AnomalyPanel`** and leave it on `/analytics`, which is where anomaly data
+  belongs under this design's own separation of the two surfaces. Update the import and the
+  heading text; no behaviour change.
+- **Build `components/dashboard/ActiveAlertsWidget.tsx` fresh** against
+  `GET /api/v2/alerts`, rather than lifting a layout out of a live component. It is a
+  different data shape — status, acknowledgement, duration — and copying a panel built for
+  anomaly rows would import assumptions that no longer hold.
 
 ### Navigation
 
@@ -539,7 +698,8 @@ enforced by `requireAdmin()` server-side, not by the disabled attribute.
 `useUpdateAlertRule()`, `useDeleteAlertRule()`.
 
 Mutations invalidate the alert list on success. `usePusherAlerts` patches the cached list
-directly for arriving events rather than triggering a refetch per alert.
+directly for `fired` and `resolved` envelopes; a `storm` envelope invalidates instead,
+since its payload deliberately carries no rows.
 
 `lib/api/v2-client.ts` gains `v2Api.alerts` and `v2Api.alertRules` namespaces; types go in
 `types/v2/alert.types.ts`.
@@ -554,19 +714,24 @@ directly for arriving events rather than triggering a refetch per alert.
 - `alert_evaluation_errors_total` — counter
 
 The error counter matters most: because evaluation failures are swallowed by design, that
-counter is the only signal that alerting has silently stopped working.
+counter is the only signal that alerting has silently stopped working. This is why the bulk
+write must rethrow non-`11000` errors rather than absorbing them.
 
 ## Testing
 
 Matching the depth of the existing suites.
 
 **Unit** — `__tests__/unit/models/AlertRuleV2.test.ts`, `AlertV2.test.ts` (every legal
-transition, every illegal transition throwing the correct typed code, statics, soft
-delete); `__tests__/unit/validations/alert.validation.test.ts` and
-`alert-rule.validation.test.ts` (including per-metric threshold bounds);
+transition, every illegal transition throwing the correct typed code, the
+`is_open === (status !== 'resolved')` invariant after each, statics, soft delete);
+`__tests__/unit/validations/alert.validation.test.ts` and `alert-rule.validation.test.ts`
+(per-metric threshold bounds, `types` required for `metric: 'value'`);
 `__tests__/unit/lib/alerting/evaluate.test.ts` — selector matching across each dimension,
-`for_duration` promotion and pending deletion, dedup under a duplicate-key collision,
-cooldown suppression, auto-resolution, missing metric fields, and empty inputs.
+type-less rules matching all types, breach-aware reduction (breach → clear → breach in one
+batch yields one episode), `for_duration` promotion and pending deletion, dedup under a
+duplicate-key collision, non-`11000` bulk errors rethrowing, cooldown suppression,
+out-of-order batches not rewinding `last_observed_at`, auto-resolution, missing metric
+fields, and empty inputs.
 
 **Integration** — `__tests__/integration/api/alerts.integration.test.ts` and
 `alert-rules.integration.test.ts`: RBAC per the table above (member `GET` 200, member
@@ -579,9 +744,13 @@ acknowledge and resolve are gated, and an unknown alert id renders the styled 40
 ## Seeding
 
 `scripts/v2/seed-v2.ts` seeds a small rule set — a high-temperature rule with a five-minute
-duration, a power-spike rule, a low-battery rule, and a high-anomaly-score rule — so that
-`/alerts` is populated on first load. Without seeded rules the entire phase is invisible to
-a visitor, which would defeat its purpose.
+duration, a power-spike rule, a fleet-wide low-battery rule (no `selector.types`), and a
+high-anomaly-score rule — so that `/alerts` is populated on first load. Without seeded rules
+the entire phase is invisible to a visitor, which would defeat its purpose.
+
+The low-battery rule is the one that motivates optional `selector.types`: battery is a
+device property, and a rule that only watched temperature sensors' batteries would be
+close to useless.
 
 ## Migration and risk
 
@@ -591,8 +760,10 @@ whose `timeField` and `metaField` cannot be altered after creation — nothing i
 touches either.
 
 The two write-path routes are modified, but only after their existing insert logic, and
-their device queries only widen their projection. `pnpm create-indexes-v2` and
-`pnpm verify-indexes` gain the new indexes.
+their device queries only change projection. `app/analytics/page.tsx` changes by one import
+and one JSX tag for the `AnomalyPanel` rename. `pnpm create-indexes-v2` and
+`pnpm verify-indexes` gain the new indexes; every one uses an equality or range predicate
+supported since MongoDB 3.2, so index creation carries no server-version dependency.
 
 ## Sequencing
 
@@ -612,25 +783,30 @@ their device queries only widen their projection. `pnpm create-indexes-v2` and
 - Evaluation runs inline at **both** write paths — `/readings/ingest` and `/cron/simulate`
   — because only the latter carries data in the deployed demo.
 - Rules target devices by declarative selector, not by an explicit device id list.
+  `selector.types` is an optional array, required only when `metric === 'value'`.
 - Anomaly detection and alerting stay separate surfaces. `anomaly_score` is exposed as a
   rule metric; `GET /api/v2/analytics/anomalies` is unchanged.
 - `pending` is a fourth, internal lifecycle state — the mechanism that makes duration
   thresholds work without a second state store.
 - Deduplication is a partial unique index, enforced by MongoDB rather than by application
-  logic.
+  logic, keyed on an `is_open` boolean to avoid a MongoDB 6.0 dependency.
+- Evaluation reduces **by breach, not by recency**, and is explicitly not a backfill engine.
 - Transitions go through `PATCH /api/v2/alerts/[id]`, following `ScheduleV2`, not through
-  action sub-routes.
+  action sub-routes. Three transition codes, not four — alerts' terminal states are not
+  symmetric.
 - The alerts list is deliberately **not** cached, departing from the other v2 read
-  endpoints.
-- Only `alert-fired` raises a toast; `alert-resolved` reconciles lists silently.
-- `AlertsPanel.tsx` is deleted, its layout lifted into a dashboard widget backed by the
-  alerts API.
+  endpoints. The rule cache key is deliberately **not** org-scoped, because the cron path
+  has no Clerk context to derive one from.
+- One tagged Pusher event, bounded by a batch cap that degrades to a storm summary rather
+  than overflowing Pusher's 10 KB limit.
+- `AlertsPanel.tsx` is **renamed** to `AnomalyPanel` and stays on `/analytics`; the
+  dashboard widget is built fresh against the alerts API.
 
 ## Out of scope
 
 Notification channels beyond Pusher (email, SMS, webhook, PagerDuty); alert grouping or
 correlation across devices; maintenance windows and scheduled suppression; escalation
 policies and on-call rotation; per-user notification preferences; rule preview or
-backtesting against historical readings; and any statistical anomaly detector to replace
-the simulator's synthetic `is_anomaly` label — that is a project of its own and finding C1
-merely documents it.
+backtesting against historical readings; replaying a bulk historical import as an episode
+timeline; and any statistical anomaly detector to replace the simulator's synthetic
+`is_anomaly` label — that is a project of its own and finding C1 merely documents it.
