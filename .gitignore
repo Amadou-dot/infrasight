@@ -45,3 +45,6 @@ playwright-report
 test-results
 .playwright
 .env*.local
+
+# clerk configuration (can include secrets)
+/.clerk/
