@@ -10,6 +10,9 @@ export {
   getMetricsSnapshot,
   getPrometheusMetrics,
   resetMetrics,
+  recordAlert,
+  recordAlertEvaluationDuration,
+  type AlertSeverityLabel,
 } from './metrics';
 
 export {

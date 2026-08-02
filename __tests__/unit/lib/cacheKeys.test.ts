@@ -18,6 +18,7 @@ import {
   healthPattern,
   readingsPattern,
   analyticsPattern,
+  alertRulesKey,
 } from '@/lib/cache/keys';
 
 const TEST_ORG = 'org_test_123';
@@ -213,6 +214,23 @@ describe('Cache Keys', () => {
       const pattern2 = devicePattern('org_b');
 
       expect(pattern1).not.toBe(pattern2);
+    });
+  });
+
+  // ==========================================================================
+  // Alert Rules Key
+  // ==========================================================================
+
+  describe('alertRulesKey', () => {
+    it('should generate a global key with no org prefix', () => {
+      expect(alertRulesKey()).toBe('alert:rules:active');
+    });
+
+    it('should not accept or embed an org id', () => {
+      // The cron path authenticates with SEED_SECRET and has no Clerk context, so
+      // there is no orgId to compute. Deliberate departure from orgPrefix.
+      expect(alertRulesKey.length).toBe(0);
+      expect(alertRulesKey()).not.toContain('org:');
     });
   });
 });

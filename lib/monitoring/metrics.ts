@@ -57,6 +57,13 @@ interface MetricsStore {
     slowQueries: number;
     totalQueryTime: number;
   };
+  /** Alert counters keyed by label value */
+  alertsFired: Map<string, CounterEntry>;
+  alertsResolved: Map<string, CounterEntry>;
+  alerts: {
+    evaluationErrors: number;
+    evaluationDuration: HistogramEntry;
+  };
 }
 
 // ============================================================================
@@ -71,6 +78,12 @@ const metrics: MetricsStore = {
   cache: { hits: 0, misses: 0, sets: 0, invalidations: 0 },
   ingestion: { total: 0, errors: 0, lastBatchSize: 0, lastBatchTime: 0 },
   database: { queryCount: 0, slowQueries: 0, totalQueryTime: 0 },
+  alertsFired: new Map(),
+  alertsResolved: new Map(),
+  alerts: {
+    evaluationErrors: 0,
+    evaluationDuration: { count: 0, sum: 0, min: Infinity, max: -Infinity, lastUpdated: 0 },
+  },
 };
 
 // ============================================================================
@@ -164,6 +177,46 @@ export function recordIngestion(batchSize: number, errorCount: number): void {
   metrics.ingestion.lastBatchTime = Date.now();
 }
 
+export type AlertSeverityLabel = 'info' | 'warning' | 'critical';
+
+/**
+ * Record an alerting lifecycle event.
+ *
+ * `evaluation_error` matters most: evaluation failures are swallowed by design so
+ * they cannot drop readings, which makes this counter the only signal that
+ * alerting has silently stopped working.
+ */
+export function recordAlert(
+  event: 'fired' | 'resolved' | 'evaluation_error',
+  labels: { severity?: AlertSeverityLabel; resolution?: string } = {}
+): void {
+  const now = Date.now();
+
+  if (event === 'evaluation_error') {
+    metrics.alerts.evaluationErrors++;
+    return;
+  }
+
+  const target = event === 'fired' ? metrics.alertsFired : metrics.alertsResolved;
+  const label = event === 'fired' ? (labels.severity ?? 'unknown') : (labels.resolution ?? 'unknown');
+  const entry = target.get(label) || { value: 0, lastUpdated: 0 };
+  entry.value++;
+  entry.lastUpdated = now;
+  target.set(label, entry);
+}
+
+/**
+ * Record how long one evaluateReadings() call took.
+ */
+export function recordAlertEvaluationDuration(durationMs: number): void {
+  const h = metrics.alerts.evaluationDuration;
+  h.count++;
+  h.sum += durationMs;
+  h.min = Math.min(h.min, durationMs);
+  h.max = Math.max(h.max, durationMs);
+  h.lastUpdated = Date.now();
+}
+
 /**
  * Record database query
  */
@@ -218,6 +271,16 @@ export function getMetricsSnapshot(): Record<string, unknown> {
       ? Math.round(metrics.database.totalQueryTime / metrics.database.queryCount)
       : 0;
 
+  const alertsFiredCounts: Record<string, number> = {};
+  for (const [key, entry] of metrics.alertsFired) alertsFiredCounts[key] = entry.value;
+
+  const alertsResolvedCounts: Record<string, number> = {};
+  for (const [key, entry] of metrics.alertsResolved) alertsResolvedCounts[key] = entry.value;
+
+  const alertEvalDuration = metrics.alerts.evaluationDuration;
+  const avgAlertEvaluationDuration =
+    alertEvalDuration.count > 0 ? Math.round(alertEvalDuration.sum / alertEvalDuration.count) : 0;
+
   return {
     requests: {
       latency: requestStats,
@@ -238,6 +301,12 @@ export function getMetricsSnapshot(): Record<string, unknown> {
     database: {
       ...metrics.database,
       avgQueryTime,
+    },
+    alerts: {
+      fired: alertsFiredCounts,
+      resolved: alertsResolvedCounts,
+      evaluationErrors: metrics.alerts.evaluationErrors,
+      avgEvaluationDuration: avgAlertEvaluationDuration,
     },
     timestamp: new Date().toISOString(),
   };
@@ -304,6 +373,26 @@ export function getPrometheusMetrics(): string {
   lines.push('# TYPE db_slow_queries_total counter');
   lines.push(`db_slow_queries_total ${metrics.database.slowQueries}`);
 
+  // Alerting metrics
+  lines.push('# HELP alerts_fired_total Total alerts that started firing');
+  lines.push('# TYPE alerts_fired_total counter');
+  for (const [severity, entry] of metrics.alertsFired)
+    lines.push(`alerts_fired_total{severity="${severity}"} ${entry.value}`);
+
+  lines.push('# HELP alerts_resolved_total Total alerts resolved, by resolution kind');
+  lines.push('# TYPE alerts_resolved_total counter');
+  for (const [resolution, entry] of metrics.alertsResolved)
+    lines.push(`alerts_resolved_total{resolution="${resolution}"} ${entry.value}`);
+
+  lines.push('# HELP alert_evaluation_duration_ms Alert rule evaluation latency');
+  lines.push('# TYPE alert_evaluation_duration_ms histogram');
+  lines.push(`alert_evaluation_duration_ms_count ${metrics.alerts.evaluationDuration.count}`);
+  lines.push(`alert_evaluation_duration_ms_sum ${metrics.alerts.evaluationDuration.sum}`);
+
+  lines.push('# HELP alert_evaluation_errors_total Alert evaluations that threw');
+  lines.push('# TYPE alert_evaluation_errors_total counter');
+  lines.push(`alert_evaluation_errors_total ${metrics.alerts.evaluationErrors}`);
+
   return lines.join('\n');
 }
 
@@ -318,4 +407,10 @@ export function resetMetrics(): void {
   metrics.cache = { hits: 0, misses: 0, sets: 0, invalidations: 0 };
   metrics.ingestion = { total: 0, errors: 0, lastBatchSize: 0, lastBatchTime: 0 };
   metrics.database = { queryCount: 0, slowQueries: 0, totalQueryTime: 0 };
+  metrics.alertsFired.clear();
+  metrics.alertsResolved.clear();
+  metrics.alerts = {
+    evaluationErrors: 0,
+    evaluationDuration: { count: 0, sum: 0, min: Infinity, max: -Infinity, lastUpdated: 0 },
+  };
 }
