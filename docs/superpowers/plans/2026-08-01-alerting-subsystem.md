@@ -755,7 +755,9 @@ Append to `__tests__/setup/factories.ts`:
 // ============================================================================
 
 export interface AlertInput {
-  rule_id: unknown;
+  // Must be Types.ObjectId, not `unknown`: `unknown` collapses to `never`
+  // against Mongoose's create() overloads and cascades type errors.
+  rule_id: Types.ObjectId;
   rule_name: string;
   device_id: string;
   status: 'pending' | 'firing' | 'acknowledged' | 'resolved';
@@ -1116,7 +1118,7 @@ export default AlertV2;
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm test __tests__/unit/models/AlertV2.test.ts`
-Expected: PASS, 15 tests. If the two dedup-index tests fail with "expected rejection", confirm `await AlertV2.init()` runs before the inserts — mongodb-memory-server does not build indexes until the model is initialized.
+Expected: PASS, 16 tests. If the two dedup-index tests fail with "expected rejection", confirm `await AlertV2.init()` runs before the inserts — mongodb-memory-server does not build indexes until the model is initialized.
 
 - [ ] **Step 5: Add the error codes**
 
