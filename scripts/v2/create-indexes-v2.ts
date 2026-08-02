@@ -162,6 +162,28 @@ const READING_V2_INDEXES: IndexDefinition[] = [
   },
 ];
 
+/**
+ * AlertRuleV2 Index Definitions
+ *
+ * These indexes optimize:
+ * - The evaluator's rule-cache load predicate (enabled + not soft-deleted)
+ * - The default list sort
+ */
+const ALERT_RULE_V2_INDEXES: IndexDefinition[] = [
+  {
+    name: 'enabled_deleted_at',
+    spec: { enabled: 1, 'audit.deleted_at': 1 } as IndexSpec,
+    options: { background: true },
+    description: 'Rule cache load predicate: { enabled: true, audit.deleted_at: { $exists: false } }',
+  },
+  {
+    name: 'audit_created_at_desc',
+    spec: { 'audit.created_at': -1 } as IndexSpec,
+    options: { background: true },
+    description: 'Default sort for GET /api/v2/alert-rules',
+  },
+];
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -257,6 +279,7 @@ async function createIndexes(): Promise<void> {
 
     const hasDevicesV2 = collectionNames.has('devices_v2');
     const hasReadingsV2 = collectionNames.has('readings_v2');
+    const hasAlertRulesV2 = collectionNames.has('alert_rules_v2');
 
     if (!hasDevicesV2)
       console.log(
@@ -268,20 +291,29 @@ async function createIndexes(): Promise<void> {
         '\n⚠️  Collection readings_v2 does not exist yet. Creating indexes will create the collection.'
       );
 
+    if (!hasAlertRulesV2)
+      console.log(
+        '\n⚠️  Collection alert_rules_v2 does not exist yet. Creating indexes will create the collection.'
+      );
+
     // Create indexes for devices_v2
     const deviceStats = await createCollectionIndexes('devices_v2', DEVICE_V2_INDEXES);
 
     // Create indexes for readings_v2
     const readingStats = await createCollectionIndexes('readings_v2', READING_V2_INDEXES);
 
+    // Create indexes for alert_rules_v2
+    const alertRuleStats = await createCollectionIndexes('alert_rules_v2', ALERT_RULE_V2_INDEXES);
+
     // Verify indexes
     await verifyIndexes('devices_v2');
     await verifyIndexes('readings_v2');
+    await verifyIndexes('alert_rules_v2');
 
     // Summary
-    const totalSuccess = deviceStats.success + readingStats.success;
-    const totalSkipped = deviceStats.skipped + readingStats.skipped;
-    const totalFailed = deviceStats.failed + readingStats.failed;
+    const totalSuccess = deviceStats.success + readingStats.success + alertRuleStats.success;
+    const totalSkipped = deviceStats.skipped + readingStats.skipped + alertRuleStats.skipped;
+    const totalFailed = deviceStats.failed + readingStats.failed + alertRuleStats.failed;
     const duration = Date.now() - startTime;
 
     console.log('\n' + '═'.repeat(60));
