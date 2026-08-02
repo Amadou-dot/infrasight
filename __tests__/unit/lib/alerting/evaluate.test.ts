@@ -166,6 +166,26 @@ describe('evaluateReadings', () => {
     expect(stored!.trigger_value).toBe(35);
   });
 
+  it('should not re-fire an acknowledged episode, but should keep tracking observations', async () => {
+    await seedRule();
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:05:00.000Z'); // later than the acknowledged episode's last_observed_at
+
+    await evaluateReadings([reading(35, t0)], [DEVICE]);
+    const opened = await AlertV2.findOne({}).lean();
+    await AlertV2.acknowledge(String(opened!._id), 'user_test');
+
+    const result = await evaluateReadings([reading(40, t1)], [DEVICE]);
+
+    expect(result.fired).toHaveLength(0);
+
+    const stored = await AlertV2.findOne({}).lean();
+    expect(stored!.status).toBe('acknowledged');
+    expect(stored!.is_open).toBe(true);
+    expect(stored!.fired_at!.toISOString()).toBe(opened!.fired_at!.toISOString());
+    expect(stored!.last_value).toBe(40);
+  });
+
   it('should reduce by breach, not by recency', async () => {
     // breach -> clear -> breach inside ONE batch yields ONE episode whose
     // breached_since is the EARLIEST breaching reading.
