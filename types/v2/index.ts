@@ -143,5 +143,35 @@ export type {
   ScheduleListResponse,
 } from './schedule.types';
 
+// ============================================================================
+// ALERT TYPES
+// ============================================================================
+
+export type {
+  // Enums
+  AlertMetric,
+  AlertComparison,
+  AlertSeverity,
+  AlertStatus,
+  AlertResolution,
+  ReadingTypeName,
+  // Rule
+  AlertRuleSelector,
+  AlertRuleAudit,
+  AlertRuleV2Response,
+  CreateAlertRuleBody,
+  UpdateAlertRuleBody,
+  ListAlertRulesQueryParams,
+  // Alert
+  AlertAudit,
+  AlertV2Response,
+  UpdateAlertBody,
+  ListAlertsQueryParams,
+  // Pusher wire types
+  FiredAlert,
+  ResolvedAlert,
+  AlertEvent,
+} from './alert.types';
+
 // Export type guards as values
 export { isSuccessResponse, isErrorResponse } from './api.types';
