@@ -13,6 +13,7 @@ import {
   invalidateHealthCache,
   invalidateMetadata,
   clearAllCaches,
+  invalidateAlertRules,
 } from '@/lib/cache/invalidation';
 import * as cacheModule from '@/lib/cache/cache';
 
@@ -31,6 +32,7 @@ jest.mock('@/lib/cache/keys', () => ({
   metadataPattern: jest.fn((orgId: string) => `org:${orgId}:metadata:*`),
   healthPattern: jest.fn((orgId: string) => `org:${orgId}:health:*`),
   readingsPattern: jest.fn((orgId: string) => `org:${orgId}:readings:latest:*`),
+  alertRulesKey: jest.fn(() => 'alert:rules:active'),
 }));
 
 // Mock logger to suppress output during tests
@@ -177,6 +179,24 @@ describe('Cache Invalidation', () => {
       (cacheModule.delPattern as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
 
       await expect(invalidateMetadata(TEST_ORG)).resolves.not.toThrow();
+    });
+  });
+
+  // ==========================================================================
+  // ALERT RULE INVALIDATION
+  // ==========================================================================
+
+  describe('invalidateAlertRules()', () => {
+    it('should invalidate the active alert rule cache', async () => {
+      await invalidateAlertRules();
+
+      expect(cacheModule.del).toHaveBeenCalledWith('alert:rules:active');
+    });
+
+    it('should handle errors gracefully', async () => {
+      (cacheModule.del as jest.Mock).mockRejectedValueOnce(new Error('Redis error'));
+
+      await expect(invalidateAlertRules()).resolves.not.toThrow();
     });
   });
 

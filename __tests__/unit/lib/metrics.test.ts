@@ -304,6 +304,7 @@ describe('Metrics Collection', () => {
       expect(snapshot).toHaveProperty('cache');
       expect(snapshot).toHaveProperty('ingestion');
       expect(snapshot).toHaveProperty('database');
+      expect(snapshot).toHaveProperty('alerts');
       expect(snapshot).toHaveProperty('timestamp');
     });
 
@@ -446,6 +447,9 @@ describe('Metrics Collection', () => {
       recordCacheEvent('hit');
       recordIngestion(100, 0);
       recordDatabaseQuery(50);
+      recordAlert('fired', { severity: 'critical' });
+      recordAlert('evaluation_error');
+      recordAlertEvaluationDuration(15);
 
       // Reset
       resetMetrics();
@@ -456,6 +460,7 @@ describe('Metrics Collection', () => {
       const cache = snapshot.cache as Record<string, number | string>;
       const ingestion = snapshot.ingestion as Record<string, number | string>;
       const database = snapshot.database as Record<string, number>;
+      const alerts = snapshot.alerts as Record<string, unknown>;
 
       expect(requests.latency).toEqual({});
       expect(requests.counts).toEqual({});
@@ -464,6 +469,10 @@ describe('Metrics Collection', () => {
       expect(cache.misses).toBe(0);
       expect(ingestion.total).toBe(0);
       expect(database.queryCount).toBe(0);
+      expect(alerts.fired).toEqual({});
+      expect(alerts.resolved).toEqual({});
+      expect(alerts.evaluationErrors).toBe(0);
+      expect(alerts.avgEvaluationDuration).toBe(0);
     });
   });
 
@@ -513,11 +522,43 @@ describe('Metrics Collection', () => {
       expect(prom).toContain('alert_evaluation_duration_ms_sum 32');
     });
 
+    it('should expose fired/resolved counts and average duration via getMetricsSnapshot()', () => {
+      recordAlert('fired', { severity: 'critical' });
+      recordAlert('fired', { severity: 'critical' });
+      recordAlert('resolved', { resolution: 'auto' });
+      recordAlertEvaluationDuration(10);
+      recordAlertEvaluationDuration(30);
+
+      const snapshot = getMetricsSnapshot();
+      const alerts = snapshot.alerts as Record<string, unknown>;
+      const fired = alerts.fired as Record<string, number>;
+      const resolved = alerts.resolved as Record<string, number>;
+
+      expect(fired.critical).toBe(2);
+      expect(resolved.auto).toBe(1);
+      expect(alerts.avgEvaluationDuration).toBe(20); // (10 + 30) / 2
+    });
+
+    it('should return 0 average evaluation duration when none recorded', () => {
+      const snapshot = getMetricsSnapshot();
+      const alerts = snapshot.alerts as Record<string, unknown>;
+
+      expect(alerts.avgEvaluationDuration).toBe(0);
+    });
+
     it('should be reset by resetMetrics', () => {
       recordAlert('fired', { severity: 'info' });
+      recordAlert('evaluation_error');
+      recordAlertEvaluationDuration(42);
+
       resetMetrics();
 
+      const snapshot = getMetricsSnapshot();
+      const alerts = snapshot.alerts as Record<string, unknown>;
+
       expect(getPrometheusMetrics()).not.toContain('alerts_fired_total{severity="info"}');
+      expect(alerts.evaluationErrors).toBe(0);
+      expect(alerts.avgEvaluationDuration).toBe(0);
     });
   });
 });
