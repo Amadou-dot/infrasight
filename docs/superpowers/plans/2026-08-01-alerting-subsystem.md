@@ -2951,7 +2951,7 @@ export async function getRuleBuckets(): Promise<RuleBuckets> {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm test __tests__/unit/lib/alerting/rule-cache.test.ts`
-Expected: PASS, 13 tests. Redis is not configured in the Jest environment, so `getOrSet` falls straight through to the fetch function — the tests exercise the fresh path, and `normalizeRule` is tested directly for the cache-hit shape.
+Expected: PASS, 12 tests. Redis is not configured in the Jest environment, so `getOrSet` falls straight through to the fetch function — the tests exercise the fresh path, and `normalizeRule` is tested directly for the cache-hit shape.
 
 - [ ] **Step 5: Commit**
 
