@@ -291,7 +291,10 @@ Expected: FAIL — `Cannot find module '@/models/v2/AlertRuleV2'`
 Create `models/v2/AlertRuleV2.ts`:
 
 ```typescript
-import mongoose, { Schema, type Document, type Model, Types } from 'mongoose';
+// `Types` is used only in type position here (Types.ObjectId as a field type),
+// so it must be a type-only import or @typescript-eslint/consistent-type-imports
+// fails. Task 7 does use `new Types.ObjectId()` and needs the value import.
+import mongoose, { Schema, type Document, type Model, type Types } from 'mongoose';
 import type { ReadingType } from './ReadingV2';
 
 // ============================================================================
@@ -373,11 +376,15 @@ export interface IAlertRuleV2 {
 
 const SelectorSchema = new Schema<IAlertRuleSelector>(
   {
-    types: { type: [String], enum: READING_TYPES as unknown as string[] },
+    // `default: undefined` overrides Mongoose's implicit `[]` default for array
+    // paths, so an omitted field stays truly absent (no constraint) rather than
+    // becoming a vacuous empty array. Without it a fleet-wide rule round-trips
+    // as `types: []` instead of `types: undefined`.
+    types: { type: [String], enum: READING_TYPES as unknown as string[], default: undefined },
     building_id: { type: String },
     floor: { type: Number },
     zone: { type: String },
-    tags: { type: [String] },
+    tags: { type: [String], default: undefined },
   },
   { _id: false }
 );
@@ -497,7 +504,7 @@ Expected: PASS, 8 tests.
 
 - [ ] **Step 5: Add the index definitions to the index scripts**
 
-In `scripts/v2/create-indexes-v2.ts`, add this block next to the existing `DEVICE_V2_INDEXES` / `SCHEDULE_V2_INDEXES` arrays:
+In `scripts/v2/create-indexes-v2.ts`, add this block next to the existing `DEVICE_V2_INDEXES` and `READING_V2_INDEXES` arrays (there is no schedule index array in this file — follow those two):
 
 ```typescript
 /**
@@ -812,7 +819,9 @@ Expected: FAIL — `Cannot find module '@/models/v2/AlertV2'`
 Create `models/v2/AlertV2.ts`:
 
 ```typescript
-import mongoose, { Schema, type Document, type Model, Types } from 'mongoose';
+// Type-only `Types` import: this file uses Types.ObjectId as a field TYPE and
+// Schema.Types.ObjectId as the schema value — it never calls `new Types.…`.
+import mongoose, { Schema, type Document, type Model, type Types } from 'mongoose';
 import type { AlertMetric, AlertComparison, AlertSeverity } from './AlertRuleV2';
 
 // ============================================================================
