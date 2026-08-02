@@ -14,6 +14,8 @@ import {
   getMetricsSnapshot,
   getPrometheusMetrics,
   resetMetrics,
+  recordAlert,
+  recordAlertEvaluationDuration,
 } from '@/lib/monitoring/metrics';
 
 describe('Metrics Collection', () => {
@@ -462,6 +464,60 @@ describe('Metrics Collection', () => {
       expect(cache.misses).toBe(0);
       expect(ingestion.total).toBe(0);
       expect(database.queryCount).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // ALERTING METRICS
+  // ==========================================================================
+
+  describe('recordAlert', () => {
+    beforeEach(() => {
+      resetMetrics();
+    });
+
+    it('should count fired alerts by severity', () => {
+      recordAlert('fired', { severity: 'critical' });
+      recordAlert('fired', { severity: 'critical' });
+      recordAlert('fired', { severity: 'warning' });
+
+      const prom = getPrometheusMetrics();
+
+      expect(prom).toContain('alerts_fired_total{severity="critical"} 2');
+      expect(prom).toContain('alerts_fired_total{severity="warning"} 1');
+    });
+
+    it('should count resolved alerts by resolution', () => {
+      recordAlert('resolved', { resolution: 'auto' });
+      recordAlert('resolved', { resolution: 'stale' });
+
+      const prom = getPrometheusMetrics();
+
+      expect(prom).toContain('alerts_resolved_total{resolution="auto"} 1');
+      expect(prom).toContain('alerts_resolved_total{resolution="stale"} 1');
+    });
+
+    it('should count evaluation errors', () => {
+      recordAlert('evaluation_error');
+
+      expect(getPrometheusMetrics()).toContain('alert_evaluation_errors_total 1');
+    });
+
+    it('should record evaluation duration as a histogram', () => {
+      recordAlertEvaluationDuration(12);
+      recordAlertEvaluationDuration(20);
+
+      const prom = getPrometheusMetrics();
+
+      expect(prom).toContain('alert_evaluation_duration_ms_count 2');
+      expect(prom).toContain('alert_evaluation_duration_ms_sum 32');
+    });
+
+    it('should be reset by resetMetrics', () => {
+      recordAlert('fired', { severity: 'info' });
+      resetMetrics();
+
+      expect(getPrometheusMetrics()).not.toContain('alerts_fired_total{severity="info"}');
     });
   });
 });

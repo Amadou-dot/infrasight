@@ -26,6 +26,7 @@ export {
   healthPattern,
   readingsPattern,
   analyticsPattern,
+  alertRulesKey,
 } from './keys';
 
 export {
@@ -37,4 +38,5 @@ export {
   invalidateHealthCache,
   invalidateMetadata,
   clearAllCaches,
+  invalidateAlertRules,
 } from './invalidation';

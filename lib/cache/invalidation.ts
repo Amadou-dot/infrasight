@@ -12,6 +12,7 @@ import {
   metadataPattern,
   healthPattern,
   readingsPattern,
+  alertRulesKey,
 } from './keys';
 import { logger } from '../monitoring/logger';
 
@@ -151,6 +152,23 @@ export async function invalidateMetadata(orgId: string): Promise<void> {
     logger.debug('Metadata cache invalidated', { orgId });
   } catch (error) {
     logger.warn('Metadata cache invalidation failed', { orgId }, error as Error);
+  }
+}
+
+// ============================================================================
+// ALERT RULE INVALIDATION
+// ============================================================================
+
+/**
+ * Invalidate the active alert rule cache.
+ * Called after every rule create, update, and delete.
+ */
+export async function invalidateAlertRules(): Promise<void> {
+  try {
+    await del(alertRulesKey());
+    logger.debug('Alert rules cache invalidated');
+  } catch (error) {
+    logger.warn('Alert rules cache invalidation failed', {}, error as Error);
   }
 }
 
