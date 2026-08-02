@@ -14,6 +14,7 @@ import 'dotenv/config';
 import '../../models/v2/DeviceV2';
 import '../../models/v2/ReadingV2';
 import '../../models/v2/AlertRuleV2';
+import '../../models/v2/AlertV2';
 
 // ============================================================================
 // EXPECTED INDEXES
@@ -47,6 +48,22 @@ const EXPECTED_READING_INDEXES: ExpectedIndex[] = [
 const EXPECTED_ALERT_RULE_INDEXES: ExpectedIndex[] = [
   { name: 'enabled_deleted_at', fields: { enabled: 1, 'audit.deleted_at': 1 } },
   { name: 'audit_created_at_desc', fields: { 'audit.created_at': -1 } },
+];
+
+const EXPECTED_ALERT_INDEXES: ExpectedIndex[] = [
+  {
+    name: 'rule_device_open_unique',
+    fields: { rule_id: 1, device_id: 1 },
+    unique: true,
+  },
+  {
+    name: 'rule_device_resolved_at',
+    fields: { rule_id: 1, device_id: 1, 'audit.resolved_at': -1 },
+  },
+  { name: 'status_created_at', fields: { status: 1, 'audit.created_at': -1 } },
+  { name: 'device_created_at', fields: { device_id: 1, 'audit.created_at': -1 } },
+  { name: 'severity_status', fields: { severity: 1, status: 1 } },
+  { name: 'is_open_last_observed_at', fields: { is_open: 1, last_observed_at: 1 } },
 ];
 
 // ============================================================================
@@ -222,6 +239,41 @@ async function main() {
     console.error('Error checking AlertRuleV2 indexes:', error);
   }
 
+  // ---- AlertV2 Indexes ----
+  console.log('\n' + '═'.repeat(60));
+  console.log(' AlertV2 Collection Indexes');
+  console.log('═'.repeat(60));
+
+  try {
+    const alertIndexes = await getCollectionIndexes('alerts_v2');
+
+    console.log('\nCurrent indexes:');
+    for (const idx of alertIndexes) {
+      const uniqueStr = idx.unique ? ' (unique)' : '';
+      console.log(`  • ${idx.name}${uniqueStr}`);
+      console.log(`    Fields: { ${formatIndexKey(idx.key)} }`);
+    }
+
+    console.log('\nExpected indexes:');
+    let allAlertIndexesPresent = true;
+    for (const expected of EXPECTED_ALERT_INDEXES) {
+      const exists = checkIndexExists(alertIndexes, expected);
+      const status = exists ? '✓' : '✗';
+      const color = exists ? '\x1b[32m' : '\x1b[31m';
+      const reset = '\x1b[0m';
+      console.log(`  ${color}${status}${reset} ${expected.name}`);
+      if (!exists) {
+        allAlertIndexesPresent = false;
+        console.log(`    Missing: { ${formatIndexKey(expected.fields)} }`);
+      }
+    }
+
+    if (allAlertIndexesPresent) console.log('\n  \x1b[32m✓ All expected indexes present\x1b[0m');
+    else console.log('\n  \x1b[33m⚠ Some indexes are missing - run create-indexes-v2.ts\x1b[0m');
+  } catch (error) {
+    console.error('Error checking AlertV2 indexes:', error);
+  }
+
   // ---- Collection Stats ----
   console.log('\n' + '═'.repeat(60));
   console.log(' Collection Statistics');
@@ -258,6 +310,17 @@ async function main() {
     }
   } catch {
     console.log('\nalert_rules_v2: Collection does not exist or is empty');
+  }
+
+  try {
+    const db = mongoose.connection.db;
+    if (db) {
+      const alertCount = await db.collection('alerts_v2').estimatedDocumentCount();
+      console.log('\nalerts_v2:');
+      console.log(`  Documents: ${alertCount.toLocaleString()}`);
+    }
+  } catch {
+    console.log('\nalerts_v2: Collection does not exist or is empty');
   }
 
   console.log('\n' + '═'.repeat(60));

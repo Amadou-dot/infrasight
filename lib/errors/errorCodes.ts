@@ -77,6 +77,13 @@ export const ErrorCodes = {
   INVALID_SCHEDULED_DATE: 'INVALID_SCHEDULED_DATE',
   INVALID_SCHEDULE_STATUS_TRANSITION: 'INVALID_SCHEDULE_STATUS_TRANSITION',
 
+  // ---- Alert Errors (404, 422) ----
+  ALERT_NOT_FOUND: 'ALERT_NOT_FOUND',
+  ALERT_RULE_NOT_FOUND: 'ALERT_RULE_NOT_FOUND',
+  ALERT_ALREADY_ACKNOWLEDGED: 'ALERT_ALREADY_ACKNOWLEDGED',
+  ALERT_ALREADY_RESOLVED: 'ALERT_ALREADY_RESOLVED',
+  INVALID_ALERT_STATUS_TRANSITION: 'INVALID_ALERT_STATUS_TRANSITION',
+
   // ---- Rate Limiting (429) ----
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
   TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
@@ -306,6 +313,33 @@ export const ErrorCodeRegistry: Record<ErrorCode, ErrorCodeDefinition> = {
     code: ErrorCodes.INVALID_SCHEDULE_STATUS_TRANSITION,
     statusCode: 422,
     description: 'Invalid schedule status transition',
+  },
+
+  // ---- Alert Errors ----
+  [ErrorCodes.ALERT_NOT_FOUND]: {
+    code: ErrorCodes.ALERT_NOT_FOUND,
+    statusCode: 404,
+    description: 'The specified alert was not found',
+  },
+  [ErrorCodes.ALERT_RULE_NOT_FOUND]: {
+    code: ErrorCodes.ALERT_RULE_NOT_FOUND,
+    statusCode: 404,
+    description: 'The specified alert rule was not found',
+  },
+  [ErrorCodes.ALERT_ALREADY_ACKNOWLEDGED]: {
+    code: ErrorCodes.ALERT_ALREADY_ACKNOWLEDGED,
+    statusCode: 422,
+    description: 'The alert has already been acknowledged',
+  },
+  [ErrorCodes.ALERT_ALREADY_RESOLVED]: {
+    code: ErrorCodes.ALERT_ALREADY_RESOLVED,
+    statusCode: 422,
+    description: 'The alert has already been resolved and cannot be modified',
+  },
+  [ErrorCodes.INVALID_ALERT_STATUS_TRANSITION]: {
+    code: ErrorCodes.INVALID_ALERT_STATUS_TRANSITION,
+    statusCode: 422,
+    description: 'Invalid alert status transition',
   },
 
   // ---- Rate Limiting ----

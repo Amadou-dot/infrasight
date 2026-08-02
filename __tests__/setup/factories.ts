@@ -4,6 +4,7 @@
  * Provides functions for creating valid test data for models and API tests.
  */
 
+import { Types } from 'mongoose';
 import type { IDeviceV2, DeviceType, DeviceStatus } from '@/models/v2/DeviceV2';
 
 // ============================================================================
@@ -40,6 +41,7 @@ export function resetCounters(): void {
   readingV2Counter = 0;
   scheduleCounter = 0;
   alertRuleCounter = 0;
+  alertCounter = 0;
 }
 
 /**
@@ -815,6 +817,62 @@ export function createAlertRuleInput(overrides: Partial<AlertRuleInput> = {}): A
       created_by: 'test@example.com',
       updated_at: new Date(),
       updated_by: 'test@example.com',
+    },
+    ...overrides,
+  };
+}
+
+// ============================================================================
+// ALERT FACTORIES
+// ============================================================================
+
+export interface AlertInput {
+  rule_id: Types.ObjectId;
+  rule_name: string;
+  device_id: string;
+  status: 'pending' | 'firing' | 'acknowledged' | 'resolved';
+  is_open: boolean;
+  severity: 'info' | 'warning' | 'critical';
+  metric: string;
+  comparison: string;
+  threshold: number;
+  trigger_value: number;
+  last_value: number;
+  breached_since: Date;
+  last_observed_at: Date;
+  fired_at?: Date;
+  audit?: Record<string, unknown>;
+}
+
+let alertCounter = 0;
+
+export function createAlertInput(overrides: Partial<AlertInput> = {}): AlertInput {
+  alertCounter += 1;
+  const now = new Date();
+  const status = overrides.status ?? 'firing';
+  return {
+    rule_id: new Types.ObjectId(),
+    rule_name: `Test Rule ${alertCounter}`,
+    device_id: `device_${String(alertCounter).padStart(3, '0')}`,
+    status,
+    is_open: status !== 'resolved',
+    severity: 'warning',
+    metric: 'value',
+    comparison: 'gt',
+    threshold: 30,
+    trigger_value: 35,
+    last_value: 35,
+    breached_since: now,
+    last_observed_at: now,
+    fired_at: status === 'pending' ? undefined : now,
+    audit: {
+      created_at: now,
+      created_by: 'system',
+      updated_at: now,
+      updated_by: 'system',
+      ...(status === 'resolved'
+        ? { resolved_at: now, resolved_by: 'system', resolution: 'auto' }
+        : {}),
     },
     ...overrides,
   };

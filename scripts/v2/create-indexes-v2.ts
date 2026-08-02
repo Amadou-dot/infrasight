@@ -23,7 +23,12 @@ type IndexSpec = Record<string, 1 | -1>;
 interface IndexDefinition {
   name: string;
   spec: IndexSpec;
-  options: { unique?: boolean; sparse?: boolean; background?: boolean };
+  options: {
+    unique?: boolean;
+    sparse?: boolean;
+    background?: boolean;
+    partialFilterExpression?: Record<string, unknown>;
+  };
   description: string;
 }
 
@@ -184,6 +189,53 @@ const ALERT_RULE_V2_INDEXES: IndexDefinition[] = [
   },
 ];
 
+/**
+ * AlertV2 Index Definitions
+ *
+ * The partial unique index is the deduplication mechanism in full — at most one
+ * open episode per (rule, device) pair, enforced by MongoDB. It uses an equality
+ * predicate on `is_open` (supported since MongoDB 3.2) rather than a status
+ * `$in` (which would require 6.0+).
+ */
+const ALERT_V2_INDEXES: IndexDefinition[] = [
+  {
+    name: 'rule_device_open_unique',
+    spec: { rule_id: 1, device_id: 1 } as IndexSpec,
+    options: { unique: true, background: true, partialFilterExpression: { is_open: true } },
+    description: 'Partial unique index enforcing one open episode per (rule, device)',
+  },
+  {
+    name: 'rule_device_resolved_at',
+    spec: { rule_id: 1, device_id: 1, 'audit.resolved_at': -1 } as IndexSpec,
+    options: { background: true },
+    description: 'Cooldown lookback over resolved episodes',
+  },
+  {
+    name: 'status_created_at',
+    spec: { status: 1, 'audit.created_at': -1 } as IndexSpec,
+    options: { background: true },
+    description: 'Active alert list, the default view',
+  },
+  {
+    name: 'device_created_at',
+    spec: { device_id: 1, 'audit.created_at': -1 } as IndexSpec,
+    options: { background: true },
+    description: 'Alerts for a single device',
+  },
+  {
+    name: 'severity_status',
+    spec: { severity: 1, status: 1 } as IndexSpec,
+    options: { background: true },
+    description: 'Severity filter on the alert list',
+  },
+  {
+    name: 'is_open_last_observed_at',
+    spec: { is_open: 1, last_observed_at: 1 } as IndexSpec,
+    options: { background: true },
+    description: 'Staleness sweep',
+  },
+];
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -223,6 +275,8 @@ async function createCollectionIndexes(
       if (index.options.sparse !== undefined) indexOptions.sparse = index.options.sparse;
       if (index.options.background !== undefined)
         indexOptions.background = index.options.background;
+      if (index.options.partialFilterExpression !== undefined)
+        indexOptions.partialFilterExpression = index.options.partialFilterExpression;
 
       await collection.createIndex(index.spec, indexOptions);
       const duration = Date.now() - startTime;
@@ -280,6 +334,7 @@ async function createIndexes(): Promise<void> {
     const hasDevicesV2 = collectionNames.has('devices_v2');
     const hasReadingsV2 = collectionNames.has('readings_v2');
     const hasAlertRulesV2 = collectionNames.has('alert_rules_v2');
+    const hasAlertsV2 = collectionNames.has('alerts_v2');
 
     if (!hasDevicesV2)
       console.log(
@@ -296,6 +351,11 @@ async function createIndexes(): Promise<void> {
         '\n⚠️  Collection alert_rules_v2 does not exist yet. Creating indexes will create the collection.'
       );
 
+    if (!hasAlertsV2)
+      console.log(
+        '\n⚠️  Collection alerts_v2 does not exist yet. Creating indexes will create the collection.'
+      );
+
     // Create indexes for devices_v2
     const deviceStats = await createCollectionIndexes('devices_v2', DEVICE_V2_INDEXES);
 
@@ -305,15 +365,22 @@ async function createIndexes(): Promise<void> {
     // Create indexes for alert_rules_v2
     const alertRuleStats = await createCollectionIndexes('alert_rules_v2', ALERT_RULE_V2_INDEXES);
 
+    // Create indexes for alerts_v2
+    const alertStats = await createCollectionIndexes('alerts_v2', ALERT_V2_INDEXES);
+
     // Verify indexes
     await verifyIndexes('devices_v2');
     await verifyIndexes('readings_v2');
     await verifyIndexes('alert_rules_v2');
+    await verifyIndexes('alerts_v2');
 
     // Summary
-    const totalSuccess = deviceStats.success + readingStats.success + alertRuleStats.success;
-    const totalSkipped = deviceStats.skipped + readingStats.skipped + alertRuleStats.skipped;
-    const totalFailed = deviceStats.failed + readingStats.failed + alertRuleStats.failed;
+    const totalSuccess =
+      deviceStats.success + readingStats.success + alertRuleStats.success + alertStats.success;
+    const totalSkipped =
+      deviceStats.skipped + readingStats.skipped + alertRuleStats.skipped + alertStats.skipped;
+    const totalFailed =
+      deviceStats.failed + readingStats.failed + alertRuleStats.failed + alertStats.failed;
     const duration = Date.now() - startTime;
 
     console.log('\n' + '═'.repeat(60));
