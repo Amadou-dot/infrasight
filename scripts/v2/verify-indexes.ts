@@ -13,6 +13,7 @@ import 'dotenv/config';
 // Import models to ensure schemas are registered
 import '../../models/v2/DeviceV2';
 import '../../models/v2/ReadingV2';
+import '../../models/v2/AlertRuleV2';
 
 // ============================================================================
 // EXPECTED INDEXES
@@ -41,6 +42,11 @@ const EXPECTED_READING_INDEXES: ExpectedIndex[] = [
   { name: 'device_timestamp', fields: { 'metadata.device_id': 1, timestamp: 1 } },
   { name: 'is_anomaly', fields: { 'quality.is_anomaly': 1 } },
   { name: 'source', fields: { 'metadata.source': 1 } },
+];
+
+const EXPECTED_ALERT_RULE_INDEXES: ExpectedIndex[] = [
+  { name: 'enabled_deleted_at', fields: { enabled: 1, 'audit.deleted_at': 1 } },
+  { name: 'audit_created_at_desc', fields: { 'audit.created_at': -1 } },
 ];
 
 // ============================================================================
@@ -181,6 +187,41 @@ async function main() {
     console.error('Error checking ReadingV2 indexes:', error);
   }
 
+  // ---- AlertRuleV2 Indexes ----
+  console.log('\n' + '═'.repeat(60));
+  console.log(' AlertRuleV2 Collection Indexes');
+  console.log('═'.repeat(60));
+
+  try {
+    const alertRuleIndexes = await getCollectionIndexes('alert_rules_v2');
+
+    console.log('\nCurrent indexes:');
+    for (const idx of alertRuleIndexes) {
+      const uniqueStr = idx.unique ? ' (unique)' : '';
+      console.log(`  • ${idx.name}${uniqueStr}`);
+      console.log(`    Fields: { ${formatIndexKey(idx.key)} }`);
+    }
+
+    console.log('\nExpected indexes:');
+    let allAlertRuleIndexesPresent = true;
+    for (const expected of EXPECTED_ALERT_RULE_INDEXES) {
+      const exists = checkIndexExists(alertRuleIndexes, expected);
+      const status = exists ? '✓' : '✗';
+      const color = exists ? '\x1b[32m' : '\x1b[31m';
+      const reset = '\x1b[0m';
+      console.log(`  ${color}${status}${reset} ${expected.name}`);
+      if (!exists) {
+        allAlertRuleIndexesPresent = false;
+        console.log(`    Missing: { ${formatIndexKey(expected.fields)} }`);
+      }
+    }
+
+    if (allAlertRuleIndexesPresent) console.log('\n  \x1b[32m✓ All expected indexes present\x1b[0m');
+    else console.log('\n  \x1b[33m⚠ Some indexes are missing - run create-indexes-v2.ts\x1b[0m');
+  } catch (error) {
+    console.error('Error checking AlertRuleV2 indexes:', error);
+  }
+
   // ---- Collection Stats ----
   console.log('\n' + '═'.repeat(60));
   console.log(' Collection Statistics');
@@ -206,6 +247,17 @@ async function main() {
     }
   } catch {
     console.log('\nreadings_v2: Collection does not exist or is empty');
+  }
+
+  try {
+    const db = mongoose.connection.db;
+    if (db) {
+      const alertRuleCount = await db.collection('alert_rules_v2').estimatedDocumentCount();
+      console.log('\nalert_rules_v2:');
+      console.log(`  Documents: ${alertRuleCount.toLocaleString()}`);
+    }
+  } catch {
+    console.log('\nalert_rules_v2: Collection does not exist or is empty');
   }
 
   console.log('\n' + '═'.repeat(60));

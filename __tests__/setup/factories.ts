@@ -48,6 +48,7 @@ export function resetCounters(): void {
   _readingCounter = 0;
   _readingV2Counter = 0;
   scheduleCounter = 0;
+  alertRuleCounter = 0;
 }
 
 /**
@@ -782,4 +783,44 @@ export function createScheduleOfType(
  */
 export function futureDateISO(daysAhead: number = 7): string {
   return new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString();
+}
+
+// ============================================================================
+// ALERT RULE FACTORIES
+// ============================================================================
+
+export interface AlertRuleInput {
+  name: string;
+  description?: string;
+  enabled?: boolean;
+  selector: Record<string, unknown>;
+  metric: 'value' | 'anomaly_score' | 'battery_level';
+  comparison: 'gt' | 'gte' | 'lt' | 'lte';
+  threshold: number;
+  for_duration_seconds?: number;
+  severity: 'info' | 'warning' | 'critical';
+  cooldown_seconds?: number;
+  audit?: Record<string, unknown>;
+}
+
+let alertRuleCounter = 0;
+
+export function createAlertRuleInput(overrides: Partial<AlertRuleInput> = {}): AlertRuleInput {
+  alertRuleCounter += 1;
+  return {
+    name: `Test Rule ${alertRuleCounter}`,
+    enabled: true,
+    selector: { types: ['temperature'] },
+    metric: 'value',
+    comparison: 'gt',
+    threshold: 30,
+    severity: 'warning',
+    audit: {
+      created_at: new Date(),
+      created_by: 'test@example.com',
+      updated_at: new Date(),
+      updated_by: 'test@example.com',
+    },
+    ...overrides,
+  };
 }
