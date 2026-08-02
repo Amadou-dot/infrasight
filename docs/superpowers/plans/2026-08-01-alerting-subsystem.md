@@ -1793,27 +1793,46 @@ const alertSortFields = [
   'last_observed_at',
 ] as const;
 
-/** Accepts `firing`, `['firing','acknowledged']`, or `'firing,acknowledged'`. */
-function multiValue<T extends z.ZodTypeAny>(inner: T) {
-  return z.union([
-    inner,
-    z.array(inner),
-    z
-      .string()
-      .transform(val => val.split(',').map(s => s.trim()).filter(Boolean))
-      .pipe(z.array(inner)),
-  ]);
-}
-
-export const listAlertsQuerySchema = z.object({
-  ...paginationSchema.shape,
-  ...createSortSchema(alertSortFields).shape,
-  ...dateRangeSchema.shape,
-  status: multiValue(alertStatusSchema).optional(),
-  severity: multiValue(alertSeveritySchema).optional(),
-  device_id: deviceIdSchema.optional(),
-  rule_id: objectIdSchema.optional(),
-});
+// The multi-value unions are written out inline rather than extracted into a
+// generic `multiValue<T extends z.ZodTypeAny>(inner: T)` helper: under Zod 4 the
+// generic form loses the inner literal types and fails typecheck. Inline is also
+// exactly what `schedule.validation.ts` does for its status/service_type filters.
+//
+// `dateRangeSchema`'s ordering check lives on the schema as a `.refine()`, and
+// spreading `.shape` drops it — hence the `.refine()` re-added at the end.
+export const listAlertsQuerySchema = z
+  .object({
+    ...paginationSchema.shape,
+    ...createSortSchema(alertSortFields).shape,
+    ...dateRangeSchema.shape,
+    // Accepts `firing`, `['firing','acknowledged']`, or `'firing,acknowledged'`.
+    status: z
+      .union([
+        alertStatusSchema,
+        z.array(alertStatusSchema),
+        z
+          .string()
+          .transform(val => val.split(',').map(s => s.trim()).filter(Boolean))
+          .pipe(z.array(alertStatusSchema)),
+      ])
+      .optional(),
+    severity: z
+      .union([
+        alertSeveritySchema,
+        z.array(alertSeveritySchema),
+        z
+          .string()
+          .transform(val => val.split(',').map(s => s.trim()).filter(Boolean))
+          .pipe(z.array(alertSeveritySchema)),
+      ])
+      .optional(),
+    device_id: deviceIdSchema.optional(),
+    rule_id: objectIdSchema.optional(),
+  })
+  .refine(
+    data => !(data.startDate && data.endDate) || data.startDate <= data.endDate,
+    { message: 'Start date must be before or equal to end date', path: ['endDate'] }
+  );
 
 export const getAlertQuerySchema = z.object({
   include_device: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(false),
@@ -1832,21 +1851,10 @@ export type ListAlertsQuery = z.infer<typeof listAlertsQuerySchema>;
 export type GetAlertQuery = z.infer<typeof getAlertQuerySchema>;
 ```
 
-The date-range refinement lives on `dateRangeSchema` itself; spreading `.shape` drops it, so add the same check to `listAlertsQuerySchema` by wrapping it:
-
-```typescript
-// Append after the object definition above, replacing the bare export:
-//   export const listAlertsQuerySchema = z.object({ ... }).refine(...)
-.refine(
-  data => !(data.startDate && data.endDate) || data.startDate <= data.endDate,
-  { message: 'Start date must be before or equal to end date', path: ['endDate'] }
-);
-```
-
 - [ ] **Step 7: Run test to verify it passes**
 
 Run: `pnpm test __tests__/unit/validations/alert.validation.test.ts`
-Expected: PASS, 12 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 8: Write the client-safe wire types**
 
@@ -2943,7 +2951,7 @@ export async function getRuleBuckets(): Promise<RuleBuckets> {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm test __tests__/unit/lib/alerting/rule-cache.test.ts`
-Expected: PASS, 12 tests. Redis is not configured in the Jest environment, so `getOrSet` falls straight through to the fetch function — the tests exercise the fresh path, and `normalizeRule` is tested directly for the cache-hit shape.
+Expected: PASS, 13 tests. Redis is not configured in the Jest environment, so `getOrSet` falls straight through to the fetch function — the tests exercise the fresh path, and `normalizeRule` is tested directly for the cache-hit shape.
 
 - [ ] **Step 5: Commit**
 
