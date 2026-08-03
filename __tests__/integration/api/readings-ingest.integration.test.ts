@@ -8,7 +8,10 @@
 import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
-import { createDeviceInput, resetCounters } from '../../setup/factories';
+import AlertRuleV2 from '@/models/v2/AlertRuleV2';
+import AlertV2 from '@/models/v2/AlertV2';
+import * as evaluateModule from '@/lib/alerting/evaluate';
+import { createDeviceInput, createAlertRuleInput, resetCounters } from '../../setup/factories';
 
 // We need to import and test the handler more directly
 // The route exports POST which is wrapped with middleware
@@ -31,6 +34,13 @@ function createMockPostRequest(path: string, body: unknown): NextRequest {
  */
 async function parseResponse<T>(response: Response): Promise<T> {
   return response.json();
+}
+
+/**
+ * Helper to seed a single device for alert-evaluation tests.
+ */
+async function seedDevice(id: string) {
+  return DeviceV2.create(createDeviceInput({ _id: id }));
 }
 
 describe('POST /api/v2/readings/ingest Integration Tests', () => {
@@ -1268,6 +1278,80 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
         expect(data.data.errors.length).toBeLessThanOrEqual(10);
         expect(data.data.total_errors).toBe(15);
       }
+    });
+  });
+
+  // ==========================================================================
+  // ALERT EVALUATION TESTS
+  // ==========================================================================
+
+  describe('alert evaluation on the ingest path', () => {
+    it('should open a firing alert for a breaching ingested reading', async () => {
+      await seedDevice('device_alert_01');
+      await AlertRuleV2.create(
+        createAlertRuleInput({
+          name: 'Ingest high temp',
+          metric: 'value',
+          comparison: 'gt',
+          threshold: 30,
+          severity: 'critical',
+          selector: { types: ['temperature'] },
+        })
+      );
+
+      const { POST } = await import('@/app/api/v2/readings/ingest/route');
+
+      const request = createMockPostRequest('/api/v2/readings/ingest', {
+        readings: [
+          {
+            device_id: 'device_alert_01',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
+
+      const response = await POST(request);
+      expect(response.status).toBe(201);
+
+      const alert = await AlertV2.findOne({ device_id: 'device_alert_01' }).lean();
+      expect(alert).not.toBeNull();
+      expect(alert!.status).toBe('firing');
+    });
+
+    it('should still return 201 with readings persisted when evaluation throws', async () => {
+      await seedDevice('device_alert_02');
+      const spy = jest
+        .spyOn(evaluateModule, 'evaluateReadings')
+        .mockRejectedValueOnce(new Error('evaluator exploded'));
+
+      const { POST } = await import('@/app/api/v2/readings/ingest/route');
+
+      const request = createMockPostRequest('/api/v2/readings/ingest', {
+        readings: [
+          {
+            device_id: 'device_alert_02',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
+
+      const response = await POST(request);
+      const body = await parseResponse<{ success: boolean; data: { inserted: number } }>(response);
+
+      // Prove the mocked rejection was actually reached, not merely that the
+      // route succeeds regardless of whether alerting runs at all.
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(201);
+      expect(body.data.inserted).toBe(1);
+      expect(await ReadingV2.countDocuments({ 'metadata.device_id': 'device_alert_02' })).toBe(1);
+
+      spy.mockRestore();
     });
   });
 });

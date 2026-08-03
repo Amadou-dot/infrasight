@@ -1,14 +1,17 @@
 import crypto from 'crypto';
 import dbConnect from '@/lib/db';
 import { pusherServer } from '@/lib/pusher';
-import DeviceV2 from '@/models/v2/DeviceV2';
+import DeviceV2, { type IDeviceV2 } from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import { type NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/monitoring';
+import { safeEvaluateReadings, safeSweepStaleAlerts } from '@/lib/alerting';
 import {
   generateSimulatedReadings,
   type SimulatedDevice,
 } from '@/lib/simulation/readings';
+
+type CronDevice = SimulatedDevice & Pick<IDeviceV2, 'metadata'>;
 
 // ============================================================================
 // API ROUTE HANDLER
@@ -40,8 +43,8 @@ export async function GET(request: NextRequest) {
     await dbConnect();
 
     const devices = await DeviceV2.findActive()
-      .select({ _id: 1, type: 1, location: 1 })
-      .lean<SimulatedDevice[]>();
+      .select({ _id: 1, type: 1, location: 1, 'metadata.tags': 1 })
+      .lean<CronDevice[]>();
 
     // 1. Generate mock data
     const newReadings = generateSimulatedReadings(devices);
@@ -67,6 +70,14 @@ export async function GET(request: NextRequest) {
         readingsCount: newReadings.length,
       });
     }
+
+    // 4. Evaluate alert rules against the readings we just wrote.
+    await safeEvaluateReadings(newReadings, devices);
+
+    // 5. Sweep alerts whose device has stopped reporting. Cron path only — the
+    //    reporting set is the devices we just emitted for, so this needs no
+    //    device query of its own.
+    await safeSweepStaleAlerts(new Set(devices.map(device => String(device._id))));
 
     // Count anomalies for response
     const anomalyCount = newReadings.filter(r => r.quality?.is_anomaly === true).length;
