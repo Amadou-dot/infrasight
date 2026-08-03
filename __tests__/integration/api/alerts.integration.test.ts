@@ -120,6 +120,113 @@ describe('Alerts API Integration Tests', () => {
       const response = await listAlerts(createMockGetRequest('/api/v2/alerts'));
       expect(response.status).toBe(200);
     });
+
+    // The date range must filter on `fired_at` (the visible domain event), not
+    // `audit.created_at` (stamped when the invisible `pending` episode is first
+    // created). With a non-zero for_duration_seconds those two timestamps
+    // diverge by the whole duration, so each alert below is built so that
+    // filtering on the wrong field returns the wrong alert entirely — these
+    // tests would fail if the route reverted to `audit.created_at`.
+    describe('date range filtering (fired_at, not audit.created_at)', () => {
+      const t1 = new Date('2026-01-01T08:00:00.000Z');
+      const t2 = new Date('2026-01-01T09:00:00.000Z');
+      const t3 = new Date('2026-01-01T09:30:00.000Z');
+      const t4 = new Date('2026-01-01T10:00:00.000Z');
+
+      function auditAt(created_at: Date) {
+        return { created_at, created_by: 'system', updated_at: created_at, updated_by: 'system' };
+      }
+
+      it('should return the alert whose fired_at falls in the window, not the one whose audit.created_at does', async () => {
+        // In range by fired_at, out of range by audit.created_at.
+        await AlertV2.create(
+          createAlertInput({
+            status: 'firing',
+            device_id: 'device_fired_in_window',
+            fired_at: t2,
+            audit: auditAt(t1),
+          })
+        );
+        // Out of range by fired_at, in range by audit.created_at.
+        await AlertV2.create(
+          createAlertInput({
+            status: 'firing',
+            device_id: 'device_created_in_window',
+            fired_at: t1,
+            audit: auditAt(t2),
+          })
+        );
+
+        const response = await listAlerts(
+          createMockGetRequest('/api/v2/alerts', {
+            startDate: t2.toISOString(),
+            endDate: t3.toISOString(),
+          })
+        );
+        const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
+
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0].device_id).toBe('device_fired_in_window');
+      });
+
+      it('should filter by fired_at with startDate only', async () => {
+        // fired_at after the cutoff, audit.created_at before it.
+        await AlertV2.create(
+          createAlertInput({
+            status: 'firing',
+            device_id: 'device_fired_after_cutoff',
+            fired_at: t4,
+            audit: auditAt(t1),
+          })
+        );
+        // fired_at before the cutoff, audit.created_at after it.
+        await AlertV2.create(
+          createAlertInput({
+            status: 'firing',
+            device_id: 'device_created_after_cutoff',
+            fired_at: t1,
+            audit: auditAt(t4),
+          })
+        );
+
+        const response = await listAlerts(
+          createMockGetRequest('/api/v2/alerts', { startDate: t3.toISOString() })
+        );
+        const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
+
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0].device_id).toBe('device_fired_after_cutoff');
+      });
+
+      it('should filter by fired_at with endDate only', async () => {
+        // fired_at before the cutoff, audit.created_at after it.
+        await AlertV2.create(
+          createAlertInput({
+            status: 'firing',
+            device_id: 'device_fired_before_cutoff',
+            fired_at: t1,
+            audit: auditAt(t4),
+          })
+        );
+        // fired_at after the cutoff, audit.created_at before it.
+        await AlertV2.create(
+          createAlertInput({
+            status: 'firing',
+            device_id: 'device_created_before_cutoff',
+            fired_at: t4,
+            audit: auditAt(t1),
+          })
+        );
+
+        const response = await listAlerts(
+          createMockGetRequest('/api/v2/alerts', { endDate: t2.toISOString() })
+        );
+        const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
+
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0].device_id).toBe('device_fired_before_cutoff');
+      });
+    });
   });
 
   describe('GET /api/v2/alerts/[id]', () => {
