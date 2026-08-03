@@ -325,7 +325,15 @@ export async function evaluateReadings(
             continue;
           }
 
-          const firesImmediately = (rule.for_duration_seconds ?? 0) === 0;
+          // Symmetric with the promotion branch below: a breach that already spans
+          // the required duration WITHIN this batch must fire immediately, not wait
+          // for a second request just because no pending episode exists yet.
+          // `state.breaching` is true here, so `state.breachedSince` is always set —
+          // same cast as `breached_since: state.breachedSince as Date` in the
+          // insertOne document just below.
+          const elapsedMs =
+            state.lastObservedAt.getTime() - (state.breachedSince as Date).getTime();
+          const firesImmediately = elapsedMs >= (rule.for_duration_seconds ?? 0) * 1000;
           const _id = new Types.ObjectId();
 
           push(

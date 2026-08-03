@@ -144,6 +144,65 @@ describe('evaluateReadings', () => {
     expect(stored!.fired_at).toBeUndefined();
   });
 
+  // `for_duration_seconds` symmetry: a NEW episode (no pending episode already
+  // open) must fire immediately when the batch's OWN breach span already
+  // satisfies the rule's duration, not only when a pending episode already
+  // exists from a prior batch. See the promotion branch below for the mirror
+  // case (a pending episode promoted across two batches).
+  it('should fire immediately when a single batch already spans the full for_duration_seconds', async () => {
+    await seedRule({ for_duration_seconds: 60 });
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:02:00.000Z'); // 120s later: twice the required duration
+
+    const before = new Date();
+    const result = await evaluateReadings([reading(35, t0), reading(36, t1)], [DEVICE]);
+    const after = new Date();
+
+    expect(result.fired).toHaveLength(1);
+    expect(result.fired[0].trigger_value).toBe(35); // earliest breaching reading
+
+    const stored = await AlertV2.findOne({}).lean();
+    expect(stored!.status).toBe('firing');
+    expect(stored!.is_open).toBe(true);
+    expect(new Date(stored!.breached_since).toISOString()).toBe(t0.toISOString());
+
+    // fired_at must be the evaluation's wall-clock `now`, not the in-batch t1 —
+    // matching the promotion branch, which also stamps `now`.
+    const firedAtMs = new Date(stored!.fired_at!).getTime();
+    expect(firedAtMs).toBeGreaterThanOrEqual(before.getTime());
+    expect(firedAtMs).toBeLessThanOrEqual(after.getTime());
+  });
+
+  it("should stay pending when a single batch's breach span is shorter than for_duration_seconds", async () => {
+    await seedRule({ for_duration_seconds: 60 });
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:00:30.000Z'); // 30s later: half the required duration
+
+    const result = await evaluateReadings([reading(35, t0), reading(36, t1)], [DEVICE]);
+
+    expect(result.fired).toHaveLength(0);
+    expect(result.pendingOpened).toBe(1);
+
+    const stored = await AlertV2.findOne({}).lean();
+    expect(stored!.status).toBe('pending');
+    expect(stored!.fired_at).toBeUndefined();
+    expect(new Date(stored!.breached_since).toISOString()).toBe(t0.toISOString());
+  });
+
+  it('should fire when a single batch spans exactly for_duration_seconds (inclusive boundary)', async () => {
+    await seedRule({ for_duration_seconds: 60 });
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:01:00.000Z'); // exactly 60s later: elapsedMs === duration * 1000
+
+    const result = await evaluateReadings([reading(35, t0), reading(36, t1)], [DEVICE]);
+
+    expect(result.fired).toHaveLength(1);
+
+    const stored = await AlertV2.findOne({}).lean();
+    expect(stored!.status).toBe('firing');
+    expect(stored!.fired_at).toBeInstanceOf(Date);
+  });
+
   it('should promote pending to firing once the duration elapses', async () => {
     await seedRule({ for_duration_seconds: 60 });
     const t0 = new Date('2026-08-01T12:00:00.000Z');
