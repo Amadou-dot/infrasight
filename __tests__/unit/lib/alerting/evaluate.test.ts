@@ -85,6 +85,9 @@ describe('evaluateReadings', () => {
     expect(result.fired).toHaveLength(1);
     expect(result.fired[0].trigger_value).toBe(35);
     expect(result.fired[0].rule_name).toBe('High temp');
+    // The counter moves with the notification, not just against it: the race
+    // tests below prove it does not overcount, this proves it still counts.
+    expect(getPrometheusMetrics()).toContain('alerts_fired_total{severity="critical"} 1');
 
     const stored = await AlertV2.findOne({ device_id: 'device_001' }).lean();
     expect(stored!.status).toBe('firing');
@@ -154,6 +157,7 @@ describe('evaluateReadings', () => {
     expect(result.resolved).toHaveLength(1);
     expect(result.resolved[0].resolution).toBe('auto');
     expect(result.resolved[0].actor).toBe('system');
+    expect(getPrometheusMetrics()).toContain('alerts_resolved_total{resolution="auto"} 1');
 
     const stored = await AlertV2.findOne({}).lean();
     expect(stored!.status).toBe('resolved');
