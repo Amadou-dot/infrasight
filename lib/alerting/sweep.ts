@@ -84,7 +84,14 @@ export async function sweepStaleAlerts(reportingDeviceIds: Set<string>): Promise
     recordAlert('resolved', { resolution });
   }
 
-  if (toDelete.length > 0) ops.push({ deleteMany: { filter: { _id: { $in: toDelete } } } });
+  // The `status: 'pending'` guard is NOT optional. Between this function's
+  // snapshot read and its bulk write, a concurrent evaluateReadings() on the
+  // ingest path can promote one of these episodes to `firing` via its own
+  // status-guarded updateOne. Deleting by _id alone would then destroy a
+  // legitimately-fired alert's history instead of leaving it to resolve
+  // normally. Mirrors the `is_open: true` guard on the resolve op above.
+  if (toDelete.length > 0)
+    ops.push({ deleteMany: { filter: { _id: { $in: toDelete }, status: 'pending' } } });
 
   if (ops.length > 0) await AlertV2.bulkWrite(ops, { ordered: false });
 
