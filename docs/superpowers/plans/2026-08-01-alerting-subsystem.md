@@ -4755,11 +4755,18 @@ export async function GET(request: NextRequest) {
     if (query.device_id) filter.device_id = query.device_id;
     if (query.rule_id) filter.rule_id = query.rule_id;
 
+    // Filter on `fired_at`, the domain event — NOT `audit.created_at`, which is
+    // stamped when the invisible `pending` episode is first created. With a
+    // non-zero for_duration_seconds those differ by the whole duration, so a
+    // client asking "which alerts fired in this window" would get the wrong set.
+    // Matches how readings filter on `timestamp` and schedules on
+    // `scheduled_date`. Every visible alert has `fired_at`: pending episodes are
+    // deleted rather than resolved, so they never reach a client.
     if (query.startDate || query.endDate) {
       const range: Record<string, Date> = {};
       if (query.startDate) range.$gte = new Date(query.startDate);
       if (query.endDate) range.$lte = new Date(query.endDate);
-      filter['audit.created_at'] = range;
+      filter.fired_at = range;
     }
 
     const sortField = SORT_FIELD_MAP[query.sortBy ?? 'created_at'] ?? 'audit.created_at';
