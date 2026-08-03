@@ -122,28 +122,148 @@ describe('sweepStaleAlerts', () => {
     expect(result.resolved[0].resolution).toBe('device_inactive');
   });
 
-  it('should not delete a pending alert promoted to firing concurrently', async () => {
-    // Seed a pending alert whose device is absent from the reporting set.
+  it('should not delete a pending alert promoted to firing between the sweep read and its write', async () => {
+    // Seed a pending alert whose device is absent from the reporting set, so
+    // the sweep's OWN snapshot read sees it as 'pending' and queues it for
+    // deletion (toDelete), not resolution.
     const alert = await AlertV2.create(
       createAlertInput({ device_id: 'device_gone', status: 'pending', last_observed_at: minutesAgo(60) })
     );
 
-    // Simulate concurrent promotion: flip it to 'firing' before the sweep runs.
-    // This models the race where evaluateReadings commits a status-guarded
-    // updateOne from 'pending' to 'firing' inside the sweep's window.
-    await AlertV2.updateOne({ _id: alert._id }, { $set: { status: 'firing' } });
+    // The race has to land strictly between the snapshot read and the bulk
+    // write, or the guarded deleteMany is never even constructed (that was
+    // the bug in the test this replaces: promoting before calling
+    // sweepStaleAlerts made the sweep's own `find` see 'firing' already, so
+    // `toDelete` stayed empty and the guard was never exercised). Spying on
+    // bulkWrite is the only hook with the right timing.
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        await AlertV2.updateOne({ _id: alert._id }, { $set: { status: 'firing' } });
+        return realBulkWrite(writes, options);
+      });
 
     const result = await sweepStaleAlerts(new Set(['device_001']));
 
-    // The document should NOT be deleted by our status-guarded deleteMany.
-    // Instead it should be resolved with device_inactive.
+    // The status-guarded deleteMany must not match a document that is no
+    // longer 'pending' by the time the write reaches the server.
     expect(result.deleted).toBe(0);
-    expect(result.resolved).toHaveLength(1);
-    expect(result.resolved[0].resolution).toBe('device_inactive');
+    expect(result.resolved).toHaveLength(0);
 
     const stored = await AlertV2.findOne({ _id: alert._id }).lean();
     expect(stored).not.toBeNull();
-    expect(stored!.status).toBe('resolved');
+    expect(stored!.status).toBe('firing');
+    expect(stored!.is_open).toBe(true);
+
+    bulkWriteSpy.mockRestore();
+  });
+
+  it('should not resolve a stale alert as stale once a fresh observation lands before the write', async () => {
+    // Stale AT SNAPSHOT TIME on a reporting device: deviceInactive is false,
+    // so this can only take the 'stale' branch, which is exactly the branch
+    // 1a guards.
+    const alert = await AlertV2.create(
+      createAlertInput({ device_id: 'device_001', status: 'firing', last_observed_at: minutesAgo(60) })
+    );
+
+    // Between the snapshot read and the write, a concurrent evaluateReadings()
+    // records a fresh breaching observation — the episode is breaching again
+    // and must not be closed out from under it.
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        await AlertV2.updateOne({ _id: alert._id }, { $set: { last_observed_at: new Date() } });
+        return realBulkWrite(writes, options);
+      });
+
+    const result = await sweepStaleAlerts(new Set(['device_001']));
+
+    expect(result.resolved).toHaveLength(0);
+    expect(result.deleted).toBe(0);
+
+    const stored = await AlertV2.findOne({ _id: alert._id }).lean();
+    expect(stored!.status).toBe('firing');
+    expect(stored!.is_open).toBe(true);
+    expect(stored!.audit.resolution).toBeUndefined();
+
+    bulkWriteSpy.mockRestore();
+  });
+
+  it('should report deleted as the actual deletedCount, not the candidate count', async () => {
+    // Two pending alerts on non-reporting devices are both delete candidates
+    // at snapshot time; only one survives to the write untouched.
+    const untouched = await AlertV2.create(
+      createAlertInput({ device_id: 'device_gone_1', status: 'pending', last_observed_at: minutesAgo(60) })
+    );
+    const promoted = await AlertV2.create(
+      createAlertInput({ device_id: 'device_gone_2', status: 'pending', last_observed_at: minutesAgo(60) })
+    );
+
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        // Only ONE of the two candidates races to 'firing' before the write.
+        await AlertV2.updateOne({ _id: promoted._id }, { $set: { status: 'firing' } });
+        return realBulkWrite(writes, options);
+      });
+
+    const result = await sweepStaleAlerts(new Set(['device_001']));
+
+    // toDelete had 2 candidates; only 1 delete actually landed.
+    expect(result.deleted).toBe(1);
+
+    expect(await AlertV2.findById(untouched._id).lean()).toBeNull();
+    expect((await AlertV2.findById(promoted._id).lean())!.status).toBe('firing');
+
+    bulkWriteSpy.mockRestore();
+  });
+
+  it('should exclude an alert a concurrent writer already resolved from resolved[]', async () => {
+    const alert = await AlertV2.create(
+      createAlertInput({ device_id: 'device_gone', status: 'firing', last_observed_at: minutesAgo(1) })
+    );
+
+    // A different writer (e.g. a human PATCHing the alert to 'resolved')
+    // closes this SAME episode first, with its own timestamp, between the
+    // sweep's snapshot read and its write. The timestamp is deliberately NOT
+    // `new Date()`: the reconciliation query keys on `audit.resolved_at ===
+    // now`, and a concurrent write racing in on the same tick can land in the
+    // same millisecond as the sweep's `now`, which would make this test pass
+    // for the wrong reason (coincidental timestamp equality) instead of
+    // proving the sweep's own guarded updateOne failed to match.
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        await AlertV2.updateOne(
+          { _id: alert._id },
+          {
+            $set: {
+              status: 'resolved',
+              is_open: false,
+              'audit.resolved_at': minutesAgo(5),
+              'audit.resolved_by': 'human@example.com',
+              'audit.resolution': 'manual',
+            },
+          }
+        );
+        return realBulkWrite(writes, options);
+      });
+
+    const result = await sweepStaleAlerts(new Set(['device_001']));
+
+    // The sweep's own updateOne (filter: { is_open: true, ... }) cannot match
+    // a document the concurrent writer already closed, so this episode must
+    // not be reported as one the SWEEP resolved.
+    expect(result.resolved).toHaveLength(0);
+
+    const stored = await AlertV2.findOne({ _id: alert._id }).lean();
+    expect(stored!.audit.resolution).toBe('manual'); // untouched by the sweep
+
+    bulkWriteSpy.mockRestore();
   });
 });
 
@@ -186,10 +306,18 @@ describe('safe wrappers', () => {
     const spy = jest.spyOn(AlertV2, 'find').mockImplementationOnce(() => {
       throw new Error('database exploded');
     });
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
 
     const result = await safeSweepStaleAlerts(new Set(['device_001']));
 
     expect(result).toEqual({ deleted: 0, resolved: [] });
+    // Proves the catch block actually executed, rather than the happy path
+    // returning an empty result for unrelated reasons (e.g. no open alerts) —
+    // { deleted: 0, resolved: [] } is byte-identical to that early return.
+    expect(spy).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalled();
+
     spy.mockRestore();
+    errorSpy.mockRestore();
   });
 });
