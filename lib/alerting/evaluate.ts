@@ -16,7 +16,13 @@
 
 import { Types, type AnyBulkWriteOperation } from 'mongoose';
 import AlertV2, { type IAlertV2 } from '@/models/v2/AlertV2';
-import { recordAlert, recordAlertEvaluationDuration } from '@/lib/monitoring';
+import {
+  logger,
+  recordAlert,
+  recordAlertEvaluationDuration,
+  recordAlertRuleSkipped,
+  type AlertRuleSkipReason,
+} from '@/lib/monitoring';
 import { getRuleBuckets } from './rule-cache';
 import { METRIC_ACCESSORS, compare, matchesSelector } from './selector';
 import {
@@ -34,6 +40,8 @@ const DUPLICATE_KEY_CODE = 11000;
 interface PairState {
   rule: CachedAlertRule;
   device: EvaluableDevice;
+  /** `rule._id` pre-parsed at pair-creation time, once the rule has passed validation. */
+  ruleObjectId: Types.ObjectId;
   breaching: boolean;
   /** Metric value of the EARLIEST breaching reading. */
   triggerValue?: number;
@@ -43,6 +51,12 @@ interface PairState {
   lastValue: number;
   /** Timestamp of the LATEST reading overall. */
   lastObservedAt: Date;
+}
+
+/** What a rule needs to resolve to before it can be matched or written. */
+interface RuleValidation {
+  accessor: (r: EvaluableReading) => number | undefined;
+  ruleObjectId: Types.ObjectId;
 }
 
 /**
@@ -121,6 +135,55 @@ export async function evaluateReadings(
     const pairs = new Map<string, PairState>();
     let maxCooldownSeconds = 0;
 
+    // A rule reaches this call from a `.lean()` read or a Redis JSON round trip,
+    // neither of which re-validates: `rule.metric` can be any string, and
+    // `rule._id` can be anything a seed script, migration, or stale cache entry
+    // wrote. Two per-call caches, both keyed by rule id, keep a bad rule from
+    // costing every other rule its share of the batch without flooding the log:
+    //   - `ruleValidationCache` memoizes the metric-accessor and rule-id checks,
+    //     so a rule bucketed under several reading types is validated once, not
+    //     once per type.
+    //   - `reportedSkips` gates `skipRule` itself. This is the one that actually
+    //     caps logging/counting at once per call — it also covers a rule that
+    //     PASSES validateRule but whose matching throws on every reading (e.g. a
+    //     malformed selector), which `ruleValidationCache` has no opinion on.
+    const ruleValidationCache = new Map<string, RuleValidation | null>();
+    const reportedSkips = new Set<string>();
+
+    const skipRule = (rule: CachedAlertRule, error: unknown, reason: AlertRuleSkipReason) => {
+      if (reportedSkips.has(rule._id)) return; // already logged and counted this call
+      reportedSkips.add(rule._id);
+      recordAlertRuleSkipped(reason);
+      logger.error('Alert rule skipped during evaluation', {
+        ruleId: rule._id,
+        ruleName: rule.name,
+        metric: rule.metric,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    };
+
+    const validateRule = (rule: CachedAlertRule): RuleValidation | null => {
+      const cached = ruleValidationCache.get(rule._id);
+      if (cached !== undefined) return cached;
+
+      const accessor = METRIC_ACCESSORS[rule.metric];
+      if (typeof accessor !== 'function') {
+        skipRule(rule, new Error(`Unknown alert metric "${rule.metric}"`), 'unknown_metric');
+        ruleValidationCache.set(rule._id, null);
+        return null;
+      }
+
+      if (!Types.ObjectId.isValid(rule._id)) {
+        skipRule(rule, new Error(`Invalid alert rule id "${rule._id}"`), 'invalid_rule_id');
+        ruleValidationCache.set(rule._id, null);
+        return null;
+      }
+
+      const result: RuleValidation = { accessor, ruleObjectId: new Types.ObjectId(rule._id) };
+      ruleValidationCache.set(rule._id, result);
+      return result;
+    };
+
     for (const reading of readings) {
       const deviceId = reading.metadata?.device_id;
       const type = reading.metadata?.type;
@@ -133,9 +196,21 @@ export async function evaluateReadings(
       const rules = byType.get(type) ?? [];
 
       for (const rule of rules) {
-        if (!matchesSelector(device, rule.selector)) continue;
+        const validation = validateRule(rule);
+        if (!validation) continue;
 
-        const metricValue = METRIC_ACCESSORS[rule.metric](reading);
+        // Matching or metric extraction on a validated rule can still throw —
+        // e.g. a malformed `selector.tags` written outside the Zod layer. One
+        // bad rule must not cost every other rule its share of this batch.
+        let metricValue: number | undefined;
+        try {
+          if (!matchesSelector(device, rule.selector)) continue;
+          metricValue = validation.accessor(reading);
+        } catch (error) {
+          skipRule(rule, error, 'unexpected_error');
+          continue;
+        }
+
         if (metricValue === undefined || metricValue === null || Number.isNaN(metricValue))
           continue;
 
@@ -149,6 +224,7 @@ export async function evaluateReadings(
           pairs.set(key, {
             rule,
             device,
+            ruleObjectId: validation.ruleObjectId,
             breaching: breaches,
             triggerValue: breaches ? metricValue : undefined,
             breachedSince: breaches ? ts : undefined,
@@ -176,9 +252,14 @@ export async function evaluateReadings(
     if (pairs.size === 0) return emptyEvaluationResult();
 
     // ---- Steps 4-5: two queries ----
-    const ruleObjectIds = [...new Set([...pairs.values()].map(p => p.rule._id))].map(
-      id => new Types.ObjectId(id)
-    );
+    //
+    // Every pair's rule already passed validateRule, so its ruleObjectId is
+    // known-good — reuse it here (and at the insertOne below) rather than
+    // re-parsing rule._id, which is where a malformed rule id used to throw and
+    // take the whole batch down with it.
+    const ruleObjectIds = [
+      ...new Map([...pairs.values()].map(p => [p.rule._id, p.ruleObjectId])).values(),
+    ];
     const deviceIds = [...new Set([...pairs.values()].map(p => String(p.device._id)))];
 
     const openEpisodes = await AlertV2.find({
@@ -252,7 +333,7 @@ export async function evaluateReadings(
               insertOne: {
                 document: {
                   _id,
-                  rule_id: new Types.ObjectId(rule._id),
+                  rule_id: state.ruleObjectId,
                   rule_name: rule.name,
                   device_id: String(device._id),
                   status: firesImmediately ? 'firing' : 'pending',

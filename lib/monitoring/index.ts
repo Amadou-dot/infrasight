@@ -12,7 +12,9 @@ export {
   resetMetrics,
   recordAlert,
   recordAlertEvaluationDuration,
+  recordAlertRuleSkipped,
   type AlertSeverityLabel,
+  type AlertRuleSkipReason,
 } from './metrics';
 
 export {
