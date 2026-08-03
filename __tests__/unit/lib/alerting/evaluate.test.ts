@@ -5,7 +5,8 @@
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
 import { evaluateReadings, extractWriteErrors } from '@/lib/alerting/evaluate';
-import { createAlertRuleInput, resetCounters } from '../../../setup/factories';
+import { getPrometheusMetrics, resetMetrics } from '@/lib/monitoring';
+import { createAlertInput, createAlertRuleInput, resetCounters } from '../../../setup/factories';
 import type { EvaluableDevice, EvaluableReading } from '@/lib/alerting/types';
 
 const DEVICE: EvaluableDevice = {
@@ -23,6 +24,13 @@ function reading(value: number, at: Date, overrides: Partial<EvaluableReading> =
     quality: { is_valid: true, is_anomaly: false, anomaly_score: 0 },
     ...overrides,
   } as EvaluableReading;
+}
+
+/** A reading attributed to a device other than DEVICE. */
+function readingFor(deviceId: string, value: number, at: Date): EvaluableReading {
+  const r = reading(value, at);
+  (r.metadata as { device_id: string }).device_id = deviceId;
+  return r;
 }
 
 async function seedRule(overrides = {}) {
@@ -59,6 +67,7 @@ describe('extractWriteErrors', () => {
 describe('evaluateReadings', () => {
   beforeEach(() => {
     resetCounters();
+    resetMetrics();
   });
 
   it('should return an empty result for empty inputs', async () => {
@@ -316,6 +325,192 @@ describe('evaluateReadings', () => {
     expect(result.fired).toHaveLength(0); // the other request won the race
 
     spy.mockRestore();
+  });
+
+  it('should not report a promotion whose guarded update matched nothing', async () => {
+    await seedRule({ for_duration_seconds: 60 });
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:02:00.000Z');
+
+    await evaluateReadings([reading(35, t0)], [DEVICE]);
+    const pending = await AlertV2.findOne({}).lean();
+
+    // A concurrent evaluation promotes the SAME episode between this run's read
+    // and its write, so this run's guarded updateOne (status: 'pending') matches
+    // zero documents — a driver success that must not fire a notification.
+    // Spying on bulkWrite is the only hook with the right timing; promoting
+    // before the call would make this run's own `find` see 'firing' and never
+    // construct the guarded op at all.
+    //
+    // The racing stamps are fixed values, deliberately NOT `new Date()`: the
+    // reconciliation query keys on `audit.updated_at === now`, and a racing
+    // write landing in the same millisecond as this run's `now` would confirm
+    // the notification for the wrong reason.
+    const raceStamp = new Date('2026-08-01T12:01:30.000Z');
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        await AlertV2.updateOne(
+          { _id: pending!._id },
+          { $set: { status: 'firing', fired_at: raceStamp, 'audit.updated_at': raceStamp } }
+        );
+        return realBulkWrite(writes, options);
+      });
+
+    const result = await evaluateReadings([reading(36, t1)], [DEVICE]);
+
+    expect(result.fired).toHaveLength(0);
+    expect(getPrometheusMetrics()).not.toContain('alerts_fired_total{severity="critical"}');
+
+    // Nothing this run intended reached the document: the other writer's
+    // fired_at stands, and last_value/last_observed_at are still the t0 batch's.
+    const stored = await AlertV2.findOne({}).lean();
+    expect(stored!.fired_at!.toISOString()).toBe(raceStamp.toISOString());
+    expect(stored!.last_value).toBe(35);
+    expect(new Date(stored!.last_observed_at).toISOString()).toBe(t0.toISOString());
+
+    bulkWriteSpy.mockRestore();
+  });
+
+  it('should not report an auto-resolve whose guarded update matched nothing', async () => {
+    await seedRule();
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:05:00.000Z');
+
+    await evaluateReadings([reading(35, t0)], [DEVICE]);
+    const firing = await AlertV2.findOne({}).lean();
+
+    // A human resolves the same episode through PATCH /alerts/[id] between this
+    // run's read and its write, so this run's resolve op (is_open: true) matches
+    // zero documents. Fixed stamps for the same reason as the test above.
+    const raceStamp = new Date('2026-08-01T12:03:00.000Z');
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        await AlertV2.updateOne(
+          { _id: firing!._id },
+          {
+            $set: {
+              status: 'resolved',
+              is_open: false,
+              'audit.updated_at': raceStamp,
+              'audit.resolved_at': raceStamp,
+              'audit.resolved_by': 'human@example.com',
+              'audit.resolution': 'manual',
+            },
+          }
+        );
+        return realBulkWrite(writes, options);
+      });
+
+    const result = await evaluateReadings([reading(20, t1)], [DEVICE]);
+
+    expect(result.resolved).toHaveLength(0);
+    expect(getPrometheusMetrics()).not.toContain('alerts_resolved_total{resolution="auto"}');
+
+    const stored = await AlertV2.findOne({}).lean();
+    expect(stored!.audit.resolution).toBe('manual'); // untouched by the evaluator
+    expect(stored!.resolved_value).toBeUndefined();
+
+    bulkWriteSpy.mockRestore();
+  });
+
+  it('should count pending clears from the deletes that actually landed', async () => {
+    await seedRule({ for_duration_seconds: 600 });
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:01:00.000Z');
+    const otherDevice = { ...DEVICE, _id: 'device_002' } as EvaluableDevice;
+
+    await evaluateReadings(
+      [readingFor('device_001', 35, t0), readingFor('device_002', 35, t0)],
+      [DEVICE, otherDevice]
+    );
+    expect(await AlertV2.countDocuments({ status: 'pending' })).toBe(2);
+
+    // Both episodes clear in the next batch, so both are delete candidates. Only
+    // one of them races to 'firing' before the write, and its deleteOne is
+    // guarded on status: 'pending', so only one delete can land.
+    const promoted = await AlertV2.findOne({ device_id: 'device_002' }).lean();
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        await AlertV2.updateOne({ _id: promoted!._id }, { $set: { status: 'firing' } });
+        return realBulkWrite(writes, options);
+      });
+
+    const result = await evaluateReadings(
+      [readingFor('device_001', 20, t1), readingFor('device_002', 20, t1)],
+      [DEVICE, otherDevice]
+    );
+
+    expect(result.pendingCleared).toBe(1);
+    expect(await AlertV2.countDocuments({})).toBe(1);
+    expect((await AlertV2.findOne({}).lean())!.device_id).toBe('device_002');
+
+    bulkWriteSpy.mockRestore();
+  });
+
+  it('should absorb a real duplicate key error and still count the delete that landed', async () => {
+    await AlertV2.init(); // the partial unique index must exist to produce E11000
+    const rule = await seedRule({ for_duration_seconds: 600 });
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:01:00.000Z');
+    const otherDevice = { ...DEVICE, _id: 'device_002' } as EvaluableDevice;
+
+    await evaluateReadings([readingFor('device_001', 35, t0)], [DEVICE]);
+
+    // Another request opens the episode this batch is about to insert for
+    // device_002, so the partial unique index turns the evaluator's insertOne
+    // into a genuine E11000 — while `ordered: false` still lets the deleteOne
+    // for device_001's cleared episode through.
+    const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+    const bulkWriteSpy = jest
+      .spyOn(AlertV2, 'bulkWrite')
+      .mockImplementationOnce(async (writes, options) => {
+        await AlertV2.create(
+          createAlertInput({ rule_id: rule._id, device_id: 'device_002', status: 'pending' })
+        );
+        return realBulkWrite(writes, options);
+      });
+
+    const result = await evaluateReadings(
+      [readingFor('device_001', 20, t1), readingFor('device_002', 35, t1)],
+      [DEVICE, otherDevice]
+    );
+
+    // The duplicate is absorbed, and the delete that ran alongside it is still
+    // counted — the driver reports it on the error rather than on a result.
+    expect(result.pendingCleared).toBe(1);
+    expect(await AlertV2.countDocuments({ device_id: 'device_001' })).toBe(0);
+    expect(await AlertV2.countDocuments({ device_id: 'device_002' })).toBe(1);
+
+    bulkWriteSpy.mockRestore();
+  });
+
+  it('should record evaluation duration when the bulk write throws', async () => {
+    await seedRule();
+    const spy = jest.spyOn(AlertV2, 'bulkWrite').mockRejectedValueOnce(
+      Object.assign(new Error('validation failed'), {
+        writeErrors: [{ index: 0, code: 121 }],
+      })
+    );
+
+    await expect(evaluateReadings([reading(35, new Date())], [DEVICE])).rejects.toThrow(
+      'validation failed'
+    );
+
+    expect(getPrometheusMetrics()).toContain('alert_evaluation_duration_ms_count 1');
+
+    spy.mockRestore();
+  });
+
+  it('should record evaluation duration on the empty-input early return', async () => {
+    await evaluateReadings([], []);
+
+    expect(getPrometheusMetrics()).toContain('alert_evaluation_duration_ms_count 1');
   });
 
   it('should handle a fleet-wide rule across many devices in one write', async () => {
