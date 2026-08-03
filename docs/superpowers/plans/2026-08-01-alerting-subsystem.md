@@ -3776,9 +3776,11 @@ Create `__tests__/unit/lib/alerting/sweep.test.ts`:
  */
 
 import AlertV2 from '@/models/v2/AlertV2';
+import AlertRuleV2 from '@/models/v2/AlertRuleV2';
+import { logger } from '@/lib/monitoring';
 import { sweepStaleAlerts, STALE_AFTER_SECONDS } from '@/lib/alerting/sweep';
 import { safeEvaluateReadings, safeSweepStaleAlerts } from '@/lib/alerting';
-import { createAlertInput, resetCounters } from '../../../setup/factories';
+import { createAlertInput, createAlertRuleInput, resetCounters } from '../../../setup/factories';
 
 function minutesAgo(n: number): Date {
   return new Date(Date.now() - n * 60 * 1000);
@@ -3896,9 +3898,23 @@ describe('sweepStaleAlerts', () => {
 
 describe('safe wrappers', () => {
   it('should swallow an evaluation error and return an empty result', async () => {
+    // A matching rule is MANDATORY here. Without one, no (rule, device) pair is
+    // formed, evaluateReadings short-circuits on `pairs.size === 0` BEFORE it
+    // ever calls AlertV2.find, and the mocked throw is never reached — the
+    // assertion would then pass whether or not the try/catch does anything.
+    await AlertRuleV2.create(
+      createAlertRuleInput({
+        metric: 'value',
+        comparison: 'gt',
+        threshold: 0,
+        selector: { types: ['temperature'] },
+      })
+    );
+
     const spy = jest.spyOn(AlertV2, 'find').mockImplementationOnce(() => {
       throw new Error('database exploded');
     });
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
 
     const result = await safeEvaluateReadings(
       [{ metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }, timestamp: new Date(), value: 1 }] as never,
@@ -3906,7 +3922,13 @@ describe('safe wrappers', () => {
     );
 
     expect(result.fired).toEqual([]);
+    // Proves the catch block actually executed, rather than the happy path
+    // returning an empty result for unrelated reasons.
+    expect(spy).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalled();
+
     spy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it('should swallow a sweep error', async () => {
@@ -4018,7 +4040,14 @@ export async function sweepStaleAlerts(reportingDeviceIds: Set<string>): Promise
     recordAlert('resolved', { resolution });
   }
 
-  if (toDelete.length > 0) ops.push({ deleteMany: { filter: { _id: { $in: toDelete } } } });
+  // The `status: 'pending'` guard is NOT optional. Between this function's
+  // snapshot read and its bulk write, a concurrent evaluateReadings() on the
+  // ingest path can promote one of these episodes to `firing` via its own
+  // status-guarded updateOne. Deleting by _id alone would then destroy a
+  // legitimately-fired alert's history instead of leaving it to resolve
+  // normally. Mirrors the `is_open: true` guard on the resolve op above.
+  if (toDelete.length > 0)
+    ops.push({ deleteMany: { filter: { _id: { $in: toDelete }, status: 'pending' } } });
 
   if (ops.length > 0) await AlertV2.bulkWrite(ops, { ordered: false });
 
