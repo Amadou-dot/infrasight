@@ -12,7 +12,9 @@ import {
 // ENUMS
 // ============================================================================
 
-export const readingTypeSchema = z.enum(READING_TYPES as unknown as [string, ...string[]]);
+export const readingTypeSchema = z.enum(
+  READING_TYPES as unknown as [(typeof READING_TYPES)[number], ...(typeof READING_TYPES)[number][]]
+);
 export const alertMetricSchema = z.enum(['value', 'anomaly_score', 'battery_level']);
 export const alertComparisonSchema = z.enum(['gt', 'gte', 'lt', 'lte']);
 export const alertSeveritySchema = z.enum(['info', 'warning', 'critical']);
