@@ -8,8 +8,12 @@
 import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
+import AlertRuleV2 from '@/models/v2/AlertRuleV2';
+import AlertV2 from '@/models/v2/AlertV2';
 import {
   createDeviceInput,
+  createAlertRuleInput,
+  createAlertInput,
   resetCounters,
   VALID_DEVICE_TYPES,
 } from '../../setup/factories';
@@ -638,6 +642,44 @@ describe('Simulate Cron API Integration Tests', () => {
       readings.forEach((r) => {
         expect(r.metadata.source).toBe('simulation');
       });
+    });
+  });
+
+  // ==========================================================================
+  // ALERT EVALUATION TESTS
+  // ==========================================================================
+
+  describe('alert evaluation on the cron path', () => {
+    it('should evaluate rules against simulated readings', async () => {
+      await DeviceV2.create(createDeviceInput({ _id: 'device_cron_01', type: 'temperature' }));
+      await AlertRuleV2.create(
+        createAlertRuleInput({
+          name: 'Any temperature',
+          metric: 'value',
+          comparison: 'gt',
+          threshold: -1000, // guaranteed to breach whatever the simulator emits
+          severity: 'info',
+          selector: { types: ['temperature'] },
+        })
+      );
+
+      const response = await GET_SIMULATE();
+      expect(response.status).toBe(200);
+
+      expect(await AlertV2.countDocuments({ status: 'firing' })).toBeGreaterThan(0);
+    });
+
+    it('should sweep an alert whose device no longer reports', async () => {
+      await DeviceV2.create(createDeviceInput({ _id: 'device_cron_02', type: 'temperature' }));
+      await AlertV2.create(
+        createAlertInput({ device_id: 'device_ghost', status: 'firing', is_open: true })
+      );
+
+      await GET_SIMULATE();
+
+      const swept = await AlertV2.findOne({ device_id: 'device_ghost' }).lean();
+      expect(swept!.status).toBe('resolved');
+      expect(swept!.audit.resolution).toBe('device_inactive');
     });
   });
 });

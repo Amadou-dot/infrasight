@@ -23,6 +23,7 @@ import {
 import { validateInput } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
+import { safeEvaluateReadings } from '@/lib/alerting';
 
 // Phase 5 imports
 import { withRateLimit } from '@/lib/ratelimit';
@@ -139,11 +140,13 @@ async function handleIngest(request: NextRequest) {
     // Check idempotency (simple in-memory check - in production use Redis)
     // For now, we'll skip idempotency check implementation
 
-    // Validate that devices exist (batch check)
+    // Validate that devices exist (batch check). The projection carries every
+    // field the alert selector needs — evaluation reuses this result rather than
+    // issuing a second device query.
     const deviceIds = [...new Set(data.readings.map(r => r.device_id))];
     const existingDevices = await DeviceV2.find(
       { _id: { $in: deviceIds }, 'audit.deleted_at': { $exists: false } },
-      { _id: 1 }
+      { _id: 1, type: 1, location: 1, 'metadata.tags': 1 }
     ).lean();
 
     const existingDeviceIds = new Set(existingDevices.map(d => d._id));
@@ -248,6 +251,14 @@ async function handleIngest(request: NextRequest) {
         // Error already logged in invalidateReadings
       });
     }
+
+    // Evaluate alert rules. Runs strictly after the inserts have committed and
+    // cannot affect them; safeEvaluateReadings never throws.
+    if (results.inserted > 0)
+      await safeEvaluateReadings(
+        validReadings,
+        existingDevices as unknown as Parameters<typeof safeEvaluateReadings>[1]
+      );
 
     // Record metrics
     const duration = timer.elapsed();
