@@ -1467,7 +1467,13 @@ import {
 // ENUMS
 // ============================================================================
 
-export const readingTypeSchema = z.enum(READING_TYPES as unknown as [string, ...string[]]);
+// The cast must preserve the literal union, not widen to `string`. Casting to
+// `[string, ...string[]]` makes z.infer produce `string[]` for selector.types,
+// which then will not assign to IAlertRuleSelector.types (ReadingType[]) and
+// breaks the alert-rule routes at compile time.
+export const readingTypeSchema = z.enum(
+  READING_TYPES as unknown as [(typeof READING_TYPES)[number], ...(typeof READING_TYPES)[number][]]
+);
 export const alertMetricSchema = z.enum(['value', 'anomaly_score', 'battery_level']);
 export const alertComparisonSchema = z.enum(['gt', 'gte', 'lt', 'lte']);
 export const alertSeveritySchema = z.enum(['info', 'warning', 'critical']);
