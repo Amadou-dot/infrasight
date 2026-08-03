@@ -5,7 +5,7 @@
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
 import { evaluateReadings, extractWriteErrors } from '@/lib/alerting/evaluate';
-import { getPrometheusMetrics, resetMetrics } from '@/lib/monitoring';
+import { getMetricsSnapshot, getPrometheusMetrics, logger, resetMetrics } from '@/lib/monitoring';
 import { createAlertInput, createAlertRuleInput, resetCounters } from '../../../setup/factories';
 import type { EvaluableDevice, EvaluableReading } from '@/lib/alerting/types';
 
@@ -46,6 +46,32 @@ async function seedRule(overrides = {}) {
       ...overrides,
     })
   );
+}
+
+/**
+ * Insert a rule document straight through the driver, bypassing Mongoose
+ * schema validation. This is how a malformed rule actually reaches the
+ * evaluator: a seed or migration script writing directly, or a Redis cache
+ * entry written before a schema change — a `.lean()` read or a cache hit
+ * hands the evaluator whatever is stored, with no re-validation.
+ */
+async function seedRawRule(overrides: Record<string, unknown> = {}) {
+  const now = new Date();
+  const doc = {
+    name: 'Raw rule',
+    enabled: true,
+    selector: { types: ['temperature'] },
+    metric: 'value',
+    comparison: 'gt',
+    threshold: 30,
+    for_duration_seconds: 0,
+    severity: 'critical',
+    cooldown_seconds: 0,
+    audit: { created_at: now, created_by: 'test', updated_at: now, updated_by: 'test' },
+    ...overrides,
+  };
+  const { insertedId } = await AlertRuleV2.collection.insertOne(doc as never);
+  return { ...doc, _id: insertedId };
 }
 
 describe('extractWriteErrors', () => {
@@ -537,5 +563,98 @@ describe('evaluateReadings', () => {
     expect(bulkSpy).toHaveBeenCalledTimes(1);
 
     bulkSpy.mockRestore();
+  });
+
+  describe('per-rule error boundary', () => {
+    it('should skip a rule with an unknown metric and still fire the valid rule', async () => {
+      await seedRawRule({ name: 'Bad metric rule', metric: 'not_a_real_metric' });
+      await seedRule(); // 'High temp': metric 'value', threshold 30
+
+      const result = await evaluateReadings([reading(35, new Date())], [DEVICE]);
+
+      expect(result.fired).toHaveLength(1);
+      expect(result.fired[0].rule_name).toBe('High temp');
+      expect(getPrometheusMetrics()).toContain(
+        'alert_rules_skipped_total{reason="unknown_metric"} 1'
+      );
+    });
+
+    it('should skip a rule with a non-hex _id and still fire the valid rule', async () => {
+      await seedRawRule({ name: 'Bad id rule', _id: 'not-a-valid-object-id' });
+      await seedRule();
+
+      const result = await evaluateReadings([reading(35, new Date())], [DEVICE]);
+
+      expect(result.fired).toHaveLength(1);
+      expect(result.fired[0].rule_name).toBe('High temp');
+      expect(getPrometheusMetrics()).toContain(
+        'alert_rules_skipped_total{reason="invalid_rule_id"} 1'
+      );
+    });
+
+    it('should count a skipped rule via getMetricsSnapshot()', async () => {
+      await seedRawRule({ name: 'Bad metric rule', metric: 'not_a_real_metric' });
+
+      const result = await evaluateReadings([reading(35, new Date())], [DEVICE]);
+
+      expect(result.evaluatedPairs).toBe(0); // the only rule in play was unusable
+      const snapshot = getMetricsSnapshot();
+      const alerts = snapshot.alerts as Record<string, unknown>;
+      const rulesSkipped = alerts.rulesSkipped as Record<string, number>;
+      expect(rulesSkipped.unknown_metric).toBe(1);
+    });
+
+    it('should log the skipped rule with ruleId, ruleName, metric, and error', async () => {
+      const bad = await seedRawRule({ name: 'Bad metric rule', metric: 'not_a_real_metric' });
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+
+      await evaluateReadings([reading(35, new Date())], [DEVICE]);
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          ruleId: String(bad._id),
+          ruleName: 'Bad metric rule',
+          metric: 'not_a_real_metric',
+          error: expect.any(String),
+        })
+      );
+
+      errorSpy.mockRestore();
+    });
+
+    it('should log and count a fleet-wide bad rule at most once per call, not once per reading', async () => {
+      // A valid metric and a valid (auto-generated) _id, so this rule clears
+      // validateRule and is cached there as GOOD — proving this test exercises
+      // the dedup around the general matching try/catch, not validateRule's own
+      // per-rule cache, which a rule rejected for an unknown metric or a bad id
+      // would never get past in the first place.
+      //
+      // `selector.tags` is a string, not an array: `.every` is not a function on
+      // a string, so matchesSelector throws on every reading, not just the first.
+      await seedRawRule({
+        name: 'Bad selector rule',
+        selector: { types: ['temperature'], tags: 'not-an-array' },
+      });
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+
+      await evaluateReadings(
+        [
+          reading(35, new Date('2026-08-01T12:00:00.000Z')),
+          reading(36, new Date('2026-08-01T12:01:00.000Z')),
+          reading(37, new Date('2026-08-01T12:02:00.000Z')),
+        ],
+        [DEVICE]
+      );
+
+      // Three readings against the bad rule, one bad rule: without the per-call
+      // dedup this would log and count three times, not one.
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(getPrometheusMetrics()).toContain(
+        'alert_rules_skipped_total{reason="unexpected_error"} 1'
+      );
+
+      errorSpy.mockRestore();
+    });
   });
 });

@@ -16,6 +16,7 @@ import {
   resetMetrics,
   recordAlert,
   recordAlertEvaluationDuration,
+  recordAlertRuleSkipped,
 } from '@/lib/monitoring/metrics';
 
 describe('Metrics Collection', () => {
@@ -450,6 +451,7 @@ describe('Metrics Collection', () => {
       recordAlert('fired', { severity: 'critical' });
       recordAlert('evaluation_error');
       recordAlertEvaluationDuration(15);
+      recordAlertRuleSkipped('unknown_metric');
 
       // Reset
       resetMetrics();
@@ -471,6 +473,7 @@ describe('Metrics Collection', () => {
       expect(database.queryCount).toBe(0);
       expect(alerts.fired).toEqual({});
       expect(alerts.resolved).toEqual({});
+      expect(alerts.rulesSkipped).toEqual({});
       expect(alerts.evaluationErrors).toBe(0);
       expect(alerts.avgEvaluationDuration).toBe(0);
     });
@@ -559,6 +562,43 @@ describe('Metrics Collection', () => {
       expect(getPrometheusMetrics()).not.toContain('alerts_fired_total{severity="info"}');
       expect(alerts.evaluationErrors).toBe(0);
       expect(alerts.avgEvaluationDuration).toBe(0);
+    });
+  });
+
+  describe('recordAlertRuleSkipped', () => {
+    beforeEach(() => {
+      resetMetrics();
+    });
+
+    it('should count skipped rules by reason', () => {
+      recordAlertRuleSkipped('unknown_metric');
+      recordAlertRuleSkipped('unknown_metric');
+      recordAlertRuleSkipped('invalid_rule_id');
+
+      const prom = getPrometheusMetrics();
+
+      expect(prom).toContain('alert_rules_skipped_total{reason="unknown_metric"} 2');
+      expect(prom).toContain('alert_rules_skipped_total{reason="invalid_rule_id"} 1');
+    });
+
+    it('should expose skipped rule counts via getMetricsSnapshot()', () => {
+      recordAlertRuleSkipped('unexpected_error');
+
+      const snapshot = getMetricsSnapshot();
+      const alerts = snapshot.alerts as Record<string, unknown>;
+      const rulesSkipped = alerts.rulesSkipped as Record<string, number>;
+
+      expect(rulesSkipped.unexpected_error).toBe(1);
+    });
+
+    it('should be reset by resetMetrics', () => {
+      recordAlertRuleSkipped('invalid_rule_id');
+
+      resetMetrics();
+
+      expect(getPrometheusMetrics()).not.toContain(
+        'alert_rules_skipped_total{reason="invalid_rule_id"}'
+      );
     });
   });
 });

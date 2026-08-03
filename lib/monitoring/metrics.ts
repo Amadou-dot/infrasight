@@ -60,6 +60,8 @@ interface MetricsStore {
   /** Alert counters keyed by label value */
   alertsFired: Map<string, CounterEntry>;
   alertsResolved: Map<string, CounterEntry>;
+  /** Rules skipped during evaluation, keyed by skip reason */
+  alertRulesSkipped: Map<string, CounterEntry>;
   alerts: {
     evaluationErrors: number;
     evaluationDuration: HistogramEntry;
@@ -80,6 +82,7 @@ const metrics: MetricsStore = {
   database: { queryCount: 0, slowQueries: 0, totalQueryTime: 0 },
   alertsFired: new Map(),
   alertsResolved: new Map(),
+  alertRulesSkipped: new Map(),
   alerts: {
     evaluationErrors: 0,
     evaluationDuration: { count: 0, sum: 0, min: Infinity, max: -Infinity, lastUpdated: 0 },
@@ -205,6 +208,23 @@ export function recordAlert(
   target.set(label, entry);
 }
 
+export type AlertRuleSkipReason = 'unknown_metric' | 'invalid_rule_id' | 'unexpected_error';
+
+/**
+ * Record a rule the evaluator could not use and skipped for the rest of that
+ * call. Reached only when a rule's own data is unusable — an unrecognized
+ * `metric`, an `_id` that will not parse as an ObjectId, or some other error
+ * during matching — which a `.lean()` read or a stale Redis cache entry can
+ * hand the evaluator without re-validating. Distinct from `evaluation_error`:
+ * the call itself still completed and every other rule was still evaluated.
+ */
+export function recordAlertRuleSkipped(reason: AlertRuleSkipReason): void {
+  const entry = metrics.alertRulesSkipped.get(reason) || { value: 0, lastUpdated: 0 };
+  entry.value++;
+  entry.lastUpdated = Date.now();
+  metrics.alertRulesSkipped.set(reason, entry);
+}
+
 /**
  * Record how long one evaluateReadings() call took.
  */
@@ -277,6 +297,9 @@ export function getMetricsSnapshot(): Record<string, unknown> {
   const alertsResolvedCounts: Record<string, number> = {};
   for (const [key, entry] of metrics.alertsResolved) alertsResolvedCounts[key] = entry.value;
 
+  const alertRulesSkippedCounts: Record<string, number> = {};
+  for (const [key, entry] of metrics.alertRulesSkipped) alertRulesSkippedCounts[key] = entry.value;
+
   const alertEvalDuration = metrics.alerts.evaluationDuration;
   const avgAlertEvaluationDuration =
     alertEvalDuration.count > 0 ? Math.round(alertEvalDuration.sum / alertEvalDuration.count) : 0;
@@ -305,6 +328,7 @@ export function getMetricsSnapshot(): Record<string, unknown> {
     alerts: {
       fired: alertsFiredCounts,
       resolved: alertsResolvedCounts,
+      rulesSkipped: alertRulesSkippedCounts,
       evaluationErrors: metrics.alerts.evaluationErrors,
       avgEvaluationDuration: avgAlertEvaluationDuration,
     },
@@ -384,6 +408,13 @@ export function getPrometheusMetrics(): string {
   for (const [resolution, entry] of metrics.alertsResolved)
     lines.push(`alerts_resolved_total{resolution="${resolution}"} ${entry.value}`);
 
+  lines.push(
+    '# HELP alert_rules_skipped_total Rules the evaluator could not use and skipped, by reason'
+  );
+  lines.push('# TYPE alert_rules_skipped_total counter');
+  for (const [reason, entry] of metrics.alertRulesSkipped)
+    lines.push(`alert_rules_skipped_total{reason="${reason}"} ${entry.value}`);
+
   lines.push('# HELP alert_evaluation_duration_ms Alert rule evaluation latency');
   lines.push('# TYPE alert_evaluation_duration_ms histogram');
   lines.push(`alert_evaluation_duration_ms_count ${metrics.alerts.evaluationDuration.count}`);
@@ -409,6 +440,7 @@ export function resetMetrics(): void {
   metrics.database = { queryCount: 0, slowQueries: 0, totalQueryTime: 0 };
   metrics.alertsFired.clear();
   metrics.alertsResolved.clear();
+  metrics.alertRulesSkipped.clear();
   metrics.alerts = {
     evaluationErrors: 0,
     evaluationDuration: { count: 0, sum: 0, min: Infinity, max: -Infinity, lastUpdated: 0 },
