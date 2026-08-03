@@ -1,4 +1,4 @@
-import mongoose, { Schema, type Document, type Model, Types } from 'mongoose';
+import mongoose, { Schema, type Document, type Model, type Types } from 'mongoose';
 
 // ============================================================================
 // CUSTOM ERRORS

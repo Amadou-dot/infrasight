@@ -303,9 +303,9 @@ describe('Analytics API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         const scores = data.data.anomalies.map((a) => a.quality.anomaly_score);
-        for (let i = 1; i < scores.length; i++) {
+        for (let i = 1; i < scores.length; i++) 
           expect(scores[i]).toBeLessThanOrEqual(scores[i - 1]);
-        }
+        
       });
 
       it('should sort by anomaly_score ascending', async () => {
@@ -321,9 +321,9 @@ describe('Analytics API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         const scores = data.data.anomalies.map((a) => a.quality.anomaly_score);
-        for (let i = 1; i < scores.length; i++) {
+        for (let i = 1; i < scores.length; i++) 
           expect(scores[i]).toBeGreaterThanOrEqual(scores[i - 1]);
-        }
+        
       });
 
       it('should sort by value', async () => {
@@ -349,9 +349,9 @@ describe('Analytics API Integration Tests', () => {
 
         expect(response.status).toBe(200);
         const timestamps = data.data.anomalies.map((a) => new Date(a.timestamp).getTime());
-        for (let i = 1; i < timestamps.length; i++) {
+        for (let i = 1; i < timestamps.length; i++) 
           expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i - 1]);
-        }
+        
       });
     });
 
@@ -655,7 +655,7 @@ describe('Analytics API Integration Tests', () => {
           health: {
             uptime_percentage: 99,
             error_count: 0,
-            last_communication: new Date(),
+            last_seen: new Date(),
             battery_level: 85,
             signal_strength: 90,
           },
@@ -666,7 +666,7 @@ describe('Analytics API Integration Tests', () => {
           health: {
             uptime_percentage: 50,
             error_count: 2,
-            last_communication: new Date(),
+            last_seen: new Date(),
             battery_level: 60,
             signal_strength: 40,
           },
@@ -677,7 +677,7 @@ describe('Analytics API Integration Tests', () => {
           health: {
             uptime_percentage: 70,
             error_count: 5,
-            last_communication: new Date(),
+            last_seen: new Date(),
             battery_level: 30,
             signal_strength: 60,
           },
@@ -820,7 +820,6 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 80,
               error_count: 0,
-              last_communication: new Date(),
               last_seen: new Date(Date.now() - 10 * 60 * 1000), // 10 min ago
               battery_level: 80,
               signal_strength: 70,
@@ -853,7 +852,6 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 80,
               error_count: 0,
-              last_communication: new Date(),
               last_seen: new Date(Date.now() - 3 * 60 * 1000), // 3 min ago
               battery_level: 80,
               signal_strength: 70,
@@ -894,7 +892,7 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 90,
               error_count: 0,
-              last_communication: new Date(),
+              last_seen: new Date(),
               battery_level: 10,
               signal_strength: 80,
             },
@@ -935,7 +933,7 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 90,
               error_count: 0,
-              last_communication: new Date(),
+              last_seen: new Date(),
               battery_level: 50,
               signal_strength: 80,
             },
@@ -1072,7 +1070,7 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 90,
               error_count: 0,
-              last_communication: new Date(),
+              last_seen: new Date(),
               battery_level: 10, // < 15 → battery_critical
               signal_strength: 80,
             },
@@ -1110,7 +1108,7 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 90,
               error_count: 0,
-              last_communication: new Date(),
+              last_seen: new Date(),
               battery_level: 80, // high battery so battery check doesn't trigger
               signal_strength: 80,
             },
@@ -1155,7 +1153,7 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 90,
               error_count: 0,
-              last_communication: new Date(),
+              last_seen: new Date(),
               battery_level: 80,
               signal_strength: 80,
             },
@@ -1201,7 +1199,7 @@ describe('Analytics API Integration Tests', () => {
             health: {
               uptime_percentage: 60,
               error_count: 15, // > 10
-              last_communication: new Date(),
+              last_seen: new Date(),
               battery_level: 80, // high battery
               signal_strength: 70,
             },
@@ -1377,7 +1375,7 @@ describe('Analytics API Integration Tests', () => {
           health: {
             uptime_percentage: 95,
             error_count: 10,
-            last_communication: new Date(),
+            last_seen: new Date(),
             battery_level: 20, // Low battery
             signal_strength: 80,
           },
@@ -1387,7 +1385,7 @@ describe('Analytics API Integration Tests', () => {
           health: {
             uptime_percentage: 99,
             error_count: 1,
-            last_communication: new Date(),
+            last_seen: new Date(),
             battery_level: 90,
             signal_strength: 95,
           },

@@ -472,7 +472,7 @@ describe('Devices API Integration Tests', () => {
 
       it('should reject invalid device type', async () => {
         const deviceData = createDeviceInput({ _id: 'invalid_type' });
-        (deviceData as Record<string, unknown>).type = 'invalid_type';
+        (deviceData as unknown as Record<string, unknown>).type = 'invalid_type';
 
         const request = createMockPostRequest(deviceData);
         const response = await POST(request);
@@ -482,7 +482,7 @@ describe('Devices API Integration Tests', () => {
 
       it('should reject invalid device ID format', async () => {
         const deviceData = createDeviceInput({});
-        (deviceData as Record<string, unknown>)._id = 'has spaces';
+        (deviceData as unknown as Record<string, unknown>)._id = 'has spaces';
 
         const request = createMockPostRequest(deviceData);
         const response = await POST(request);

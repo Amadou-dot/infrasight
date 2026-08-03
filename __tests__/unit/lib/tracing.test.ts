@@ -33,9 +33,9 @@ describe('Request Tracing', () => {
 
     it('should generate unique IDs', () => {
       const ids = new Set<string>();
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 100; i++) 
         ids.add(generateTraceId());
-      }
+      
 
       expect(ids.size).toBe(100);
     });
@@ -48,9 +48,9 @@ describe('Request Tracing', () => {
   describe('getTraceId()', () => {
     const createMockRequest = (headers: Record<string, string>): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
+      for (const [key, value] of Object.entries(headers)) 
         h.set(key, value);
-      }
+      
       return { headers: h } as Request;
     };
 
@@ -194,9 +194,9 @@ describe('Request Tracing', () => {
   describe('withTracing()', () => {
     const createMockRequest = (headers: Record<string, string>, url: string): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
+      for (const [key, value] of Object.entries(headers)) 
         h.set(key, value);
-      }
+      
       return { headers: h, url } as Request;
     };
 
@@ -255,9 +255,9 @@ describe('Request Tracing', () => {
       headers: Record<string, string> = {}
     ): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
+      for (const [key, value] of Object.entries(headers)) 
         h.set(key, value);
-      }
+      
       return { method, url, headers: h } as Request;
     };
 

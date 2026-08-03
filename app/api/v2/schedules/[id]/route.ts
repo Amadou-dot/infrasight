@@ -71,13 +71,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Find schedule
     const schedule = await ScheduleV2.findById(id).lean();
 
-    if (!schedule) {
+    if (!schedule) 
       throw new ApiError(
         ErrorCodes.SCHEDULE_NOT_FOUND,
         404,
         `Schedule '${id}' not found`
       );
-    }
+    
 
     // Build response
     const response: Record<string, unknown> = { ...schedule };
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .select('_id serial_number type location')
         .lean();
 
-      if (device) {
+      if (device) 
         response.device = {
           _id: device._id,
           serial_number: device.serial_number,
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             room_name: device.location?.room_name,
           },
         };
-      } else {
+       else {
         logger.warn('Device not found for schedule', {
           scheduleId: id,
           deviceId: schedule.device_id,
@@ -192,9 +192,9 @@ async function handleUpdateSchedule(
     // Handle status transitions via static methods for consistency
     if (updateData.status === 'completed') {
       const completedSchedule = await ScheduleV2.complete(id, auditUser).catch(rethrowAsApiError);
-      if (!completedSchedule) {
+      if (!completedSchedule) 
         throw new ApiError(ErrorCodes.SCHEDULE_NOT_FOUND, 404, `Schedule '${id}' not found`);
-      }
+      
 
       const duration = timer.elapsed();
       recordRequest('PATCH', '/api/v2/schedules/[id]', 200, duration);
@@ -205,9 +205,9 @@ async function handleUpdateSchedule(
 
     if (updateData.status === 'cancelled') {
       const cancelledSchedule = await ScheduleV2.cancel(id, auditUser).catch(rethrowAsApiError);
-      if (!cancelledSchedule) {
+      if (!cancelledSchedule) 
         throw new ApiError(ErrorCodes.SCHEDULE_NOT_FOUND, 404, `Schedule '${id}' not found`);
-      }
+      
 
       const duration = timer.elapsed();
       recordRequest('PATCH', '/api/v2/schedules/[id]', 200, duration);
@@ -218,29 +218,29 @@ async function handleUpdateSchedule(
 
     // For non-status updates (scheduled_date, notes), check schedule exists and is modifiable
     const existingSchedule = await ScheduleV2.findById(id);
-    if (!existingSchedule) {
+    if (!existingSchedule) 
       throw new ApiError(
         ErrorCodes.SCHEDULE_NOT_FOUND,
         404,
         `Schedule '${id}' not found`
       );
-    }
+    
 
-    if (existingSchedule.status === 'completed') {
+    if (existingSchedule.status === 'completed') 
       throw new ApiError(
         ErrorCodes.SCHEDULE_ALREADY_COMPLETED,
         422,
         'Cannot modify a completed schedule'
       );
-    }
+    
 
-    if (existingSchedule.status === 'cancelled') {
+    if (existingSchedule.status === 'cancelled') 
       throw new ApiError(
         ErrorCodes.SCHEDULE_ALREADY_CANCELLED,
         422,
         'Cannot modify a cancelled schedule'
       );
-    }
+    
 
     // Build update object for non-status fields
     const updateObj: Record<string, unknown> = {
@@ -248,13 +248,13 @@ async function handleUpdateSchedule(
       'audit.updated_by': auditUser,
     };
 
-    if (updateData.scheduled_date) {
+    if (updateData.scheduled_date) 
       updateObj.scheduled_date = updateData.scheduled_date;
-    }
+    
 
-    if (updateData.notes !== undefined) {
+    if (updateData.notes !== undefined) 
       updateObj.notes = updateData.notes;
-    }
+    
 
     // Perform update
     const updatedSchedule = await ScheduleV2.findByIdAndUpdate(
@@ -263,13 +263,13 @@ async function handleUpdateSchedule(
       { new: true, runValidators: true }
     ).lean();
 
-    if (!updatedSchedule) {
+    if (!updatedSchedule) 
       throw new ApiError(
         ErrorCodes.SCHEDULE_NOT_FOUND,
         404,
         `Schedule '${id}' not found`
       );
-    }
+    
 
     // Record metrics
     const duration = timer.elapsed();
@@ -322,9 +322,9 @@ async function handleCancelSchedule(
 
     const cancelledSchedule = await ScheduleV2.cancel(id, auditUser).catch(rethrowAsApiError);
 
-    if (!cancelledSchedule) {
+    if (!cancelledSchedule) 
       throw new ApiError(ErrorCodes.SCHEDULE_NOT_FOUND, 404, `Schedule '${id}' not found`);
-    }
+    
 
     // Record metrics
     const duration = timer.elapsed();

@@ -98,7 +98,7 @@ export function ScheduleServiceModal({
       onClose();
     },
     onError: (err) => {
-      if (err instanceof ApiClientError) {
+      if (err instanceof ApiClientError) 
         switch (err.errorCode) {
           case 'VALIDATION_ERROR':
             setGeneralError(err.message);
@@ -112,7 +112,7 @@ export function ScheduleServiceModal({
           default:
             setGeneralError(err.message || 'Failed to create schedule');
         }
-      } else {
+       else {
         console.error('Unexpected error creating schedule:', err);
         setGeneralError('An unexpected error occurred');
       }

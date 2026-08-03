@@ -39,9 +39,9 @@ describe('Body Size Middleware', () => {
         '/api/v2/analytics/health',
       ];
 
-      for (const path of paths) {
+      for (const path of paths) 
         expect(getMaxBodySize(path)).toBe(DEFAULT_BODY_SIZE_CONFIG.default);
-      }
+      
     });
 
     it('should return bulk size for readings ingest endpoint', () => {
@@ -75,9 +75,9 @@ describe('Body Size Middleware', () => {
   describe('validateBodySize()', () => {
     const createMockRequest = (contentLength: string | null): Request => {
       const headers = new Headers();
-      if (contentLength !== null) {
+      if (contentLength !== null) 
         headers.set('content-length', contentLength);
-      }
+      
       return {
         headers,
       } as unknown as Request;

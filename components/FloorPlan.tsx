@@ -1,7 +1,6 @@
 'use client';
 
-import { usePusherReadings } from '@/lib/pusher-context';
-import type { PusherReading } from '@/lib/pusher-context';
+import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
 import { v2Api } from '@/lib/api/v2-client';
 import type { DeviceV2Response } from '@/types/v2';
 import {

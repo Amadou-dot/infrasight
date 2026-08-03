@@ -21,9 +21,9 @@ test.describe('Real-time Updates', () => {
       });
 
       page.on('console', (msg) => {
-        if (msg.type() === 'error') {
+        if (msg.type() === 'error') 
           consoleMessages.push(msg.text());
-        }
+        
       });
 
       await page.goto('/');
@@ -52,12 +52,12 @@ test.describe('Real-time Updates', () => {
         if (
           msg.type() === 'error' &&
           (text.includes('websocket') || text.includes('socket'))
-        ) {
+        ) 
           // Ignore expected test environment connection issues
-          if (!text.includes('failed to connect') && !text.includes('timeout')) {
+          if (!text.includes('failed to connect') && !text.includes('timeout')) 
             wsErrors.push(msg.text());
-          }
-        }
+          
+        
       });
 
       await page.goto('/');
@@ -108,11 +108,6 @@ test.describe('Real-time Updates', () => {
 
     test('should show loading state during data refresh', async ({ page }) => {
       await page.goto('/');
-
-      // Look for loading indicators
-      const loadingIndicators = page.locator(
-        '[data-testid="loading"], [class*="loading"], [class*="spinner"], [class*="skeleton"]'
-      );
 
       // Loading state should appear briefly or content should load quickly
       // Wait for either loading to appear or content to be visible

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { useHealthAnalytics, useMaintenanceForecast } from '@/lib/query/hooks';
 import {
   AlertTriangle,
@@ -43,15 +43,13 @@ export default function CriticalIssuesPanel({
   const error = healthError || forecastError ? 'Failed to load issues' : null;
 
   // Stable reference time for fallback timestamps - initialized lazily
-  const fallbackTimeRef = useRef<number | null>(null);
-  if (fallbackTimeRef.current === null) fallbackTimeRef.current = Date.now();
+  const [fallbackTime] = useState(() => Date.now());
 
   // Calculate issues using useMemo (only recalculate when data changes)
   const issues = useMemo(() => {
     if (!health || !forecast) return [];
 
     const collectedIssues: CriticalIssue[] = [];
-    const fallbackTime = fallbackTimeRef.current ?? 0;
 
     // Offline devices - Critical
     health.alerts?.offline_devices?.devices?.forEach(d => {
@@ -121,7 +119,7 @@ export default function CriticalIssuesPanel({
     });
 
     return collectedIssues.slice(0, maxItems);
-  }, [health, forecast, maxItems]);
+  }, [health, forecast, maxItems, fallbackTime]);
 
   const getIssueIcon = (type: CriticalIssue['type']) => {
     switch (type) {

@@ -1,5 +1,8 @@
 import { queryKeys } from '@/lib/query/queryClient';
 
+import { v2Api } from '@/lib/api/v2-client';
+import { useDevicesList } from '@/lib/query/hooks/useDevicesList';
+
 let capturedUseQueryArgs: Record<string, unknown> | null = null;
 
 jest.mock('@tanstack/react-query', () => ({
@@ -25,9 +28,6 @@ jest.mock('@/lib/api/v2-client', () => ({
     },
   },
 }));
-
-import { v2Api } from '@/lib/api/v2-client';
-import { useDevicesList } from '@/lib/query/hooks/useDevicesList';
 
 describe('queryKeys.devices', () => {
   it('should generate list key without filters', () => {

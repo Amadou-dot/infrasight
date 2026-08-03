@@ -17,7 +17,6 @@ import {
   formatErrorMessage,
   createSchema,
   mergeSchemas,
-  type ValidationResult,
   type ValidationError,
 } from '@/lib/validations/validator';
 import { ApiError } from '@/lib/errors/ApiError';
@@ -167,18 +166,18 @@ describe('Validator Utilities', () => {
       const result = validateInput({ name: 'John', age: 30 }, schema);
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data).toEqual({ name: 'John', age: 30 });
-      }
+      
     });
 
     it('should return errors for invalid input', () => {
       const result = validateInput({ name: 123, age: -1 }, schema);
 
       expect(result.success).toBe(false);
-      if (!result.success) {
+      if (!result.success) 
         expect(result.errors.length).toBeGreaterThan(0);
-      }
+      
     });
 
     it('should sanitize input by default', () => {
@@ -206,9 +205,9 @@ describe('Validator Utilities', () => {
       );
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data).not.toHaveProperty('extra');
-      }
+      
     });
 
     it('should handle null input gracefully', () => {
@@ -266,9 +265,9 @@ describe('Validator Utilities', () => {
       const result = validateQuery(params, schema);
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data).toEqual({ page: 1, limit: 10, status: 'active' });
-      }
+      
     });
 
     it('should validate URL object', () => {
@@ -277,18 +276,18 @@ describe('Validator Utilities', () => {
       const result = validateQuery(url, schema);
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data?.page).toBe(2);
-      }
+      
     });
 
     it('should validate URL string', () => {
       const result = validateQuery('http://localhost/api?page=3', schema);
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data?.page).toBe(3);
-      }
+      
     });
 
     it('should handle query string without URL', () => {
@@ -310,9 +309,9 @@ describe('Validator Utilities', () => {
       const result = validateQuery(params, arraySchema);
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data?.tags).toEqual(['a', 'b', 'c']);
-      }
+      
     });
   });
 
@@ -362,9 +361,9 @@ describe('Validator Utilities', () => {
       const result = await validateBody(request, schema);
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data).toEqual({ name: 'Test', value: 42 });
-      }
+      
     });
 
     it('should return errors for invalid body', async () => {
@@ -395,9 +394,9 @@ describe('Validator Utilities', () => {
       const result = await validateBody(request, schema);
 
       expect(result.success).toBe(false);
-      if (!result.success) {
+      if (!result.success) 
         expect(result.errors[0].code).toBe('parse_error');
-      }
+      
     });
   });
 
@@ -453,9 +452,9 @@ describe('Validator Utilities', () => {
       const result = validateValue('test@example.com', schema);
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data).toBe('test@example.com');
-      }
+      
     });
 
     it('should return error for invalid value', () => {
@@ -472,9 +471,9 @@ describe('Validator Utilities', () => {
       const result = validateValue('invalid', schema, 'userEmail');
 
       expect(result.success).toBe(false);
-      if (!result.success) {
+      if (!result.success) 
         expect(result.errors[0].path).toBe('userEmail');
-      }
+      
     });
   });
 
@@ -509,9 +508,9 @@ describe('Validator Utilities', () => {
       const result = schema.safeParse({ name: 'John', age: 30, extra: 'field' });
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data).not.toHaveProperty('extra');
-      }
+      
     });
 
     it('should make all fields required', () => {
@@ -540,9 +539,9 @@ describe('Validator Utilities', () => {
       const result = merged.safeParse({ name: 'John', age: 30 });
 
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data).toEqual({ name: 'John', age: 30 });
-      }
+      
     });
 
     it('should fail when merged schema requirements not met', () => {

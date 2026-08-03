@@ -120,7 +120,7 @@ function createMockMutationRequest(
   method: 'POST' | 'PATCH' | 'DELETE',
   body?: unknown
 ): NextRequest {
-  const options: RequestInit = {
+  const options: NonNullable<ConstructorParameters<typeof NextRequest>[1]> = {
     method,
     headers: { 'Content-Type': 'application/json' },
   };

@@ -22,7 +22,7 @@ describe('DeviceStatusCards', () => {
   };
 
   it('shows dash placeholders when loading', () => {
-    render(<DeviceStatusCards {...defaultProps} loading={true} />);
+    render(<DeviceStatusCards {...defaultProps} loading />);
     const dashes = screen.getAllByText('—');
     expect(dashes.length).toBe(3);
   });

@@ -9,12 +9,10 @@
  */
 
 import ScheduleV2, { ScheduleTransitionError } from '@/models/v2/ScheduleV2';
-import DeviceV2 from '@/models/v2/DeviceV2';
 import {
   createScheduleInput,
   createScheduleInputs,
   createScheduleOfType,
-  createDeviceInput,
   resetCounters,
   VALID_SERVICE_TYPES,
   VALID_SCHEDULE_STATUSES,
@@ -74,7 +72,7 @@ describe('ScheduleV2 Model', () => {
 
     it('should default status to scheduled', async () => {
       const data = createScheduleInput();
-      delete (data as Record<string, unknown>).status;
+      delete (data as unknown as Record<string, unknown>).status;
       const schedule = await ScheduleV2.create(data);
 
       expect(schedule.status).toBe('scheduled');
@@ -107,28 +105,28 @@ describe('ScheduleV2 Model', () => {
 
     it('should enforce required device_id', async () => {
       const data = createScheduleInput();
-      delete (data as Record<string, unknown>).device_id;
+      delete (data as unknown as Record<string, unknown>).device_id;
 
       await expect(ScheduleV2.create(data)).rejects.toThrow();
     });
 
     it('should enforce required service_type', async () => {
       const data = createScheduleInput();
-      delete (data as Record<string, unknown>).service_type;
+      delete (data as unknown as Record<string, unknown>).service_type;
 
       await expect(ScheduleV2.create(data)).rejects.toThrow();
     });
 
     it('should enforce required scheduled_date', async () => {
       const data = createScheduleInput();
-      delete (data as Record<string, unknown>).scheduled_date;
+      delete (data as unknown as Record<string, unknown>).scheduled_date;
 
       await expect(ScheduleV2.create(data)).rejects.toThrow();
     });
 
     it('should enforce required audit', async () => {
       const data = createScheduleInput();
-      delete (data as Record<string, unknown>).audit;
+      delete (data as unknown as Record<string, unknown>).audit;
 
       await expect(ScheduleV2.create(data)).rejects.toThrow();
     });
@@ -146,7 +144,7 @@ describe('ScheduleV2 Model', () => {
 
     it('should reject invalid service type', async () => {
       const data = createScheduleInput();
-      (data as Record<string, unknown>).service_type = 'invalid_type';
+      (data as unknown as Record<string, unknown>).service_type = 'invalid_type';
 
       await expect(ScheduleV2.create(data)).rejects.toThrow(/validation/i);
     });
@@ -165,7 +163,7 @@ describe('ScheduleV2 Model', () => {
 
     it('should reject invalid status', async () => {
       const data = createScheduleInput();
-      (data as Record<string, unknown>).status = 'invalid_status';
+      (data as unknown as Record<string, unknown>).status = 'invalid_status';
 
       await expect(ScheduleV2.create(data)).rejects.toThrow(/validation/i);
     });
@@ -293,11 +291,11 @@ describe('ScheduleV2 Model', () => {
       it('should sort by scheduled_date ascending', async () => {
         const schedules = await ScheduleV2.findUpcoming(60);
 
-        for (let i = 1; i < schedules.length; i++) {
+        for (let i = 1; i < schedules.length; i++) 
           expect(schedules[i].scheduled_date.getTime()).toBeGreaterThanOrEqual(
             schedules[i - 1].scheduled_date.getTime()
           );
-        }
+        
       });
     });
 

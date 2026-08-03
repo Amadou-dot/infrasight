@@ -31,9 +31,9 @@ test.describe('Error Handling', () => {
           !error.message.includes('fetch') &&
           !error.message.includes('network') &&
           !error.message.includes('Failed to fetch')
-        ) {
+        ) 
           errors.push(error.message);
-        }
+        
       });
 
       await page.waitForTimeout(2000);
@@ -175,11 +175,6 @@ test.describe('Error Handling', () => {
       await page.goto('/');
       await page.waitForLoadState('load');
 
-      // Should show empty state or message
-      const emptyIndicators = page.locator(
-        '[data-testid="empty-state"], text=/no device|no data|empty|no results/i'
-      );
-
       // Page should be usable with empty data
       const mainContent = page.locator('main, body');
       await expect(mainContent.first()).toBeVisible();
@@ -262,15 +257,15 @@ test.describe('Error Handling', () => {
           error.message.includes('Unhandled') ||
           error.message.includes('uncaught') ||
           error.message.includes('INTERNAL_ERROR')
-        ) {
+        ) 
           // Filter common dev-mode issues
           if (
             !error.message.includes('ResizeObserver') &&
             !error.message.includes('hydration')
-          ) {
+          ) 
             unhandledErrors.push(error.message);
-          }
-        }
+          
+        
       });
 
       await page.goto('/');
@@ -283,11 +278,6 @@ test.describe('Error Handling', () => {
       }
 
       // Should not have unhandled errors visible to user
-      const errorUI = page.locator(
-        'text=/something went wrong|error occurred|unexpected error/i'
-      );
-
-      // Error UI may appear but shouldn't crash
       expect(unhandledErrors.length).toBe(0);
     });
 
@@ -303,9 +293,9 @@ test.describe('Error Handling', () => {
       // No uncaught promise rejections
       const uncaughtRejections: string[] = [];
       page.on('pageerror', (error) => {
-        if (error.message.includes('promise') || error.message.includes('rejection')) {
+        if (error.message.includes('promise') || error.message.includes('rejection')) 
           uncaughtRejections.push(error.message);
-        }
+        
       });
 
       await page.waitForTimeout(2000);
@@ -397,9 +387,9 @@ test.describe('Error Handling', () => {
             !text.includes('Loading chunk') &&
             !text.includes('ChunkLoadError') &&
             !text.includes('Pusher') // Pusher connection issues expected in test
-          ) {
+          ) 
             consoleErrors.push(text);
-          }
+          
         }
       });
 
@@ -422,9 +412,9 @@ test.describe('Error Handling', () => {
             !text.includes('hydration') &&
             !text.includes('ResizeObserver') &&
             !text.includes('Pusher')
-          ) {
+          ) 
             consoleErrors.push(text);
-          }
+          
         }
       });
 
@@ -447,9 +437,9 @@ test.describe('Error Handling', () => {
             !text.includes('hydration') &&
             !text.includes('ResizeObserver') &&
             !text.includes('Pusher')
-          ) {
+          ) 
             consoleErrors.push(text);
-          }
+          
         }
       });
 

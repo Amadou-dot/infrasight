@@ -39,9 +39,9 @@ describe('Device Validation Schemas', () => {
       for (const status of invalidStatuses) {
         const result = deviceStatusSchema.safeParse(status);
         expect(result.success).toBe(false);
-        if (!result.success) {
+        if (!result.success) 
           expect(result.error.issues[0]?.code).toBe('invalid_value');
-        }
+        
       }
     });
   });

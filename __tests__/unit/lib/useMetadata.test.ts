@@ -1,5 +1,8 @@
 import { queryKeys } from '@/lib/query/queryClient';
 
+import { v2Api } from '@/lib/api/v2-client';
+import { useMetadata } from '@/lib/query/hooks/useMetadata';
+
 let capturedUseQueryArgs: Record<string, unknown> | null = null;
 
 jest.mock('@tanstack/react-query', () => ({
@@ -28,9 +31,6 @@ jest.mock('@/lib/api/v2-client', () => ({
     },
   },
 }));
-
-import { v2Api } from '@/lib/api/v2-client';
-import { useMetadata } from '@/lib/query/hooks/useMetadata';
 
 describe('queryKeys.metadata', () => {
   it('should be a static array key', () => {
