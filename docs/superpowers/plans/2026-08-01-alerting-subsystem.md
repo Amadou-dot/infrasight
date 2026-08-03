@@ -4179,7 +4179,7 @@ describe('alert evaluation on the ingest path', () => {
 
     const request = createMockPostRequest('/api/v2/readings/ingest', {
       readings: [
-        { device_id: 'device_alert_01', type: 'temperature', value: 42, timestamp: new Date().toISOString() },
+        { device_id: 'device_alert_01', type: 'temperature', unit: 'celsius', value: 42, timestamp: new Date().toISOString() },
       ],
     });
 
@@ -4193,13 +4193,17 @@ describe('alert evaluation on the ingest path', () => {
 
   it('should still return 201 with readings persisted when evaluation throws', async () => {
     await seedDevice('device_alert_02');
+    // Spy on the SOURCE module, not the barrel. `safeEvaluateReadings` calls
+    // `evaluateReadings` through a direct import binding, so spying on the
+    // re-export in `@/lib/alerting` does not intercept it and the test would
+    // pass vacuously.
     const spy = jest
-      .spyOn(alerting, 'evaluateReadings')
+      .spyOn(evaluateModule, 'evaluateReadings')
       .mockRejectedValueOnce(new Error('evaluator exploded'));
 
     const request = createMockPostRequest('/api/v2/readings/ingest', {
       readings: [
-        { device_id: 'device_alert_02', type: 'temperature', value: 42, timestamp: new Date().toISOString() },
+        { device_id: 'device_alert_02', type: 'temperature', unit: 'celsius', value: 42, timestamp: new Date().toISOString() },
       ],
     });
 
@@ -4209,13 +4213,16 @@ describe('alert evaluation on the ingest path', () => {
     expect(response.status).toBe(201);
     expect(body.data.inserted).toBe(1);
     expect(await ReadingV2.countDocuments({ 'metadata.device_id': 'device_alert_02' })).toBe(1);
+    // Without this the test cannot distinguish "error was swallowed" from
+    // "the evaluator was never reached at all".
+    expect(spy).toHaveBeenCalledTimes(1);
 
     spy.mockRestore();
   });
 });
 ```
 
-Add these imports to that file: `import AlertRuleV2 from '@/models/v2/AlertRuleV2';`, `import AlertV2 from '@/models/v2/AlertV2';`, `import * as alerting from '@/lib/alerting';`, and `createAlertRuleInput` from `../../setup/factories`.
+Add these imports to that file: `import AlertRuleV2 from '@/models/v2/AlertRuleV2';`, `import AlertV2 from '@/models/v2/AlertV2';`, `import * as evaluateModule from '@/lib/alerting/evaluate';`, and `createAlertRuleInput` from `../../setup/factories`.
 
 Append to `__tests__/integration/api/simulate-cron.integration.test.ts`:
 
