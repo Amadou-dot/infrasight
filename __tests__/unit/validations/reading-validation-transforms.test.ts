@@ -32,9 +32,9 @@ describe('listReadingsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.type).toEqual(['temperature', 'humidity']);
-    }
+    
   });
 
   it('should transform comma-separated source string into array', () => {
@@ -44,9 +44,9 @@ describe('listReadingsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.source).toEqual(['sensor', 'manual']);
-    }
+    
   });
 
   it('should transform string min_confidence to number', () => {
@@ -56,9 +56,9 @@ describe('listReadingsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.min_confidence).toBe(0.85);
-    }
+    
   });
 
   it('should transform string min_anomaly_score to number', () => {
@@ -68,9 +68,9 @@ describe('listReadingsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.min_anomaly_score).toBe(0.7);
-    }
+    
   });
 });
 
@@ -86,9 +86,9 @@ describe('latestReadingsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.type).toEqual(['temperature', 'humidity', 'power']);
-    }
+    
   });
 });
 
@@ -103,9 +103,9 @@ describe('readingAnalyticsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.device_id).toEqual(['device_001', 'device_002']);
-    }
+    
   });
 
   it('should transform comma-separated type string into array', () => {
@@ -115,9 +115,9 @@ describe('readingAnalyticsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.type).toEqual(['temperature', 'humidity']);
-    }
+    
   });
 
   it('should transform string floor to number', () => {
@@ -127,9 +127,9 @@ describe('readingAnalyticsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.floor).toBe(3);
-    }
+    
   });
 });
 
@@ -144,9 +144,9 @@ describe('anomalyAnalyticsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.device_id).toEqual(['device_001', 'device_002', 'device_003']);
-    }
+    
   });
 
   it('should transform comma-separated type string into array', () => {
@@ -155,8 +155,8 @@ describe('anomalyAnalyticsQuerySchema string transforms', () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
+    if (result.success) 
       expect(result.data.type).toEqual(['temperature', 'power', 'energy']);
-    }
+    
   });
 });

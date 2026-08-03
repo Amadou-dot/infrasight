@@ -71,9 +71,9 @@ export default function GenerateReportModal({ isOpen, onClose }: GenerateReportM
               value={scope}
               onValueChange={val => {
                 setScope(val as 'all' | 'building');
-                if (val === 'all') {
+                if (val === 'all') 
                   setSelectedBuildingId('');
-                }
+                
               }}
               options={[
                 { value: 'all', label: 'All Buildings' },

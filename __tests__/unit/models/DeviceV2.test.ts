@@ -79,14 +79,14 @@ describe('DeviceV2 Model', () => {
 
     it('should validate device type enum', async () => {
       const invalidTypeData = createDeviceInput({ _id: 'device_invalid_type' });
-      (invalidTypeData as Record<string, unknown>).type = 'invalid_type';
+      (invalidTypeData as unknown as Record<string, unknown>).type = 'invalid_type';
 
       await expect(DeviceV2.create(invalidTypeData)).rejects.toThrow(/validation/i);
     });
 
     it('should validate device status enum', async () => {
       const invalidStatusData = createDeviceInput({ _id: 'device_invalid_status' });
-      (invalidStatusData as Record<string, unknown>).status = 'invalid_status';
+      (invalidStatusData as unknown as Record<string, unknown>).status = 'invalid_status';
 
       await expect(DeviceV2.create(invalidStatusData)).rejects.toThrow(/validation/i);
     });
@@ -135,7 +135,7 @@ describe('DeviceV2 Model', () => {
 
     it('should use default sampling interval', async () => {
       const deviceData = createDeviceInput({ _id: 'device_sampling_default' });
-      delete (deviceData.configuration as Record<string, unknown>).sampling_interval;
+      delete (deviceData.configuration as unknown as Record<string, unknown>).sampling_interval;
 
       const device = await DeviceV2.create(deviceData);
       expect(device.configuration.sampling_interval).toBe(60);

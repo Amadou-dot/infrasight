@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { usePusherReadings } from '@/lib/pusher-context';
-import type { PusherReading } from '@/lib/pusher-context';
+import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
 import { useEnergyAnalytics } from '@/lib/query/hooks';
 import {
   AreaChart,

@@ -1065,9 +1065,9 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
         data: { inserted: number };
       }>(response);
 
-      if (response.status === 201) {
+      if (response.status === 201) 
         expect(data.data.inserted).toBe(100);
-      }
+      
     });
 
     it('should handle readings exceeding single batch (>100)', async () => {
@@ -1091,9 +1091,9 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
         data: { inserted: number };
       }>(response);
 
-      if (response.status === 201) {
+      if (response.status === 201) 
         expect(data.data.inserted).toBe(250);
-      }
+      
     });
   });
 
@@ -1209,9 +1209,9 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
         data: { submitted_by: string };
       }>(response);
 
-      if (response.status === 201) {
+      if (response.status === 201) 
         expect(data.data.submitted_by).toBe('test@example.com');
-      }
+      
     });
 
     it('should include submitted_at timestamp in response', async () => {

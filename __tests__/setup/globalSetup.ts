@@ -32,7 +32,7 @@ export default async function globalSetup(): Promise<void> {
 
   // Set environment variable for tests to use
   process.env.MONGODB_URI = uri;
-  process.env.NODE_ENV = 'test';
+  (process.env as Record<string, string | undefined>).NODE_ENV = 'test';
 
   // Set mock Pusher credentials for tests
   process.env.PUSHER_APP_ID = 'test-app-id';

@@ -93,9 +93,9 @@ describe('Logger', () => {
 
   describe('Specialized logging methods', () => {
     it('should have request method for logging requests', () => {
-      if (typeof logger.request === 'function') {
-        logger.request({ method: 'GET', path: '/api/v2/devices', statusCode: 200, duration: 50 });
-      }
+      if (typeof logger.request === 'function') 
+        logger.request('GET', '/api/v2/devices', 200, 50);
+      
     });
 
     it('should have error logging with Error object', () => {
@@ -104,9 +104,9 @@ describe('Logger', () => {
     });
 
     it('should handle cache logging if available', () => {
-      if (typeof logger.cache === 'function') {
+      if (typeof logger.cache === 'function') 
         logger.cache('hit', 'device:device_001');
-      }
+      
     });
   });
 
@@ -162,16 +162,16 @@ describe('Logger', () => {
   describe('Output format', () => {
     it('should format differently in production vs development', () => {
       // In production, output should be JSON
-      process.env.NODE_ENV = 'production';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
       logger.info('Production log');
 
       // In development, output should be human-readable
-      process.env.NODE_ENV = 'development';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
       logger.info('Development log');
     });
 
     it('should include timestamp in logs', () => {
-      process.env.NODE_ENV = 'production';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
       logger.info('Test message');
 
       // Logs should contain timestamp (check format indirectly)

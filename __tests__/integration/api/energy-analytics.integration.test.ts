@@ -526,9 +526,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('device');
       // Results should have device_id field
-      if (data.data.results.length > 0) {
+      if (data.data.results.length > 0) 
         expect(data.data.results[0]).toHaveProperty('device_id');
-      }
+      
     });
 
     it('should group by type', async () => {
@@ -549,9 +549,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('type');
-      if (data.data.results.length > 0) {
+      if (data.data.results.length > 0) 
         expect(data.data.results[0]).toHaveProperty('type');
-      }
+      
     });
 
     it('should group by floor (requires device lookup)', async () => {
@@ -572,9 +572,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('floor');
-      if (data.data.results.length > 0) {
+      if (data.data.results.length > 0) 
         expect(data.data.results[0]).toHaveProperty('floor');
-      }
+      
     });
 
     it('should group by room (requires device lookup)', async () => {
@@ -595,9 +595,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('room');
-      if (data.data.results.length > 0) {
+      if (data.data.results.length > 0) 
         expect(data.data.results[0]).toHaveProperty('room');
-      }
+      
     });
 
     it('should group by building (requires device lookup)', async () => {
@@ -618,9 +618,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('building');
-      if (data.data.results.length > 0) {
+      if (data.data.results.length > 0) 
         expect(data.data.results[0]).toHaveProperty('building');
-      }
+      
     });
 
     it('should group by department (requires device lookup)', async () => {
@@ -641,9 +641,9 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.data.metadata.group_by).toBe('department');
-      if (data.data.results.length > 0) {
+      if (data.data.results.length > 0) 
         expect(data.data.results[0]).toHaveProperty('department');
-      }
+      
     });
   });
 
@@ -664,7 +664,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
       const readings = [];
 
       // Current period readings
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 24; i++) 
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -677,10 +677,10 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000), // hourly for last 24 hours
           })
         );
-      }
+      
 
       // Previous period readings (24-48 hours ago)
-      for (let i = 24; i < 48; i++) {
+      for (let i = 24; i < 48; i++) 
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -693,11 +693,11 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000),
           })
         );
-      }
+      
 
       // Last week readings
       const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 24; i++) 
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -710,11 +710,11 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(weekAgo - i * 60 * 60 * 1000),
           })
         );
-      }
+      
 
       // Last month readings
       const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 24; i++) 
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -727,7 +727,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(monthAgo - i * 60 * 60 * 1000),
           })
         );
-      }
+      
 
       await ReadingV2.insertMany(readings);
     });
@@ -829,7 +829,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
 
       const now = Date.now();
       const readings = [];
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 24; i++) 
         readings.push(
           createReadingV2Input('compare_device_001', {
             metadata: {
@@ -842,7 +842,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000),
           })
         );
-      }
+      
       await ReadingV2.insertMany(readings);
 
       const nowDate = new Date();
@@ -1057,7 +1057,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
       const readings = [];
 
       // Create readings for current and comparison periods
-      for (let i = 0; i < 48; i++) {
+      for (let i = 0; i < 48; i++) 
         readings.push(
           createReadingV2Input('combined_device_001', {
             metadata: {
@@ -1070,7 +1070,7 @@ describe('Energy Analytics API - Comprehensive Tests', () => {
             timestamp: new Date(now - i * 60 * 60 * 1000),
           })
         );
-      }
+      
 
       await ReadingV2.insertMany(readings);
     });

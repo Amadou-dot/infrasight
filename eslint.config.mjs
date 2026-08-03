@@ -83,6 +83,16 @@ const eslintConfig = [
     },
   },
   {
+    // Tests re-require modules after jest.resetModules() to re-evaluate them
+    // under different env/mock conditions -- ESM `import` cannot express this.
+    files: ['__tests__/**/*.ts', '__tests__/**/*.tsx'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      // Tests stub and assert on console output
+      'no-console': 'off',
+    },
+  },
+  {
     // Allow console.log in monitoring and logging utilities
     files: ['lib/monitoring/**/*.ts', 'lib/redis/**/*.ts'],
     rules: {

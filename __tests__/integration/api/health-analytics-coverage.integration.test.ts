@@ -369,9 +369,7 @@ describe('Health Analytics API – Coverage Gaps', () => {
 
       expect(responseLong.status).toBe(200);
       // The device's last_seen is 10 mins ago, which is within the 15-min threshold
-      const offlineIds = dataLong.data!.alerts.offline_devices.devices.map(
-        (d: any) => d._id
-      );
+      const offlineIds = dataLong.data!.alerts.offline_devices.devices.map(d => d._id);
       expect(offlineIds).not.toContain('threshold_offline_dev');
     });
   });
@@ -411,9 +409,7 @@ describe('Health Analytics API – Coverage Gaps', () => {
       const dataLow: HealthResponse = await responseLow.json();
 
       expect(responseLow.status).toBe(200);
-      const lowBatteryIds = dataLow.data!.alerts.low_battery_devices.devices.map(
-        (d: any) => d._id
-      );
+      const lowBatteryIds = dataLow.data!.alerts.low_battery_devices.devices.map(d => d._id);
       expect(lowBatteryIds).not.toContain('battery_threshold_dev');
     });
   });

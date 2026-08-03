@@ -70,17 +70,17 @@ export async function GET(request: NextRequest) {
     const filter: Record<string, unknown> = {};
 
     // Device ID filter
-    if (query.device_id) {
+    if (query.device_id) 
       filter.device_id = query.device_id;
-    }
+    
 
     // Status filter - default to only 'scheduled' unless include_all is true
     if (query.status) {
       const statuses = Array.isArray(query.status) ? query.status : [query.status];
       filter.status = statuses.length === 1 ? statuses[0] : { $in: statuses };
-    } else if (!query.include_all) {
+    } else if (!query.include_all) 
       filter.status = 'scheduled';
-    }
+    
 
     // Service type filter
     if (query.service_type) {
@@ -91,12 +91,12 @@ export async function GET(request: NextRequest) {
     // Date range filter for scheduled_date
     if (query.startDate || query.endDate) {
       filter.scheduled_date = {};
-      if (query.startDate) {
+      if (query.startDate) 
         (filter.scheduled_date as Record<string, Date>).$gte = new Date(query.startDate);
-      }
-      if (query.endDate) {
+      
+      if (query.endDate) 
         (filter.scheduled_date as Record<string, Date>).$lte = new Date(query.endDate);
-      }
+      
     }
 
     // Build sort
@@ -185,14 +185,14 @@ async function handleCreateSchedules(request: NextRequest) {
     const existingDeviceIds = new Set(existingDevices.map(d => d._id));
     const missingDeviceIds = deviceIds.filter(id => !existingDeviceIds.has(id));
 
-    if (missingDeviceIds.length > 0) {
+    if (missingDeviceIds.length > 0) 
       throw new ApiError(
         ErrorCodes.DEVICE_NOT_FOUND,
         404,
         `Device(s) not found or deleted: ${missingDeviceIds.join(', ')}`,
         { missing_device_ids: missingDeviceIds }
       );
-    }
+    
 
     // Create one schedule document per device
     const now = new Date();

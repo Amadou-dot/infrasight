@@ -1,5 +1,15 @@
 import { queryKeys } from '@/lib/query/queryClient';
 
+import { v2Api } from '@/lib/api/v2-client';
+import {
+  useSchedulesList,
+  useScheduleDetail,
+  useCreateSchedule,
+  useUpdateSchedule,
+  useCompleteSchedule,
+  useCancelSchedule,
+} from '@/lib/query/hooks/useSchedules';
+
 // Track captured args for useQuery and useMutation
 let capturedUseQueryArgs: Record<string, unknown> | null = null;
 let capturedMutationArgs: Record<string, unknown> | null = null;
@@ -51,16 +61,6 @@ jest.mock('@/lib/api/v2-client', () => ({
     },
   },
 }));
-
-import { v2Api } from '@/lib/api/v2-client';
-import {
-  useSchedulesList,
-  useScheduleDetail,
-  useCreateSchedule,
-  useUpdateSchedule,
-  useCompleteSchedule,
-  useCancelSchedule,
-} from '@/lib/query/hooks/useSchedules';
 
 // ============================================================================
 // QUERY KEY TESTS

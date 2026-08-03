@@ -4,7 +4,7 @@
  * Tests for authentication utilities.
  */
 
-import { ApiError } from '@/lib/errors/ApiError';
+import type { ApiError } from '@/lib/errors/ApiError';
 
 // Mock Clerk auth functions
 jest.mock('@clerk/nextjs/server', () => ({
@@ -457,9 +457,9 @@ describe('Auth Module', () => {
       it('should refuse every mutating method', () => {
         const { isDemoReadableMethod } = require('@/lib/auth');
 
-        for (const method of ['POST', 'PATCH', 'PUT', 'DELETE']) {
+        for (const method of ['POST', 'PATCH', 'PUT', 'DELETE']) 
           expect(isDemoReadableMethod(method)).toBe(false);
-        }
+        
       });
 
       it('should refuse unknown methods rather than defaulting open', () => {

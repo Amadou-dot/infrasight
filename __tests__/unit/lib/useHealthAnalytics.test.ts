@@ -9,6 +9,9 @@
 
 import { queryKeys } from '@/lib/query/queryClient';
 
+import { v2Api } from '@/lib/api/v2-client';
+import { useHealthAnalytics, useInvalidateHealth } from '@/lib/query/hooks/useHealthAnalytics';
+
 // Track what useQuery receives
 let capturedUseQueryArgs: Record<string, unknown> | null = null;
 const mockInvalidateQueries = jest.fn();
@@ -32,9 +35,6 @@ jest.mock('@/lib/api/v2-client', () => ({
     },
   },
 }));
-
-import { v2Api } from '@/lib/api/v2-client';
-import { useHealthAnalytics, useInvalidateHealth } from '@/lib/query/hooks/useHealthAnalytics';
 
 describe('queryKeys.health', () => {
   it('should generate key without params', () => {

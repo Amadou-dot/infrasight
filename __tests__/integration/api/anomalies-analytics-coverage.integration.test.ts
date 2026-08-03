@@ -18,7 +18,6 @@ import ReadingV2 from '@/models/v2/ReadingV2';
 import {
   createDeviceInput,
   createAnomalyReadingV2,
-  createReadingV2Input,
   resetCounters,
 } from '../../setup/factories';
 
@@ -78,14 +77,14 @@ async function seedDeviceWithAnomalies(
   const baseTime = Date.now() - timestampOffset;
   const unit = type === 'temperature' ? 'celsius' : type === 'humidity' ? 'percent' : 'watts';
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < count; i++) 
     readings.push(
       createAnomalyReadingV2(deviceId, anomalyScore, {
         metadata: { device_id: deviceId, type, unit, source: 'sensor' },
         timestamp: new Date(baseTime - i * 60 * 60 * 1000), // 1 hour apart
       })
     );
-  }
+  
   await ReadingV2.insertMany(readings);
 }
 
@@ -257,10 +256,10 @@ describe('Anomalies Analytics API – Coverage Gaps', () => {
       expect(data.success).toBe(true);
       const anomalies = data.data!.anomalies;
       if (anomalies.length >= 2) {
-        const timestamps = anomalies.map((a: any) => new Date(a.timestamp).getTime());
-        for (let i = 1; i < timestamps.length; i++) {
+        const timestamps = anomalies.map(a => new Date(a.timestamp).getTime());
+        for (let i = 1; i < timestamps.length; i++) 
           expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i - 1]);
-        }
+        
       }
     });
   });
@@ -300,12 +299,12 @@ describe('Anomalies Analytics API – Coverage Gaps', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      const scores = data.data!.anomalies.map((a: any) => a.quality?.anomaly_score);
-      if (scores.length >= 2) {
-        for (let i = 1; i < scores.length; i++) {
+      const scores = data.data!.anomalies.map(a => a.quality?.anomaly_score);
+      if (scores.length >= 2) 
+        for (let i = 1; i < scores.length; i++) 
           expect(scores[i]).toBeLessThanOrEqual(scores[i - 1]);
-        }
-      }
+        
+      
     });
   });
 
@@ -347,12 +346,12 @@ describe('Anomalies Analytics API – Coverage Gaps', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      const values = data.data!.anomalies.map((a: any) => a.value);
-      if (values.length >= 2) {
-        for (let i = 1; i < values.length; i++) {
+      const values = data.data!.anomalies.map(a => a.value);
+      if (values.length >= 2) 
+        for (let i = 1; i < values.length; i++) 
           expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]);
-        }
-      }
+        
+      
     });
   });
 

@@ -47,9 +47,9 @@ export function TagInput({
     if (e.key === 'Enter') {
       e.preventDefault();
       addTag(inputValue);
-    } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
+    } else if (e.key === 'Backspace' && !inputValue && value.length > 0) 
       removeTag(value[value.length - 1]);
-    }
+    
   };
 
   return (
