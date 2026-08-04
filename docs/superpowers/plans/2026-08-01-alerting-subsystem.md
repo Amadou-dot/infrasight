@@ -7044,10 +7044,10 @@ git commit -m "feat(alerting): subscribe to alert events and toast on fire"
 - Test: `__tests__/unit/components/AlertBadges.test.tsx`
 - Test: `__tests__/unit/components/useAlertFilterParams.test.tsx`
 
-Badges mirror `components/ScheduleStatusBadge.tsx` exactly: a `Record<T, { label, className, icon }>` config object, `Badge variant="outline"`, `cn()` for class merging, and light/dark class pairs. `AlertList` is modelled on `components/ScheduleList.tsx` — same `Card` shell, same `Select` filters, same `PAGE_SIZE = 10` pagination, same `useRbac()` gating.
+Badges mirror `components/ScheduleStatusBadge.tsx` exactly: a `Record<T, { label, className, icon }>` config object, `Badge variant="outline"`, `cn()` for class merging, and light/dark class pairs. `AlertList` is modelled on `components/ScheduleList.tsx` — same `Card` shell, same `Select` filters, same `PAGE_SIZE = 10` pagination, same `useAdminAction()` gating.
 
 **Interfaces:**
-- Consumes: `useAlertsList`, `useAcknowledgeAlert`, `useResolveAlert` (Task 12); `AlertV2Response`, `AlertStatus`, `AlertSeverity` (Task 3); `useRbac` from `@/lib/auth/rbac-client`.
+- Consumes: `useAlertsList`, `useAcknowledgeAlert`, `useResolveAlert` (Task 12); `AlertV2Response`, `AlertStatus`, `AlertSeverity` (Task 3); `useAdminAction` from `@/lib/auth/rbac-client`.
 - Produces:
   - `export function AlertSeverityBadge({ severity, className?, showIcon? })`
   - `export function AlertStatusBadge({ status, className?, showIcon? })`
@@ -7166,10 +7166,10 @@ Expected: PASS.
 Create `components/alerts/AlertList.tsx`, copying the structure of `components/ScheduleList.tsx`:
 
 - `'use client'`; props `{ initialFilters?: Partial<ListAlertsQueryParams>; showHeader?: boolean; onDeviceClick?: (deviceId: string) => void }`
-- `const { isAdmin } = useRbac();`
+- `const ackAction = useAdminAction();` and `const resolveAction = useAdminAction();`
 - `STATUS_OPTIONS = [{ value: 'open', label: 'Open' }, { value: 'firing', … }, { value: 'acknowledged', … }, { value: 'resolved', label: 'Resolved (history)' }]` and `SEVERITY_OPTIONS` with an `all` entry, rendered through `Select`
 - `PAGE_SIZE = 10`; page state; `useAlertsList({ ...filters, page, limit: PAGE_SIZE })`
-- Each row: `AlertSeverityBadge`, `AlertStatusBadge`, rule name, a `Link` to `/alerts/${alert._id}`, the device id as a button calling `onDeviceClick`, the condition in plain language, and a relative timestamp
+- Each row: `AlertSeverityBadge`, `AlertStatusBadge`, rule name, a `Link` to `/alerts/${alert._id}`, the device id as a button calling `onDeviceClick`, the condition in plain language, and **a relative timestamp** off `fired_at` (falling back to `breached_since`). There is no relative-time helper in this repo and no `date-fns` dependency — `ScheduleList.tsx:137` formats absolute dates with `toLocaleDateString`. Write a small local `relativeTime()` helper rather than adding a dependency, and test it, including the `fired_at`-absent fallback
 - Acknowledge / Resolve buttons render for every viewer but are `disabled={!isAdmin}` with a `title` tooltip explaining why — **disabled, not hidden**, per the demo-mode rule, so a visitor learns the workflow exists. Server-side `requireAdmin()` is the real enforcement
 - On mutation success, `toast.success(...)`; on error, `toast.error(err.message)`
 - Loading state reuses the spinner markup from `ScheduleList`; empty state reads "No open alerts."
@@ -7189,7 +7189,7 @@ import { AlertSeverityBadge } from './AlertSeverityBadge';
 import { AlertStatusBadge } from './AlertStatusBadge';
 import { useAlertFilterParams } from './useAlertFilterParams';
 import { useAlertsList, useAcknowledgeAlert, useResolveAlert } from '@/lib/query/hooks';
-import { useRbac } from '@/lib/auth/rbac-client';
+import { useAdminAction } from '@/lib/auth/rbac-client';
 import type {
   AlertComparison,
   AlertSeverity,
@@ -7234,10 +7234,9 @@ export function describeCondition(
   return `${alert.metric} ${COMPARISON_WORDS[alert.comparison]} ${alert.threshold}`;
 }
 
-const ADMIN_ONLY_TOOLTIP = 'Admin role required — sign in as an admin to act on alerts';
-
 export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClick }: AlertListProps) {
-  const { isAdmin } = useRbac();
+  const ackAction = useAdminAction();
+  const resolveAction = useAdminAction();
   // URL is the source of truth — see useAlertFilterParams below.
   const { status, setStatus, severity, setSeverity, page, setPage } =
     useAlertFilterParams(initialFilters);
@@ -7332,27 +7331,35 @@ export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClic
                 {describeCondition(alert)} — last {alert.last_value}
               </span>
 
+              {/* "How long has this been firing" is core triage information on an
+                  alerting dashboard, not decoration. */}
+              <span className="text-sm text-muted-foreground">
+                {relativeTime(alert.fired_at ?? alert.breached_since)}
+              </span>
+
               <div className="ml-auto flex items-center gap-2">
-                {/* Disabled, never hidden: a visitor should learn the workflow exists.
-                    requireAdmin() server-side is the real enforcement. */}
-                {alert.status === 'firing' && (
+                {/* useAdminAction(): an admin gets an enabled control; a visitor on the
+                    demo deployment gets it disabled with a tooltip, so they can see the
+                    workflow exists; a non-admin elsewhere gets it hidden, matching every
+                    other screen. requireAdmin() server-side is the real enforcement. */}
+                {ackAction.visible && alert.status === 'firing' && (
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!isAdmin || acknowledge.isPending}
-                    title={isAdmin ? undefined : ADMIN_ONLY_TOOLTIP}
+                    disabled={ackAction.disabled || acknowledge.isPending}
+                    title={ackAction.tooltip}
                     onClick={() => act(acknowledge, alert._id, 'Alert acknowledged')}
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Acknowledge
                   </Button>
                 )}
-                {alert.is_open && (
+                {resolveAction.visible && alert.is_open && (
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!isAdmin || resolve.isPending}
-                    title={isAdmin ? undefined : ADMIN_ONLY_TOOLTIP}
+                    disabled={resolveAction.disabled || resolve.isPending}
+                    title={resolveAction.tooltip}
                     onClick={() => act(resolve, alert._id, 'Alert resolved')}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
@@ -7365,8 +7372,11 @@ export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClic
         </ul>
 
         <div className="mt-4 flex items-center justify-between">
+          {/* Visible text, not bare chevrons — these need an accessible name, and
+              ScheduleList.tsx:337-353 (the model for this component) labels them. */}
           <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Previous
           </Button>
           <span className="text-sm text-muted-foreground">Page {page}</span>
           <Button
@@ -7375,7 +7385,8 @@ export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClic
             disabled={(alerts?.length ?? 0) < PAGE_SIZE}
             onClick={() => setPage(page + 1)}
           >
-            <ChevronRight className="h-4 w-4" />
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
       </CardContent>
@@ -7527,6 +7538,7 @@ function alert(overrides: Partial<AlertV2Response> = {}): AlertV2Response {
 }
 
 jest.mock('@/lib/auth/rbac-client', () => ({
+  useAdminAction: () => ({ visible: true, disabled: false }),
   useRbac: () => ({ isAdmin: true, isMember: false, orgRole: 'org:admin', isLoaded: true }),
 }));
 
@@ -7626,7 +7638,7 @@ Create `components/alerts/AlertDetailView.tsx`:
 - Values block: `trigger_value`, `last_value`, `resolved_value`, `threshold`
 - `<Link href={`/devices/${alert.device_id}`}>` for the device
 - Bracketing readings as a simple table, `fired_at ± 15m`
-- Acknowledge / Resolve buttons via `useRbac()` — disabled with a tooltip for non-admins, never hidden
+- Acknowledge / Resolve buttons via `useAdminAction()` — see Task 15; do not hand-roll with `useRbac`
 
 Add a small local helper:
 
@@ -7771,7 +7783,7 @@ git commit -m "feat(alerting): add deep-linkable alert detail page"
 The server remains the enforcement point — this is a UX affordance, not a security boundary.
 
 **Interfaces:**
-- Consumes: `useAlertRulesList`, `useCreateAlertRule`, `useUpdateAlertRule`, `useDeleteAlertRule` (Task 12); `useRbac`.
+- Consumes: `useAlertRulesList`, `useCreateAlertRule`, `useUpdateAlertRule`, `useDeleteAlertRule` (Task 12); `useAdminAction`.
 - Produces:
   - `export function AlertRuleList()`
   - `export function CreateAlertRuleModal({ isOpen, onClose })`
@@ -8512,7 +8524,7 @@ The phase is complete when all of the following hold:
 - `pnpm lint && npx tsc --noEmit && pnpm test:coverage && pnpm build` is clean, with coverage at or above the configured thresholds.
 - `pnpm create-indexes-v2 && pnpm verify-indexes` reports all eight new alert indexes present.
 - A fresh `pnpm seed` followed by a few authenticated `GET /api/v2/cron/simulate` calls produces visible alerts on `/alerts`.
-- An anonymous visitor can read `/alerts`, `/alerts/[id]`, and `/alerts/rules`, and sees Acknowledge / Resolve / New rule **disabled with a tooltip** rather than hidden.
+- An anonymous visitor can read `/alerts`, `/alerts/[id]`, and `/alerts/rules`. On a **demo deployment** (`NEXT_PUBLIC_DEMO_MODE=true`) they see Acknowledge / Resolve / New rule **disabled with a tooltip** rather than hidden; off demo mode a non-admin sees them hidden, matching every other screen. Both behaviours come from `useAdminAction()` — no screen hand-rolls this.
 - A member `PATCH` to `/api/v2/alerts/[id]` returns 403; an admin `PATCH` returns 200.
 - Triggering a rule while `/alerts` is open in a browser raises a toast and updates the nav badge without a refresh.
 - `grep -rn "AlertsPanel" --include="*.tsx" .` returns nothing outside `node_modules`.
