@@ -268,8 +268,25 @@ export interface ListReadingsQuery {
   page?: number;
   /** Items per page (max 100) */
   limit?: number;
-  /** Sort field and direction (e.g., "timestamp:desc") */
+  /**
+   * Vestigial. GET /api/v2/readings has never read a combined "field:dir"
+   * param — it reads `sortBy`/`sortDirection` separately (see below), the
+   * same shape `ListDevicesQuery`/`ListSchedulesQuery` use. No caller in
+   * this codebase sets `sort`. Left in place rather than removed to keep
+   * this fix narrowly scoped; prefer `sortBy`/`sortDirection`.
+   */
   sort?: string;
+  /**
+   * Sort field. The route (app/api/v2/readings/route.ts) reads this and
+   * `sortDirection` directly — matching `listReadingsQuerySchema`'s
+   * `createSortSchema(readingSortFields)` — and defaults to
+   * `timestamp` descending (newest first) when omitted. A caller that wants
+   * a chronological window (e.g. a bracketing-readings table) must set both
+   * explicitly, or it will silently get the newest page instead.
+   */
+  sortBy?: 'timestamp' | 'value' | 'anomaly_score' | 'confidence_score';
+  /** Sort direction; the route defaults to 'desc' when this is omitted. */
+  sortDirection?: 'asc' | 'desc';
 }
 
 /**

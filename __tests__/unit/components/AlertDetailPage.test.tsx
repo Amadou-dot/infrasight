@@ -11,18 +11,28 @@
  * has no such hook (it inlines useAlertDetail + a raw useQuery), so the page
  * itself is what needs a direct test here.
  *
- * `@/lib/query/hooks` (useAlertDetail), `next/navigation`
- * (useParams/notFound), and `@tanstack/react-query` (useQuery, for the
- * bracketing-readings query) are all mocked so the page's own
- * loading/error/notFound orchestration can be exercised without a real
- * QueryClientProvider or network. `AlertDetailView` is mocked to a stub so
- * this file stays scoped to the page's own logic — AlertDetailView.test.tsx
- * already covers the presentational component in depth.
+ * Fix round 1 (task-16 review): the bracketing-readings `useQuery` used to be
+ * mocked wholesale (`useQuery: () => ({ data: [], isLoading: false })`),
+ * which is exactly what let a real bug ship invisibly — the query never
+ * specified `limit`/`sortBy`/`sortDirection`, so the endpoint's defaults
+ * (limit 20, newest-first) silently truncated the early part of the
+ * bracketing window on any device reporting faster than ~90s. That mock is
+ * gone. `@tanstack/react-query` now runs for real against a real
+ * QueryClient, and `v2Api.readings.list` is mocked at the network boundary
+ * instead, so the query's actual params are observable and assertable.
+ *
+ * `@/lib/query/hooks` (useAlertDetail) and `next/navigation`
+ * (useParams/notFound) stay mocked so the page's own loading/error/notFound
+ * orchestration can still be driven directly. `AlertDetailView` is mocked to
+ * a stub so this file stays scoped to the page's own logic —
+ * AlertDetailView.test.tsx already covers the presentational component in
+ * depth.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { ComponentProps } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AlertDetailPage from '@/app/alerts/[id]/page';
 import { ApiClientError } from '@/lib/api/v2-client';
 import type { AlertV2Response } from '@/types/v2';
@@ -40,14 +50,22 @@ jest.mock('next/navigation', () => ({
   notFound: () => mockNotFound(),
 }));
 
-// The page's own inline useQuery (for bracketing readings) needs no
-// QueryClientProvider once mocked — its wiring isn't this file's concern.
-// requireActual keeps the real QueryClient class intact: lib/query/queryClient.ts
-// (imported transitively for queryKeys) instantiates one at module load time.
-jest.mock('@tanstack/react-query', () => ({
-  ...jest.requireActual('@tanstack/react-query'),
-  useQuery: () => ({ data: [], isLoading: false }),
-}));
+// Only readings.list is overridden — everything else (including the real
+// ApiClientError class used below to build 404/500 fixtures) stays real.
+const mockReadingsList = jest.fn();
+jest.mock('@/lib/api/v2-client', () => {
+  const actual = jest.requireActual('@/lib/api/v2-client');
+  return {
+    ...actual,
+    v2Api: {
+      ...actual.v2Api,
+      readings: {
+        ...actual.v2Api.readings,
+        list: (...args: unknown[]) => mockReadingsList(...args),
+      },
+    },
+  };
+});
 
 jest.mock('next/link', () => {
   const Link = ({ href, children, ...rest }: ComponentProps<'a'>) => (
@@ -92,9 +110,23 @@ function makeAlert(overrides: Partial<AlertV2Response> = {}): AlertV2Response {
   };
 }
 
+/** Fresh QueryClient per render — real useQuery, no retries, so a mocked
+ * rejection settles immediately instead of retrying into a timeout. */
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AlertDetailPage />
+    </QueryClientProvider>
+  );
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockUseParams.mockReturnValue({ id: 'alert_1' });
+  mockReadingsList.mockResolvedValue({ success: true, data: [] });
 });
 
 describe('AlertDetailPage', () => {
@@ -106,11 +138,13 @@ describe('AlertDetailPage', () => {
       refetch: jest.fn(),
     });
 
-    const { container } = render(<AlertDetailPage />);
+    const { container } = renderPage();
 
     expect(container.querySelector('.animate-spin')).toBeInTheDocument();
     expect(screen.queryByTestId('alert-detail-view')).not.toBeInTheDocument();
     expect(mockNotFound).not.toHaveBeenCalled();
+    // No device_id yet, so the bracketing-readings query must stay disabled.
+    expect(mockReadingsList).not.toHaveBeenCalled();
   });
 
   it('should render the styled not-found state for an alert id that does not resolve (404)', () => {
@@ -121,7 +155,7 @@ describe('AlertDetailPage', () => {
       refetch: jest.fn(),
     });
 
-    render(<AlertDetailPage />);
+    renderPage();
 
     expect(mockNotFound).toHaveBeenCalledTimes(1);
   });
@@ -134,7 +168,7 @@ describe('AlertDetailPage', () => {
       refetch: jest.fn(),
     });
 
-    render(<AlertDetailPage />);
+    renderPage();
 
     expect(mockNotFound).not.toHaveBeenCalled();
     expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
@@ -149,7 +183,7 @@ describe('AlertDetailPage', () => {
       refetch: jest.fn(),
     });
 
-    render(<AlertDetailPage />);
+    renderPage();
 
     expect(screen.getByTestId('alert-detail-view')).toHaveTextContent('High temperature');
     expect(mockNotFound).not.toHaveBeenCalled();
@@ -163,9 +197,68 @@ describe('AlertDetailPage', () => {
       refetch: jest.fn(),
     });
 
-    render(<AlertDetailPage />);
+    renderPage();
 
     const [, , config] = mockUseAlertDetail.mock.calls[0];
     expect(config).toMatchObject({ retry: false });
+  });
+
+  // --- Bracketing-readings query wiring (fix round 1) ----------------------
+
+  describe('bracketing readings query', () => {
+    it('should request an explicit limit and ascending sort, windowed +/-15m on fired_at', async () => {
+      mockUseAlertDetail.mockReturnValue({
+        data: makeAlert({ fired_at: '2026-08-01T12:05:00.000Z' }),
+        isLoading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderPage();
+
+      await waitFor(() => expect(mockReadingsList).toHaveBeenCalledTimes(1));
+
+      expect(mockReadingsList).toHaveBeenCalledWith({
+        device_id: 'device_001',
+        startDate: '2026-08-01T11:50:00.000Z',
+        endDate: '2026-08-01T12:20:00.000Z',
+        limit: 100,
+        sortBy: 'timestamp',
+        sortDirection: 'asc',
+      });
+    });
+
+    it('should fall back to breached_since when fired_at is absent (pending episodes are never visible, but defend anyway)', async () => {
+      mockUseAlertDetail.mockReturnValue({
+        data: makeAlert({ fired_at: undefined, breached_since: '2026-08-01T09:00:00.000Z' }),
+        isLoading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderPage();
+
+      await waitFor(() => expect(mockReadingsList).toHaveBeenCalledTimes(1));
+
+      expect(mockReadingsList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          startDate: '2026-08-01T08:45:00.000Z',
+          endDate: '2026-08-01T09:15:00.000Z',
+        })
+      );
+    });
+
+    it('should not request readings before the alert (and its device_id) has loaded', () => {
+      mockUseAlertDetail.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderPage();
+
+      expect(mockReadingsList).not.toHaveBeenCalled();
+    });
   });
 });
