@@ -6746,6 +6746,7 @@ describe('usePusherAlerts', () => {
 
     const envelope: AlertEvent = {
       kind: 'storm',
+      of: 'fired', // required as of Step 0 — omitting it fails `tsc --noEmit`
       count: 312,
       by_severity: { info: 0, warning: 12, critical: 300 },
       since: '2026-08-01T12:00:00.000Z',
@@ -7023,7 +7024,7 @@ Expected: clean build. A failure mentioning `mongoose` inside a client component
 - [ ] **Step 8: Commit**
 
 ```bash
-git add types/v2/alert.types.ts lib/alerting/notify.ts __tests__/unit/lib/alerting/notify.test.ts
+git add types/v2/alert.types.ts lib/alerting/notify.ts lib/alerting/index.ts __tests__/unit/lib/alerting/notify.test.ts __tests__/unit/lib/alerting/sweep.test.ts
 git commit -m "feat(alerting): tag storm envelopes with their direction"
 
 git add lib/pusher-context.tsx components/alerts/AlertToaster.tsx app/layout.tsx __tests__/unit/lib/pusher-alerts.test.tsx __tests__/unit/components/AlertToaster.test.tsx
