@@ -10,6 +10,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from '@/lib/query/queryClient';
 import { PusherProvider } from '@/lib/pusher-context';
+import { AlertToaster } from '@/components/alerts/AlertToaster';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -57,6 +58,7 @@ export default function RootLayout({
                   pauseOnHover
                   theme="colored"
                 />
+                <AlertToaster />
               </PusherProvider>
             </ClerkThemeProvider>
           </ThemeProvider>
