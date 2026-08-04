@@ -7365,7 +7365,7 @@ export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClic
         </ul>
 
         <div className="mt-4 flex items-center justify-between">
-          <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+          <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm text-muted-foreground">Page {page}</span>
@@ -7373,7 +7373,7 @@ export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClic
             variant="outline"
             size="sm"
             disabled={(alerts?.length ?? 0) < PAGE_SIZE}
-            onClick={() => setPage(p => p + 1)}
+            onClick={() => setPage(page + 1)}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
