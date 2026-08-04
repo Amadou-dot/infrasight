@@ -95,6 +95,125 @@ describe('Alerts API Integration Tests', () => {
       expect(body.data[0].device_id).toBe('device_aaa');
     });
 
+    it('should filter by rule_id', async () => {
+      const ruleIdA = new Types.ObjectId();
+      const ruleIdB = new Types.ObjectId();
+      await AlertV2.create(
+        createAlertInput({ status: 'firing', rule_id: ruleIdA, device_id: 'device_rule_a' })
+      );
+      await AlertV2.create(
+        createAlertInput({ status: 'firing', rule_id: ruleIdB, device_id: 'device_rule_b' })
+      );
+
+      const response = await listAlerts(
+        createMockGetRequest('/api/v2/alerts', { rule_id: String(ruleIdA) })
+      );
+      const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].device_id).toBe('device_rule_a');
+    });
+
+    // Distinct from "should default to open alerts" above: that test never
+    // passes a `status` query param at all, so it exercises the route's OWN
+    // default (which happens to also be two values), not a caller-supplied
+    // comma-separated list reaching the $in branch. Deliberately mixes an
+    // open and a closed status (excluding 'firing') so a regression to
+    // single-value-only filtering — `statuses[0]` instead of `{ $in:
+    // statuses }` — returns just one alert instead of two.
+    it('should accept a comma-separated status list via the $in branch', async () => {
+      await AlertV2.create(createAlertInput({ status: 'firing', device_id: 'device_firing' }));
+      await AlertV2.create(createAlertInput({ status: 'acknowledged', device_id: 'device_acked' }));
+      await AlertV2.create(
+        createAlertInput({ status: 'resolved', is_open: false, device_id: 'device_resolved' })
+      );
+
+      const response = await listAlerts(
+        createMockGetRequest('/api/v2/alerts', { status: 'acknowledged,resolved' })
+      );
+      const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
+
+      expect(body.data.map(a => a.device_id).sort()).toEqual(['device_acked', 'device_resolved']);
+    });
+
+    // Same rationale as the status test above: "should filter by severity"
+    // only ever passes a single value, so it cannot tell a working $in branch
+    // from one collapsed to single-value equality.
+    it('should accept a comma-separated severity list via the $in branch', async () => {
+      await AlertV2.create(
+        createAlertInput({ status: 'firing', severity: 'critical', device_id: 'device_crit' })
+      );
+      await AlertV2.create(
+        createAlertInput({ status: 'firing', severity: 'warning', device_id: 'device_warn' })
+      );
+      await AlertV2.create(
+        createAlertInput({ status: 'firing', severity: 'info', device_id: 'device_info' })
+      );
+
+      const response = await listAlerts(
+        createMockGetRequest('/api/v2/alerts', { severity: 'critical,info' })
+      );
+      const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
+
+      expect(body.data.map(a => a.device_id).sort()).toEqual(['device_crit', 'device_info']);
+    });
+
+    // Proves sortBy is actually wired to SORT_FIELD_MAP rather than silently
+    // falling back to the default (audit.created_at desc). Chosen orderings
+    // are deliberately NOT a coincidental match: audit.created_at order
+    // (oldest -> newest) is warning, critical, info, so a collapsed
+    // SORT_FIELD_MAP (which would fall back to created_at desc, giving
+    // info/critical/warning) cannot accidentally satisfy this assertion.
+    //
+    // Also documents an oddity, not a bug to fix here: severity sorts
+    // LEXICALLY (there is no severity-rank comparator), so descending yields
+    // warning -> info -> critical — 'critical' sorts last because 'c' < 'i' <
+    // 'w'. A user asking for "most severe first" almost certainly does not
+    // mean this. See the task report for why this is surfaced, not changed.
+    it('should sort by severity, not silently fall back to created_at', async () => {
+      const t1 = new Date('2026-01-01T08:00:00.000Z');
+      const t2 = new Date('2026-01-01T09:00:00.000Z');
+      const t3 = new Date('2026-01-01T10:00:00.000Z');
+      const auditAt = (created_at: Date) => ({
+        created_at,
+        created_by: 'system',
+        updated_at: created_at,
+        updated_by: 'system',
+      });
+
+      await AlertV2.create(
+        createAlertInput({
+          status: 'firing',
+          device_id: 'device_warn',
+          severity: 'warning',
+          audit: auditAt(t1),
+        })
+      );
+      await AlertV2.create(
+        createAlertInput({
+          status: 'firing',
+          device_id: 'device_crit',
+          severity: 'critical',
+          audit: auditAt(t2),
+        })
+      );
+      await AlertV2.create(
+        createAlertInput({
+          status: 'firing',
+          device_id: 'device_info',
+          severity: 'info',
+          audit: auditAt(t3),
+        })
+      );
+
+      const response = await listAlerts(
+        createMockGetRequest('/api/v2/alerts', { sortBy: 'severity', sortDirection: 'desc' })
+      );
+      const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
+
+      expect(body.data.map(a => a.device_id)).toEqual(['device_warn', 'device_info', 'device_crit']);
+    });
+
     it('should paginate', async () => {
       for (let i = 0; i < 5; i++) await AlertV2.create(createAlertInput({ status: 'firing' }));
 
