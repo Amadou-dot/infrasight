@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useCallback } from 'react';
 import { getPusherClient } from '@/lib/pusher-client';
+import type { AlertEvent } from '@/types/v2/alert.types';
 
 /**
  * Shape of a reading received from Pusher on the 'new-readings' event.
@@ -18,24 +19,30 @@ export interface PusherReading {
 }
 
 type ReadingsCallback = (readings: PusherReading[]) => void;
+export type AlertsCallback = (event: AlertEvent) => void;
 
 interface PusherContextValue {
   /** Register a callback that fires every time new readings arrive. */
   subscribe: (cb: ReadingsCallback) => void;
   /** Remove a previously registered callback. */
   unsubscribe: (cb: ReadingsCallback) => void;
+  /** Register a callback that fires for every alert envelope. */
+  subscribeAlerts: (cb: AlertsCallback) => void;
+  /** Remove a previously registered alert callback. */
+  unsubscribeAlerts: (cb: AlertsCallback) => void;
 }
 
 const PusherContext = createContext<PusherContextValue | null>(null);
 
 /**
- * Provides a single Pusher subscription to the `InfraSight` channel and
- * `new-readings` event. All consuming components share this one subscription
- * instead of each creating their own, which prevents duplicate event
- * processing and the associated extra re-renders.
+ * Provides a single Pusher subscription to the `InfraSight` channel and its
+ * `new-readings` and `alert-event` events. All consuming components share
+ * this one subscription instead of each creating their own, which prevents
+ * duplicate event processing and the associated extra re-renders.
  */
 export function PusherProvider({ children }: { children: React.ReactNode }) {
   const callbacksRef = useRef<Set<ReadingsCallback>>(new Set());
+  const alertCallbacksRef = useRef<Set<AlertsCallback>>(new Set());
 
   useEffect(() => {
     // Gracefully degrade when Pusher env vars are not configured.
@@ -61,10 +68,22 @@ export function PusherProvider({ children }: { children: React.ReactNode }) {
       });
     };
 
+    const alertHandler = (event: AlertEvent) => {
+      alertCallbacksRef.current.forEach(cb => {
+        try {
+          cb(event);
+        } catch (err) {
+          console.error('PusherProvider: error in alert subscriber callback', err);
+        }
+      });
+    };
+
     channel.bind('new-readings', handler);
+    channel.bind('alert-event', alertHandler);
 
     return () => {
       channel.unbind('new-readings', handler);
+      channel.unbind('alert-event', alertHandler);
       pusher.unsubscribe('InfraSight');
     };
   }, []);
@@ -77,8 +96,18 @@ export function PusherProvider({ children }: { children: React.ReactNode }) {
     callbacksRef.current.delete(cb);
   }, []);
 
+  const subscribeAlerts = useCallback((cb: AlertsCallback) => {
+    alertCallbacksRef.current.add(cb);
+  }, []);
+
+  const unsubscribeAlerts = useCallback((cb: AlertsCallback) => {
+    alertCallbacksRef.current.delete(cb);
+  }, []);
+
   return (
-    <PusherContext.Provider value={{ subscribe, unsubscribe }}>
+    <PusherContext.Provider
+      value={{ subscribe, unsubscribe, subscribeAlerts, unsubscribeAlerts }}
+    >
       {children}
     </PusherContext.Provider>
   );
@@ -123,6 +152,43 @@ export function usePusherReadings(callback: ReadingsCallback): void {
     ctx.subscribe(stableCallback);
     return () => {
       ctx.unsubscribe(stableCallback);
+    };
+  }, [ctx]);
+}
+
+/**
+ * Hook for components that need to react to real-time alert envelopes.
+ *
+ * The callback is held in a ref so a caller that does not memoize will not cause
+ * a re-subscribe on every render. The ref is refreshed in a commit-phase effect
+ * rather than assigned during render: assigning during render violates
+ * react-hooks/refs, and Pusher handlers only ever read the ref asynchronously,
+ * long after commit.
+ */
+export function usePusherAlerts(callback: AlertsCallback): void {
+  const ctx = useContext(PusherContext);
+
+  const callbackRef = useRef<AlertsCallback>(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (!ctx) {
+      console.warn(
+        'usePusherAlerts: PusherProvider is not in the component tree. Real-time alerts are disabled.'
+      );
+      return;
+    }
+
+    const stableCallback: AlertsCallback = event => {
+      callbackRef.current(event);
+    };
+
+    ctx.subscribeAlerts(stableCallback);
+    return () => {
+      ctx.unsubscribeAlerts(stableCallback);
     };
   }, [ctx]);
 }
