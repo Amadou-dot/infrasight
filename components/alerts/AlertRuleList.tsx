@@ -25,13 +25,26 @@ import type { AlertRuleV2Response, AlertRuleSelector } from '@/types/v2';
 
 const PAGE_SIZE = 10;
 
-/** Flattens the selector's dimensions into display chips: reading types, then location/tag constraints. */
-function selectorChips(selector: AlertRuleSelector): string[] {
-  const chips: string[] = [...(selector.types ?? [])];
-  if (selector.building_id) chips.push(selector.building_id);
-  if (selector.floor !== undefined) chips.push(`Floor ${selector.floor}`);
-  if (selector.zone) chips.push(selector.zone);
-  chips.push(...(selector.tags ?? []));
+/**
+ * Flattens the selector's dimensions into display chips: reading types, then
+ * location/tag constraints.
+ *
+ * `selector` is typed as required on `AlertRuleV2Response`, but a rule with no
+ * constraints at all (e.g. the seeded "Low battery" rule, which deliberately
+ * has no `selector.types` -- battery is a device property) is persisted with
+ * `selector: {}`, and Mongoose's default `minimize` behavior strips that empty
+ * object entirely before it reaches Mongo. The field is genuinely absent on
+ * read, exactly the runtime shape `matchesSelector` (lib/alerting/selector.ts)
+ * and the rule bucketer (lib/alerting/rule-cache.ts) already guard against --
+ * this mirrors that same optional-chaining convention rather than trusting
+ * the (inaccurate, for this one case) non-optional type.
+ */
+function selectorChips(selector: AlertRuleSelector | undefined): string[] {
+  const chips: string[] = [...(selector?.types ?? [])];
+  if (selector?.building_id) chips.push(selector.building_id);
+  if (selector?.floor !== undefined) chips.push(`Floor ${selector.floor}`);
+  if (selector?.zone) chips.push(selector.zone);
+  chips.push(...(selector?.tags ?? []));
   return chips;
 }
 
