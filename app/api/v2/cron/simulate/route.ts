@@ -58,8 +58,13 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
 
-    // 2. Insert into DB (The "Cold" Store)
-    await ReadingV2.bulkInsertReadings(newReadings);
+    // 2. Insert into DB (The "Cold" Store). bulkInsertReadings runs
+    //    insertMany with { ordered: false }: documents that fail validation
+    //    are silently skipped and it resolves with only the readings that
+    //    were actually written, without throwing. Capture that subset — it
+    //    is the only thing downstream steps may treat as having happened.
+    const insertedReadings = await ReadingV2.bulkInsertReadings(newReadings);
+    const rejectedCount = newReadings.length - insertedReadings.length;
 
     // 3. Trigger Real-time Update (The "Hot" Path)
     try {
@@ -71,8 +76,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 4. Evaluate alert rules against the readings we just wrote.
-    const evaluation = await safeEvaluateReadings(newReadings, devices);
+    // 4. Evaluate alert rules against the readings that actually persisted.
+    //    A reading bulkInsertReadings rejected doesn't exist in the DB, so it
+    //    must never be allowed to fire or resolve an alert.
+    const evaluation = await safeEvaluateReadings(insertedReadings, devices);
 
     // An alert firing (or auto-resolving) is a domain event in its own right;
     // nothing else in this handler logs it.
@@ -91,12 +98,15 @@ export async function GET(request: NextRequest) {
     //    device query of its own.
     await safeSweepStaleAlerts(new Set(devices.map(device => String(device._id))));
 
-    // Count anomalies for response
-    const anomalyCount = newReadings.filter(r => r.quality?.is_anomaly === true).length;
+    // Count anomalies among the readings that actually persisted. One that
+    // was rejected at insert time was never passed to safeEvaluateReadings
+    // above and doesn't exist in the DB, so it must not inflate this count.
+    const anomalyCount = insertedReadings.filter(r => r.quality.is_anomaly === true).length;
 
     return NextResponse.json({
       success: true,
-      count: newReadings.length,
+      count: insertedReadings.length,
+      rejected: rejectedCount,
       anomalies: anomalyCount,
       timestamp: new Date().toISOString(),
     });

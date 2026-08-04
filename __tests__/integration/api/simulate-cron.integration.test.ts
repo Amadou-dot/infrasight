@@ -7,13 +7,15 @@
 
 import { NextRequest } from 'next/server';
 import DeviceV2 from '@/models/v2/DeviceV2';
-import ReadingV2 from '@/models/v2/ReadingV2';
+import ReadingV2, { type IReadingV2 } from '@/models/v2/ReadingV2';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
 import * as evaluateModule from '@/lib/alerting/evaluate';
+import * as simulationModule from '@/lib/simulation/readings';
 import * as monitoring from '@/lib/monitoring';
 import {
   createDeviceInput,
+  createReadingV2Input,
   createAlertRuleInput,
   createAlertInput,
   resetCounters,
@@ -734,6 +736,116 @@ describe('Simulate Cron API Integration Tests', () => {
 
       spy.mockRestore();
       infoSpy.mockRestore();
+    });
+  });
+
+  // ==========================================================================
+  // PARTIAL INSERT HANDLING TESTS
+  // ==========================================================================
+
+  describe('partial insert handling', () => {
+    it('evaluates and reports only the readings bulkInsertReadings actually inserted', async () => {
+      // Three active devices so the mocked partial insert below has a real
+      // remainder to reject, not an all-or-nothing case.
+      await DeviceV2.insertMany([
+        createDeviceInput({ _id: 'device_partial_01', type: 'temperature' }),
+        createDeviceInput({ _id: 'device_partial_02', type: 'temperature' }),
+        createDeviceInput({ _id: 'device_partial_03', type: 'temperature' }),
+      ]);
+
+      // Stand-in for insertMany's real `{ ordered: false }` behavior: some
+      // documents are silently dropped and only the survivors come back,
+      // without throwing. `insertedSubset` is captured so the assertions
+      // below can prove the route forwards this EXACT array reference
+      // downstream, rather than reconstructing something that merely looks
+      // the same.
+      let insertedSubset: Partial<IReadingV2>[] = [];
+      const bulkInsertSpy = jest
+        .spyOn(ReadingV2, 'bulkInsertReadings')
+        .mockImplementation(async readings => {
+          insertedSubset = readings.slice(0, 2);
+          return insertedSubset as IReadingV2[];
+        });
+      const evaluateSpy = jest.spyOn(evaluateModule, 'evaluateReadings');
+
+      const response = await GET_SIMULATE();
+      const data = await parseResponse<{
+        success: boolean;
+        count: number;
+        rejected: number;
+        anomalies: number;
+      }>(response);
+
+      expect(response.status).toBe(200);
+      // 3 active devices generate 3 candidate readings; the mock reports
+      // only 2 of them as actually inserted.
+      expect(bulkInsertSpy.mock.calls[0][0]).toHaveLength(3);
+      expect(insertedSubset).toHaveLength(2);
+
+      // The response must describe what was actually persisted, not what
+      // was merely generated.
+      expect(data.count).toBe(2);
+      expect(data.rejected).toBe(1);
+
+      // safeEvaluateReadings (via evaluateReadings) must receive exactly the
+      // inserted subset returned by bulkInsertReadings — never the full
+      // generated batch, and never a copy that merely looks the same.
+      expect(evaluateSpy).toHaveBeenCalledTimes(1);
+      expect(evaluateSpy.mock.calls[0][0]).toBe(insertedSubset);
+
+      bulkInsertSpy.mockRestore();
+      evaluateSpy.mockRestore();
+    });
+
+    it('must not count a reading bulkInsertReadings rejected toward the anomaly total', async () => {
+      await DeviceV2.insertMany([
+        createDeviceInput({ _id: 'device_anom_keep', type: 'temperature' }),
+        createDeviceInput({ _id: 'device_anom_drop', type: 'temperature' }),
+      ]);
+
+      // Deterministic stand-in for the real (random) simulator: one normal
+      // reading and one anomalous reading. The bulkInsertReadings mock below
+      // "persists" only the normal one, simulating the anomalous one having
+      // failed to insert.
+      const keptReading = createReadingV2Input('device_anom_keep', {
+        quality: {
+          is_valid: true,
+          confidence_score: 0.95,
+          is_anomaly: false,
+          anomaly_score: 0.05,
+        },
+      });
+      const droppedAnomalousReading = createReadingV2Input('device_anom_drop', {
+        quality: {
+          is_valid: true,
+          confidence_score: 0.95,
+          is_anomaly: true,
+          anomaly_score: 0.92,
+        },
+      });
+      const generateSpy = jest
+        .spyOn(simulationModule, 'generateSimulatedReadings')
+        .mockReturnValue([keptReading, droppedAnomalousReading]);
+      const bulkInsertSpy = jest
+        .spyOn(ReadingV2, 'bulkInsertReadings')
+        .mockImplementation(async () => [keptReading] as unknown as IReadingV2[]);
+
+      const response = await GET_SIMULATE();
+      const data = await parseResponse<{ count: number; rejected: number; anomalies: number }>(
+        response
+      );
+
+      expect(response.status).toBe(200);
+      expect(data.count).toBe(1);
+      expect(data.rejected).toBe(1);
+      // The one reading that actually persisted was NOT anomalous. If this
+      // count were still derived from the full generated batch (which
+      // includes the rejected, anomalous reading) it would report 1 instead
+      // of 0.
+      expect(data.anomalies).toBe(0);
+
+      generateSpy.mockRestore();
+      bulkInsertSpy.mockRestore();
     });
   });
 });
