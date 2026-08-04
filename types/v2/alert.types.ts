@@ -1,9 +1,9 @@
 /**
  * TypeScript Type Definitions for the Alerting Subsystem
  *
- * Client-safe: no mongoose or model imports. Nothing imports from this file
- * yet — `lib/pusher-context.tsx` will consume `AlertEvent` once Task 13/14
- * wires up alert delivery over Pusher.
+ * Client-safe: no mongoose or model imports. Consumed by
+ * `lib/pusher-context.tsx` (`AlertEvent`), which wires alert delivery over
+ * Pusher into `usePusherAlerts` / `AlertToaster` (Task 14).
  *
  * Aligned with:
  * - Mongoose models: /models/v2/AlertRuleV2.ts, /models/v2/AlertV2.ts
@@ -307,6 +307,8 @@ export type AlertEvent =
   | { kind: 'resolved'; alerts: ResolvedAlert[] }
   | {
       kind: 'storm';
+      /** Which direction this storm is: alerts opening, or alerts clearing. */
+      of: 'fired' | 'resolved';
       count: number;
       by_severity: Record<AlertSeverity, number>;
       since: string;
