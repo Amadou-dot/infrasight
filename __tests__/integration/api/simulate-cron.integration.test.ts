@@ -10,6 +10,7 @@ import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2, { type IReadingV2 } from '@/models/v2/ReadingV2';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
+import { pusherServer } from '@/lib/pusher';
 import * as evaluateModule from '@/lib/alerting/evaluate';
 import * as sweepModule from '@/lib/alerting/sweep';
 import * as simulationModule from '@/lib/simulation/readings';
@@ -899,6 +900,52 @@ describe('Simulate Cron API Integration Tests', () => {
 
       bulkInsertSpy.mockRestore();
       evaluateSpy.mockRestore();
+    });
+
+    // A rejected reading must never reach a connected client's tile as though
+    // it were stored. The rejection is driven through bulkInsertReadings
+    // itself (the same partial-insert stand-in as the test above), and the
+    // assertion reads the ACTUAL argument the route passed to the already-
+    // mocked pusherServer.trigger — not a value asserted independently of
+    // what the route computed, which would prove nothing about the wiring.
+    it('broadcasts only the readings that persisted, not every reading generated', async () => {
+      await DeviceV2.insertMany([
+        createDeviceInput({ _id: 'device_broadcast_01', type: 'temperature' }),
+        createDeviceInput({ _id: 'device_broadcast_02', type: 'temperature' }),
+        createDeviceInput({ _id: 'device_broadcast_03', type: 'temperature' }),
+      ]);
+
+      // 3 candidate readings in, only 2 "persisted". Each survivor is given a
+      // toObject() so `insertedReadings.map(r => r.toObject(...))` in the
+      // route behaves the way it would against real Mongoose documents
+      // returned by insertMany.
+      let insertedSubset: Partial<IReadingV2>[] = [];
+      const bulkInsertSpy = jest
+        .spyOn(ReadingV2, 'bulkInsertReadings')
+        .mockImplementation(async readings => {
+          insertedSubset = readings.slice(0, 2);
+          return insertedSubset.map(r => ({
+            ...r,
+            toObject: () => ({ ...r }),
+          })) as unknown as IReadingV2[];
+        });
+
+      const response = await GET_SIMULATE();
+      const data = await parseResponse<{ count: number; rejected: number }>(response);
+
+      expect(response.status).toBe(200);
+      expect(bulkInsertSpy.mock.calls[0][0]).toHaveLength(3);
+      expect(data.count).toBe(2);
+      expect(data.rejected).toBe(1);
+
+      const newReadingsCall = (pusherServer.trigger as jest.Mock).mock.calls.find(
+        call => call[1] === 'new-readings'
+      );
+      expect(newReadingsCall).toBeDefined();
+      // insertedReadings.length (2), never newReadings.length (3).
+      expect(newReadingsCall![2]).toHaveLength(2);
+
+      bulkInsertSpy.mockRestore();
     });
 
     it('must not count a reading bulkInsertReadings rejected toward the anomaly total', async () => {
