@@ -12,7 +12,9 @@
 import mongoose from 'mongoose';
 import DeviceV2 from '../../models/v2/DeviceV2';
 import ReadingV2 from '../../models/v2/ReadingV2';
+import AlertRuleV2 from '../../models/v2/AlertRuleV2';
 import { assertSafeToWipe, describeTarget } from './db-guard';
+import { buildAlertRuleSeeds } from './alert-rule-seeds';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -332,6 +334,7 @@ async function seed(): Promise<void> {
     if (FORCE) console.log('   ⚠️  --force: wiping a non-local database');
     await DeviceV2.deleteMany({});
     await ReadingV2.deleteMany({});
+    await AlertRuleV2.deleteMany({});
     console.log('✅ Cleared existing data\n');
 
     // Generate and insert devices
@@ -364,6 +367,12 @@ async function seed(): Promise<void> {
 
     console.log(`\n✅ Inserted ${totalReadings} readings total\n`);
 
+    // Seed alert rules so /alerts is populated on first load.
+    console.log('🔔 Seeding alert rules...');
+    const alertRules = buildAlertRuleSeeds();
+    await AlertRuleV2.insertMany(alertRules);
+    console.log(`✅ Inserted ${alertRules.length} alert rules\n`);
+
     // Summary
     console.log('='.repeat(50));
     console.log('📋 Seed Summary');
@@ -373,6 +382,7 @@ async function seed(): Promise<void> {
     console.log(`  Readings per device: ${READINGS_PER_DEVICE}`);
     console.log(`  Device types: ${deviceTypes.length}`);
     console.log(`  Time range: ${READINGS_PER_DEVICE} hours (1 reading/hour)`);
+    console.log(`  Alert rules: ${alertRules.length}`);
     console.log('='.repeat(50));
 
     console.log('\n✅ Seed completed successfully!');
