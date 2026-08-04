@@ -6607,6 +6607,7 @@ The existing `InfraSight` channel gains one event rather than a second channel b
 **Files:**
 - Modify: `types/v2/alert.types.ts` (add `of` to the `storm` variant, Step 0)
 - Modify: `lib/alerting/notify.ts` (set `of`, Step 0)
+- Modify: `lib/alerting/index.ts` (give the nested broadcast catches observability, Step 0)
 - Modify: `__tests__/unit/lib/alerting/notify.test.ts` (assert `of` on both storm paths, Step 0)
 - Modify: `lib/pusher-context.tsx`
 - Create: `components/alerts/AlertToaster.tsx`
@@ -6637,6 +6638,23 @@ Add the discriminator to the wire type:
 Then set it in `lib/alerting/notify.ts` — `stormEnvelope()` takes the direction from its caller, so `buildFiredEnvelope` passes `'fired'` and `buildResolvedEnvelope` passes `'resolved'`. Extend that file's existing storm tests to assert `of` on both paths; a storm test that does not check `of` cannot tell the two apart either.
 
 `types/v2/alert.types.ts` must keep its zero imports — it is loaded by client components.
+
+**While you are in `lib/alerting/`, give the two nested broadcast catches a voice.** Task 13's fix round added `catch { }` blocks around `publishAlertEvents` in both `safe*` wrappers (`lib/alerting/index.ts`, in `safeEvaluateReadings` and `safeSweepStaleAlerts`) so a broadcast fault cannot discard a committed result. Correct — but they are comment-only, so they swallow with **zero** observability. `trigger()` in `notify.ts` wraps only the `pusherServer.trigger()` call, so a throw from the synchronous envelope math (`buildFiredEnvelope` / `buildResolvedEnvelope`, which run before `trigger()` is reached) now produces no log line, no Sentry event, and no metric. Before that fix it at least reached the outer catch and was logged — mislabelled, which was the bug, but visible.
+
+An empty catch in the alerting subsystem is the same shape as the Critical the backend review already fixed once ("the alerting failure signal is unreachable in production"). Do not leave a second one. Log and report, but still do not rethrow:
+
+```typescript
+  } catch (error) {
+    // Never let a broadcast fault discard an evaluation the DB already
+    // committed — but never let it vanish silently either.
+    logger.error('Alert broadcast failed after a committed write', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    reportToSentry(error);
+  }
+```
+
+`reportToSentry` is already defined in that file and is itself guarded against throwing. Add a test asserting the failure is reported — the existing isolation tests only assert that the result survives, which passes just as well against an empty catch.
 
 
 
