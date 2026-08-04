@@ -7493,6 +7493,21 @@ git commit -m "feat(alerting): add alert badges, list, and /alerts page"
 
 **No new endpoint is added for the bracketing readings.** The page issues a second call to the existing `GET /api/v2/readings?device_id=<id>&startDate=<fired_at − 15m>&endDate=<fired_at + 15m>`, which already satisfies that endpoint's required-time-range constraint. `getAlertQuerySchema` therefore stays at `include_device` only.
 
+**Pass `limit` and the sort explicitly — the defaults are wrong for this view.** `paginationSchema` (`lib/validations/common.validation.ts:48-51`) defaults `limit` to **20**, and `app/api/v2/readings/route.ts:104-105` defaults to `timestamp` **descending**. Left implicit, a ±15-minute window silently caps at the 20 *most recent* readings, newest-first — dropping exactly the early part of the window that shows the breach developing, which is the only reason the table exists. It fails by rendering a plausible partial table, not by erroring.
+
+```typescript
+v2Api.readings.list({
+  device_id: alert.device_id,
+  startDate: range.start,
+  endDate: range.end,
+  limit: 100,                 // endpoint maximum; covers 30 min at any real cadence
+  sortBy: 'timestamp',
+  sortDirection: 'asc',       // oldest first — breach develops downward
+})
+```
+
+Test the query itself, not just the presentation. Assert the params actually handed to `v2Api.readings.list` (including `limit` and the sort), that the window is centred on `fired_at`, and that it falls back to `breached_since` when `fired_at` is absent. Mocking `useQuery` wholesale hides all of this — mock `v2Api` instead.
+
 `AlertDetailView` is modelled on `components/devices/DeviceDetailView.tsx`: a presentational component shared between the page and any future drawer, taking already-loaded data as props. `app/alerts/[id]/page.tsx` follows `app/devices/[id]/page.tsx`: a canonical URL that survives a refresh and can be pasted into a chat mid-incident, calling `notFound()` for ids that do not resolve.
 
 **Interfaces:**
