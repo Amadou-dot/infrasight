@@ -115,6 +115,9 @@ describe('TopNav', () => {
       const badge = link.querySelector('.bg-destructive');
       expect(badge).toBeInTheDocument();
       expect(badge).toHaveTextContent('7');
+      // The digit alone ("7") is meaningless to a screen reader — it must
+      // announce a unit, not just a bare number.
+      expect(badge).toHaveAccessibleName('7 open alerts');
     });
 
     it('should default to 0 (no badge) while the count is still loading (data undefined)', () => {
@@ -134,7 +137,11 @@ describe('TopNav', () => {
 
       const links = screen.getAllByRole('link', { name: /alerts/i });
       expect(links).toHaveLength(2); // desktop + mobile
-      for (const link of links) expect(link.querySelector('.bg-destructive')).toHaveTextContent('3');
+      for (const link of links) {
+        const badge = link.querySelector('.bg-destructive');
+        expect(badge).toHaveTextContent('3');
+        expect(badge).toHaveAccessibleName('3 open alerts');
+      }
     });
   });
 
