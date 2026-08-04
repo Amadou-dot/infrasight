@@ -43,14 +43,28 @@ export default function AlertDetailPage() {
   }, [alert?.fired_at, alert?.breached_since]);
 
   // No new endpoint: the existing readings endpoint already requires a time
-  // range, and fired_at +/- 15 minutes satisfies it.
+  // range, and fired_at +/- 15 minutes satisfies it. limit/sortBy/sortDirection
+  // are explicit because the endpoint defaults to 20 rows, newest first — a
+  // silent default that would truncate exactly the early part of the window
+  // that shows the breach developing. limit: 100 is the endpoint's max and
+  // comfortably covers 30 minutes at any realistic reporting cadence;
+  // ascending puts the bracketing table in chronological order.
   const { data: bracketingReadings = [], isLoading: readingsLoading } = useQuery({
-    queryKey: queryKeys.readings.list({ device_id: alert?.device_id, ...range }),
+    queryKey: queryKeys.readings.list({
+      device_id: alert?.device_id,
+      ...range,
+      limit: 100,
+      sortBy: 'timestamp',
+      sortDirection: 'asc',
+    }),
     queryFn: async (): Promise<ReadingV2Response[]> => {
       const response = await v2Api.readings.list({
         device_id: alert!.device_id,
         startDate: range!.startDate,
         endDate: range!.endDate,
+        limit: 100,
+        sortBy: 'timestamp',
+        sortDirection: 'asc',
       });
       return response.data;
     },
