@@ -10,6 +10,8 @@ import DeviceV2 from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
+import * as evaluateModule from '@/lib/alerting/evaluate';
+import * as monitoring from '@/lib/monitoring';
 import {
   createDeviceInput,
   createAlertRuleInput,
@@ -652,7 +654,7 @@ describe('Simulate Cron API Integration Tests', () => {
   describe('alert evaluation on the cron path', () => {
     it('should evaluate rules against simulated readings', async () => {
       await DeviceV2.create(createDeviceInput({ _id: 'device_cron_01', type: 'temperature' }));
-      await AlertRuleV2.create(
+      const rule = await AlertRuleV2.create(
         createAlertRuleInput({
           name: 'Any temperature',
           metric: 'value',
@@ -662,11 +664,25 @@ describe('Simulate Cron API Integration Tests', () => {
           selector: { types: ['temperature'] },
         })
       );
+      const infoSpy = jest.spyOn(monitoring.logger, 'info');
 
       const response = await GET_SIMULATE();
       expect(response.status).toBe(200);
 
       expect(await AlertV2.countDocuments({ status: 'firing' })).toBeGreaterThan(0);
+
+      // An alert firing is a domain event in its own right and must be
+      // logged, with the rule and device it involves — not just counted. One
+      // device exists, so exactly one reading is generated and exactly one
+      // (rule, device) pair can fire.
+      expect(infoSpy).toHaveBeenCalledWith('Alert rules fired or resolved during simulation', {
+        fired: 1,
+        resolved: 0,
+        ruleIds: [String(rule._id)],
+        deviceIds: ['device_cron_01'],
+      });
+
+      infoSpy.mockRestore();
     });
 
     it('should sweep an alert whose device no longer reports', async () => {
@@ -674,12 +690,50 @@ describe('Simulate Cron API Integration Tests', () => {
       await AlertV2.create(
         createAlertInput({ device_id: 'device_ghost', status: 'firing', is_open: true })
       );
+      const infoSpy = jest.spyOn(monitoring.logger, 'info');
 
       await GET_SIMULATE();
 
       const swept = await AlertV2.findOne({ device_id: 'device_ghost' }).lean();
       expect(swept!.status).toBe('resolved');
       expect(swept!.audit.resolution).toBe('device_inactive');
+
+      // The SWEEP resolved this alert, not the evaluator — no alert rule
+      // exists in this test, so safeEvaluateReadings's own fired/resolved
+      // counts are both 0 and the evaluation-scoped log must not fire.
+      expect(infoSpy).not.toHaveBeenCalledWith(
+        'Alert rules fired or resolved during simulation',
+        expect.anything()
+      );
+
+      infoSpy.mockRestore();
+    });
+
+    it('should still return 200 with readings persisted when evaluation throws', async () => {
+      await DeviceV2.create(createDeviceInput({ _id: 'device_cron_03', type: 'temperature' }));
+      const spy = jest
+        .spyOn(evaluateModule, 'evaluateReadings')
+        .mockRejectedValueOnce(new Error('evaluator exploded'));
+      const infoSpy = jest.spyOn(monitoring.logger, 'info');
+
+      const response = await GET_SIMULATE();
+      const body = await parseResponse<{ success: boolean }>(response);
+
+      // Prove the mocked rejection was actually reached, not merely that the
+      // route succeeds regardless of whether alerting runs at all.
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(200);
+      expect(body.success).toBe(true);
+      expect(await ReadingV2.countDocuments({ 'metadata.device_id': 'device_cron_03' })).toBe(1);
+      // The empty fallback result must not be reported as if something fired
+      // or resolved.
+      expect(infoSpy).not.toHaveBeenCalledWith(
+        'Alert rules fired or resolved during simulation',
+        expect.anything()
+      );
+
+      spy.mockRestore();
+      infoSpy.mockRestore();
     });
   });
 });
