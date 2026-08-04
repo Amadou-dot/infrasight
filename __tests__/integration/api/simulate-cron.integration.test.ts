@@ -11,6 +11,7 @@ import ReadingV2, { type IReadingV2 } from '@/models/v2/ReadingV2';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
 import * as evaluateModule from '@/lib/alerting/evaluate';
+import * as sweepModule from '@/lib/alerting/sweep';
 import * as simulationModule from '@/lib/simulation/readings';
 import * as monitoring from '@/lib/monitoring';
 import {
@@ -736,6 +737,109 @@ describe('Simulate Cron API Integration Tests', () => {
 
       spy.mockRestore();
       infoSpy.mockRestore();
+    });
+
+    // safeSweepStaleAlerts is the only caller of sweepStaleAlerts, and the cron
+    // route is the only caller of safeSweepStaleAlerts — so a throwing sweep is
+    // otherwise uncovered anywhere in the suite. Mirrors the evaluateReadings
+    // throw test above: mock the RAW function the safe wrapper delegates to, so
+    // a regression that pointed the route at the raw, unwrapped sweep would
+    // surface here as a 500 instead of a 200.
+    it('should still return 200 with readings persisted when the staleness sweep throws', async () => {
+      await DeviceV2.create(
+        createDeviceInput({ _id: 'device_cron_sweep_throws', type: 'temperature' })
+      );
+      const spy = jest
+        .spyOn(sweepModule, 'sweepStaleAlerts')
+        .mockRejectedValueOnce(new Error('sweep exploded'));
+
+      const response = await GET_SIMULATE();
+      const body = await parseResponse<{ success: boolean }>(response);
+
+      // Prove the mocked rejection was actually reached, not merely that the
+      // route succeeds regardless of whether the sweep runs at all.
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(200);
+      expect(body.success).toBe(true);
+      expect(
+        await ReadingV2.countDocuments({ 'metadata.device_id': 'device_cron_sweep_throws' })
+      ).toBe(1);
+
+      spy.mockRestore();
+    });
+
+    // The PR widened the device projection in the cron route (`_id`, `type`,
+    // `location`, `metadata.tags`) specifically so selectors that key on more
+    // than `types` can match. The tests above only ever use `selector: {
+    // types: [...] }`, which needs no device fields at all, so a regression
+    // that narrowed the projection back to `{ _id: 1, type: 1, location: 1 }`
+    // (dropping only metadata.tags) would pass every existing test in this
+    // file. This test exercises every non-type selector dimension against a
+    // real device, with a negative twin that differs by exactly one field
+    // (floor) to prove the rule discriminates on selector fields rather than
+    // merely firing whenever device data is present.
+    it('should fire only for the device whose location and tags match the selector', async () => {
+      const matchingDevice = createDeviceInput({
+        _id: 'device_selector_match_cron',
+        type: 'temperature',
+        location: {
+          building_id: 'building_selector_cron',
+          floor: 4,
+          room_name: 'Selector Room',
+          zone: 'zone_selector_cron',
+        },
+        metadata: { tags: ['hvac_critical'], department: 'Facilities' },
+      });
+      // Negative twin: identical selector-relevant fields except floor. If
+      // matching degenerated to "device data is present" rather than a real
+      // per-field comparison, this device would incorrectly fire too.
+      const wrongFloorDevice = createDeviceInput({
+        _id: 'device_selector_wrongfloor_cron',
+        type: 'temperature',
+        location: {
+          building_id: 'building_selector_cron',
+          floor: 11,
+          room_name: 'Other Room',
+          zone: 'zone_selector_cron',
+        },
+        metadata: { tags: ['hvac_critical'], department: 'Facilities' },
+      });
+      await DeviceV2.insertMany([matchingDevice, wrongFloorDevice]);
+
+      const rule = await AlertRuleV2.create(
+        createAlertRuleInput({
+          name: 'Building/floor/zone/tag scoped rule',
+          metric: 'value',
+          comparison: 'gt',
+          threshold: -1000, // guaranteed to breach whatever the simulator emits
+          severity: 'critical',
+          selector: {
+            types: ['temperature'],
+            building_id: 'building_selector_cron',
+            floor: 4,
+            zone: 'zone_selector_cron',
+            tags: ['hvac_critical'],
+          },
+        })
+      );
+
+      const response = await GET_SIMULATE();
+      expect(response.status).toBe(200);
+
+      const matchedAlert = await AlertV2.findOne({
+        device_id: 'device_selector_match_cron',
+      }).lean();
+      expect(matchedAlert).not.toBeNull();
+      expect(matchedAlert!.status).toBe('firing');
+      expect(String(matchedAlert!.rule_id)).toBe(String(rule._id));
+
+      // The negative twin breaches the same metric/threshold and shares every
+      // selector dimension except floor — if an alert exists for it, matching
+      // is not actually discriminating on the selector.
+      const unmatchedAlert = await AlertV2.findOne({
+        device_id: 'device_selector_wrongfloor_cron',
+      }).lean();
+      expect(unmatchedAlert).toBeNull();
     });
   });
 

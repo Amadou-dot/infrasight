@@ -7,7 +7,7 @@ import { Types } from 'mongoose';
 import AlertV2 from '@/models/v2/AlertV2';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import { createAlertInput, createDeviceInput, resetCounters } from '../../setup/factories';
-import { mockAuthAsAdmin, mockAuthAsMember } from '../../setup/auth-helpers';
+import { mockAuthAsAdmin, mockAuthAsMember, mockAuthAsUnauthenticated } from '../../setup/auth-helpers';
 
 import { GET as listAlerts } from '@/app/api/v2/alerts/route';
 import { GET as getAlert, PATCH } from '@/app/api/v2/alerts/[id]/route';
@@ -315,6 +315,34 @@ describe('Alerts API Integration Tests', () => {
         { params: params('nope') }
       );
       expect(response.status).toBe(400);
+    });
+
+    // requireOrgMembership() guards this handler in code but, unlike the list
+    // endpoint above, had no test exercising either the member-allowed path or
+    // the unauthenticated-rejected path — a silent removal of the guard would
+    // break zero tests.
+    it('should allow a member to read a single alert', async () => {
+      mockAuthAsMember();
+      const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+      const response = await getAlert(
+        createMockGetRequest(`/api/v2/alerts/${alert._id}`),
+        { params: params(String(alert._id)) }
+      );
+
+      expect(response.status).toBe(200);
+    });
+
+    it('should reject an unauthenticated request', async () => {
+      mockAuthAsUnauthenticated();
+      const id = String(new Types.ObjectId());
+
+      const response = await getAlert(
+        createMockGetRequest(`/api/v2/alerts/${id}`),
+        { params: params(id) }
+      );
+
+      expect(response.status).toBe(401);
     });
   });
 
