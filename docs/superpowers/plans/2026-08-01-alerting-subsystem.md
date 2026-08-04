@@ -6468,19 +6468,35 @@ export async function publishAlertEvents(
 
 - [ ] **Step 4: Publish from the safe wrappers**
 
-In `lib/alerting/index.ts`, import `publishAlertEvents` and call it from both wrappers, inside the `try` so a broadcast problem is also isolated:
+In `lib/alerting/index.ts`, import `publishAlertEvents` and call it from both wrappers. A broadcast problem must be isolated — but in **its own** `catch`, not the one wrapping the database call:
 
 ```typescript
 import { publishAlertEvents } from './notify';
 
-// inside safeEvaluateReadings, after `const result = await evaluateReadings(...)`:
+// safeEvaluateReadings:
+try {
+  const result = await evaluateReadings(readings, devices);
+  try {
     await publishAlertEvents(result.fired, result.resolved);
-    return result;
+  } catch {
+    // trigger() already logs internally. This exists so a broadcast fault can
+    // never discard an evaluation that was already computed and committed.
+  }
+  return result;
+} catch (error) {
+  recordAlert('evaluation_error');   // genuinely DB-only
+  // ...existing logging + reportToSentry...
+  return emptyEvaluationResult();
+}
 
-// inside safeSweepStaleAlerts, after `const result = await sweepStaleAlerts(...)`:
-    await publishAlertEvents([], result.resolved);
-    return result;
+// safeSweepStaleAlerts: same shape, with `await publishAlertEvents([], result.resolved);`
 ```
+
+**Why not one shared `try`** (which is what an earlier revision of this plan said, and what Task 13's first implementation did): the outer catch ends in `recordAlert('evaluation_error')` and `return emptyEvaluationResult()`. Sharing it means a throw anywhere in the publish path — the synchronous envelope math is the realistic surface, since `trigger()` already swallows the network call — would mislabel a **successful** evaluation as a failure and throw away a result the database has already committed. Human ruling during Task 13's review: the broadcast gets its own catch.
+
+Update the module doc comment at the top of `lib/alerting/index.ts` too; it was written about the evaluation call only, and now describes the broadcast as well.
+
+Pin it with a test: force `publishAlertEvents` to throw, then assert the wrapper still returns the real result and does **not** record `evaluation_error`.
 
 Add `export { publishAlertEvents, ALERT_EVENT_NAME, ALERT_EVENT_MAX, ALERT_EVENT_MAX_BYTES } from './notify';` to the re-export block.
 
@@ -6589,11 +6605,40 @@ git commit -m "fix(cron): broadcast only the readings that persisted"
 The existing `InfraSight` channel gains one event rather than a second channel being created. `PusherProvider` already owns exactly one subscription and multiplexes callbacks to subscribers, so adding an event keeps subscription teardown in the one place that already handles it correctly — which satisfies #100's "subscriptions clean up on unmount" by construction.
 
 **Files:**
+- Modify: `types/v2/alert.types.ts` (add `of` to the `storm` variant, Step 0)
+- Modify: `lib/alerting/notify.ts` (set `of`, Step 0)
+- Modify: `__tests__/unit/lib/alerting/notify.test.ts` (assert `of` on both storm paths, Step 0)
 - Modify: `lib/pusher-context.tsx`
 - Create: `components/alerts/AlertToaster.tsx`
 - Test: `__tests__/unit/lib/pusher-alerts.test.tsx`
+- Test: `__tests__/unit/components/AlertToaster.test.tsx`
 
 **Only `fired` raises a toast.** `resolved` is broadcast so open lists reconcile without a refetch, but raises no popup — nobody wants one per device when a floor-wide condition clears. This structurally satisfies #100's "notifications do not fire for a viewer's own acknowledge and resolve actions": firing is always system-generated, so no viewer can ever cause a toast. The acting admin gets feedback from their own mutation's optimistic update instead.
+
+- [ ] **Step 0: Make the `storm` envelope say which direction it is**
+
+`AlertEvent`'s `storm` variant (`types/v2/alert.types.ts`) is `{ kind: 'storm', count, by_severity, since }` — with **nothing distinguishing a storm of alerts firing from a storm of alerts clearing**. `publishAlertEvents` bounds `fired` and `resolved` independently, and a floor-wide condition clearing is exactly the case that overflows the resolved list, so resolved storms are not hypothetical. The consumer cannot tell them apart, and the toast copy below (`${event.count} alerts firing`) would announce a mass *recovery* as a mass *outage* — the most alarming message in the app, fired on the best possible news.
+
+Found during Task 13's review; the type predates that task and its code matched the type exactly, so it lands here, on the first consumer that has to branch on it.
+
+Add the discriminator to the wire type:
+
+```typescript
+  | {
+      kind: 'storm';
+      /** Which direction this storm is: alerts opening, or alerts clearing. */
+      of: 'fired' | 'resolved';
+      count: number;
+      by_severity: Record<AlertSeverity, number>;
+      since: string;
+    };
+```
+
+Then set it in `lib/alerting/notify.ts` — `stormEnvelope()` takes the direction from its caller, so `buildFiredEnvelope` passes `'fired'` and `buildResolvedEnvelope` passes `'resolved'`. Extend that file's existing storm tests to assert `of` on both paths; a storm test that does not check `of` cannot tell the two apart either.
+
+`types/v2/alert.types.ts` must keep its zero imports — it is loaded by client components.
+
+
 
 **Interfaces:**
 - Consumes: `AlertEvent` from `@/types/v2/alert.types` (Task 3); `queryKeys` (Task 12).
@@ -6908,9 +6953,14 @@ export function AlertToaster() {
         case 'storm':
           // The storm envelope deliberately carries no rows, so there is nothing
           // to patch — invalidate and let the list refetch.
-          toast.error(`${event.count} alerts firing`, {
-            onClick: () => router.push('/alerts'),
-          });
+          //
+          // Only a FIRED storm toasts. A resolved storm is a mass recovery, and
+          // announcing it with the same red banner would report the best news in
+          // the app as the worst. It still invalidates, so lists reconcile.
+          if (event.of === 'fired')
+            toast.error(`${event.count} alerts firing`, {
+              onClick: () => router.push('/alerts'),
+            });
           queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
           break;
       }
@@ -6926,6 +6976,23 @@ export function AlertToaster() {
 export default AlertToaster;
 ```
 
+- [ ] **Step 5b: Test the toaster's branching**
+
+`AlertToaster` decides which events become popups and which reconcile silently. That decision is the whole component; it needs its own test. Create `__tests__/unit/components/AlertToaster.test.tsx`, mocking `react-toastify`, `next/navigation`, and `usePusherAlerts` so you can hand the component an envelope directly:
+
+Cover, at minimum:
+
+| Envelope | Expected |
+| --- | --- |
+| `{ kind: 'fired', alerts: [critical, info] }` | `toast.error` once **and** `toast.info` once — severity maps to toast type |
+| `{ kind: 'resolved', alerts: [...] }` | **no toast at all**, but `invalidateQueries` still called |
+| `{ kind: 'storm', of: 'fired', count: 312 }` | one `toast.error` mentioning 312 |
+| `{ kind: 'storm', of: 'resolved', count: 312 }` | **no toast**, `invalidateQueries` still called |
+
+The last two rows are the point: assert both that the fired storm toasts *and* that the resolved storm does not. A test that only checks the fired case passes just as happily against a component that toasts unconditionally.
+
+Assert `invalidateQueries` fires on **every** branch — that is what keeps open lists and the nav badge honest, and it is easy to lose when adding an early return for the silent cases.
+
 - [ ] **Step 6: Mount the toaster**
 
 Render `<AlertToaster />` once, inside the same provider tree that already hosts `PusherProvider` and the React Query provider in `app/layout.tsx`. Confirm `react-toastify`'s `<ToastContainer />` is already mounted there; if it is not, add it alongside.
@@ -6938,7 +7005,10 @@ Expected: clean build. A failure mentioning `mongoose` inside a client component
 - [ ] **Step 8: Commit**
 
 ```bash
-git add lib/pusher-context.tsx components/alerts/AlertToaster.tsx app/layout.tsx __tests__/unit/lib/pusher-alerts.test.tsx
+git add types/v2/alert.types.ts lib/alerting/notify.ts __tests__/unit/lib/alerting/notify.test.ts
+git commit -m "feat(alerting): tag storm envelopes with their direction"
+
+git add lib/pusher-context.tsx components/alerts/AlertToaster.tsx app/layout.tsx __tests__/unit/lib/pusher-alerts.test.tsx __tests__/unit/components/AlertToaster.test.tsx
 git commit -m "feat(alerting): subscribe to alert events and toast on fire"
 ```
 
