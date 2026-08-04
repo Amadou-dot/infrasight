@@ -12,7 +12,7 @@
 
 import mongoose from 'mongoose';
 import dbConnect from '../../lib/db';
-import { indexShapeMatches } from './index-shape';
+import { indexShapeMatches, keysMatch } from './index-shape';
 
 // ============================================================================
 // INDEX DEFINITIONS
@@ -267,6 +267,22 @@ function describeShape(shape: {
  * up quietly missing its `partialFilterExpression`. Dropping a unique index against
  * production data is not a decision a script should make unattended, so a mismatch
  * is reported loudly and the run is marked as failed instead.
+ *
+ * A live index can also fail to name-match for an entirely benign reason: every
+ * index in this file's definitions is ALSO declared directly on its Mongoose schema
+ * via an unnamed `Schema.index({...})` call, so Mongoose's `autoIndex` (the default
+ * for any connection that has ever registered that schema - e.g. `pnpm seed`, or the
+ * app itself via `lib/db.ts`'s `dbConnect()`, neither of which disables it) builds it
+ * under MongoDB's own generated name the first time that model initializes, before
+ * this script ever gets a chance to create its own custom-named equivalent. MongoDB
+ * then refuses a second index with the identical key pattern under a different name
+ * outright. That is an already-satisfied index wearing the wrong name, not a missing
+ * one, so it is treated as a skip below - but ONLY when the full shape (key pattern,
+ * `unique`, and `partialFilterExpression`, all exact) matches, not merely the key
+ * pattern. A plain unique index on the same keys as the alert dedup index, for
+ * example, has an identical key pattern but silently permits only one alert document
+ * ever per (rule, device) pair - that must still be reported as loudly as a
+ * same-name mismatch, never silently accepted just because the name differs.
  */
 async function createCollectionIndexes(
   collectionName: string,
@@ -341,6 +357,76 @@ async function createCollectionIndexes(
             `existing shape is wrong, drop it yourself and re-run this script:`
         );
         console.error(`        db.${collectionName}.dropIndex(${JSON.stringify(index.name)})`);
+        console.error(`        pnpm create-indexes-v2`);
+        stats.mismatched++;
+        continue;
+      }
+
+      // No exact-name match. Before creating, check whether some OTHER index
+      // already has this exact shape under a different name - see the autoIndex
+      // note above. Full shape match only (key, unique, partialFilterExpression
+      // all exact, via the same indexShapeMatches used above) - not just the key
+      // pattern - so this cannot be fooled by the dangerous case below.
+      const shapeMatch = existingIndexes.find(idx =>
+        indexShapeMatches(
+          {
+            key: idx.key as Record<string, number>,
+            unique: idx.unique,
+            partialFilterExpression: idx.partialFilterExpression as
+              | Record<string, unknown>
+              | undefined,
+          },
+          {
+            fields: index.spec,
+            unique: index.options.unique,
+            partialFilterExpression: index.options.partialFilterExpression,
+          }
+        )
+      );
+
+      if (shapeMatch) {
+        console.log(
+          `   ⏭️  [SKIP] ${index.name} - already exists as "${shapeMatch.name}" ` +
+            `(autoIndex-built under a different name, same shape)`
+        );
+        stats.skipped++;
+        continue;
+      }
+
+      // Same key pattern under a different name, but NOT the same shape - the
+      // dangerous case described above (e.g. a plain unique index masquerading
+      // as the partial-unique dedup index). This must stay exactly as loud as a
+      // same-name mismatch: never silently accepted just because the name differs.
+      const keyMatch = existingIndexes.find(idx =>
+        keysMatch(idx.key as Record<string, number>, index.spec)
+      );
+
+      if (keyMatch) {
+        console.error(
+          `   🛑 [MISMATCH] ${index.name} - an index named "${keyMatch.name}" already has this ` +
+            `key pattern but a different unique/partialFilterExpression shape`
+        );
+        console.error(
+          `      Expected: { ${describeShape({
+            fields: index.spec,
+            unique: index.options.unique,
+            partialFilterExpression: index.options.partialFilterExpression,
+          })} }`
+        );
+        console.error(
+          `      Actual:   { ${describeShape({
+            fields: keyMatch.key as Record<string, number>,
+            unique: keyMatch.unique,
+            partialFilterExpression: keyMatch.partialFilterExpression as
+              | Record<string, unknown>
+              | undefined,
+          })} }`
+        );
+        console.error(
+          `      Refusing to drop or modify an existing index automatically. If the ` +
+            `existing shape is wrong, drop it yourself and re-run this script:`
+        );
+        console.error(`        db.${collectionName}.dropIndex(${JSON.stringify(keyMatch.name)})`);
         console.error(`        pnpm create-indexes-v2`);
         stats.mismatched++;
         continue;
