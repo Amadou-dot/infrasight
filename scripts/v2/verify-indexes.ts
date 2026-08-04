@@ -16,15 +16,11 @@ import '../../models/v2/ReadingV2';
 import '../../models/v2/AlertRuleV2';
 import '../../models/v2/AlertV2';
 
+import { checkIndexExists, type ExpectedIndex, type IndexInfo } from './index-shape';
+
 // ============================================================================
 // EXPECTED INDEXES
 // ============================================================================
-
-interface ExpectedIndex {
-  name: string;
-  fields: Record<string, number>;
-  unique?: boolean;
-}
 
 const EXPECTED_DEVICE_INDEXES: ExpectedIndex[] = [
   { name: 'serial_number', fields: { serial_number: 1 }, unique: true },
@@ -55,6 +51,12 @@ const EXPECTED_ALERT_INDEXES: ExpectedIndex[] = [
     name: 'rule_device_open_unique',
     fields: { rule_id: 1, device_id: 1 },
     unique: true,
+    // The partial filter is the entire dedup mechanism: it is what allows unlimited
+    // *resolved* episodes per (rule, device) while permitting only one *open* one.
+    // A plain unique index on the same two fields has identical keys and is also
+    // unique — without this, the verifier cannot tell them apart, and a plain
+    // unique index silently blocks every episode after the first for that pair.
+    partialFilterExpression: { is_open: true },
   },
   {
     name: 'rule_device_resolved_at',
@@ -70,12 +72,6 @@ const EXPECTED_ALERT_INDEXES: ExpectedIndex[] = [
 // VERIFICATION FUNCTIONS
 // ============================================================================
 
-interface IndexInfo {
-  name: string;
-  key: Record<string, number>;
-  unique?: boolean;
-}
-
 async function getCollectionIndexes(collectionName: string): Promise<IndexInfo[]> {
   const collection = mongoose.connection.collection(collectionName);
   const indexes = await collection.listIndexes().toArray();
@@ -83,6 +79,7 @@ async function getCollectionIndexes(collectionName: string): Promise<IndexInfo[]
     name: idx.name,
     key: idx.key as Record<string, number>,
     unique: idx.unique,
+    partialFilterExpression: idx.partialFilterExpression as Record<string, unknown> | undefined,
   }));
 }
 
@@ -90,19 +87,6 @@ function formatIndexKey(key: Record<string, number>): string {
   return Object.entries(key)
     .map(([field, order]) => `${field}: ${order}`)
     .join(', ');
-}
-
-function checkIndexExists(
-  indexes: IndexInfo[],
-  expected: { fields: Record<string, number>; unique?: boolean }
-): boolean {
-  return indexes.some(idx => {
-    const fieldsMatch = Object.entries(expected.fields).every(
-      ([field, order]) => idx.key[field] === order
-    );
-    const uniqueMatch = expected.unique ? idx.unique === true : true;
-    return fieldsMatch && uniqueMatch;
-  });
 }
 
 // ============================================================================
@@ -233,7 +217,8 @@ async function main() {
       }
     }
 
-    if (allAlertRuleIndexesPresent) console.log('\n  \x1b[32m✓ All expected indexes present\x1b[0m');
+    if (allAlertRuleIndexesPresent)
+      console.log('\n  \x1b[32m✓ All expected indexes present\x1b[0m');
     else console.log('\n  \x1b[33m⚠ Some indexes are missing - run create-indexes-v2.ts\x1b[0m');
   } catch (error) {
     console.error('Error checking AlertRuleV2 indexes:', error);

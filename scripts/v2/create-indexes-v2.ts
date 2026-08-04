@@ -12,6 +12,7 @@
 
 import mongoose from 'mongoose';
 import dbConnect from '../../lib/db';
+import { indexShapeMatches } from './index-shape';
 
 // ============================================================================
 // INDEX DEFINITIONS
@@ -179,7 +180,8 @@ const ALERT_RULE_V2_INDEXES: IndexDefinition[] = [
     name: 'enabled_deleted_at',
     spec: { enabled: 1, 'audit.deleted_at': 1 } as IndexSpec,
     options: { background: true },
-    description: 'Rule cache load predicate: { enabled: true, audit.deleted_at: { $exists: false } }',
+    description:
+      'Rule cache load predicate: { enabled: true, audit.deleted_at: { $exists: false } }',
   },
   {
     name: 'audit_created_at_desc',
@@ -240,30 +242,98 @@ const ALERT_V2_INDEXES: IndexDefinition[] = [
 // HELPER FUNCTIONS
 // ============================================================================
 
+/** Render an index's shape for the mismatch report — compact and exact, not pretty. */
+function describeShape(shape: {
+  fields: Record<string, number>;
+  unique?: boolean;
+  partialFilterExpression?: Record<string, unknown>;
+}): string {
+  const parts = [`spec: ${JSON.stringify(shape.fields)}`, `unique: ${Boolean(shape.unique)}`];
+  parts.push(
+    `partialFilterExpression: ${
+      shape.partialFilterExpression ? JSON.stringify(shape.partialFilterExpression) : 'none'
+    }`
+  );
+  return parts.join(', ');
+}
+
 /**
- * Create indexes for a collection with logging
+ * Create indexes for a collection with logging.
+ *
+ * When a live index already has the expected name but its shape (keys, `unique`, or
+ * `partialFilterExpression`) has drifted from what this script would create, this
+ * does NOT drop or modify it. Silently accepting a same-name/different-shape index —
+ * or worse, auto-dropping and recreating it — is exactly how a unique index can end
+ * up quietly missing its `partialFilterExpression`. Dropping a unique index against
+ * production data is not a decision a script should make unattended, so a mismatch
+ * is reported loudly and the run is marked as failed instead.
  */
 async function createCollectionIndexes(
   collectionName: string,
   indexes: IndexDefinition[]
-): Promise<{ success: number; skipped: number; failed: number }> {
+): Promise<{ success: number; skipped: number; mismatched: number; failed: number }> {
   const collection = mongoose.connection.collection(collectionName);
-  const stats = { success: 0, skipped: 0, failed: 0 };
+  const stats = { success: 0, skipped: 0, mismatched: 0, failed: 0 };
 
-  // Get existing indexes
+  // Get existing indexes, keyed by name, so a name match can be shape-checked below.
   const existingIndexes = await collection.indexes();
-  const existingIndexNames = new Set(existingIndexes.map(idx => idx.name));
+  const existingIndexByName = new Map(existingIndexes.map(idx => [idx.name, idx]));
 
   console.log(`\n📦 Collection: ${collectionName}`);
-  console.log(`   Existing indexes: ${existingIndexNames.size}`);
+  console.log(`   Existing indexes: ${existingIndexByName.size}`);
   console.log('─'.repeat(60));
 
   for (const index of indexes)
     try {
-      // Check if index already exists
-      if (existingIndexNames.has(index.name)) {
-        console.log(`   ⏭️  [SKIP] ${index.name} - already exists`);
-        stats.skipped++;
+      const existing = existingIndexByName.get(index.name);
+      if (existing) {
+        const matches = indexShapeMatches(
+          {
+            key: existing.key as Record<string, number>,
+            unique: existing.unique,
+            partialFilterExpression: existing.partialFilterExpression as
+              | Record<string, unknown>
+              | undefined,
+          },
+          {
+            fields: index.spec,
+            unique: index.options.unique,
+            partialFilterExpression: index.options.partialFilterExpression,
+          }
+        );
+
+        if (matches) {
+          console.log(`   ⏭️  [SKIP] ${index.name} - already exists`);
+          stats.skipped++;
+          continue;
+        }
+
+        console.error(
+          `   🛑 [MISMATCH] ${index.name} - existing index shape differs from expected`
+        );
+        console.error(
+          `      Expected: { ${describeShape({
+            fields: index.spec,
+            unique: index.options.unique,
+            partialFilterExpression: index.options.partialFilterExpression,
+          })} }`
+        );
+        console.error(
+          `      Actual:   { ${describeShape({
+            fields: existing.key as Record<string, number>,
+            unique: existing.unique,
+            partialFilterExpression: existing.partialFilterExpression as
+              | Record<string, unknown>
+              | undefined,
+          })} }`
+        );
+        console.error(
+          `      Refusing to drop or modify an existing index automatically. If the ` +
+            `existing shape is wrong, drop it yourself and re-run this script:`
+        );
+        console.error(`        db.${collectionName}.dropIndex(${JSON.stringify(index.name)})`);
+        console.error(`        pnpm create-indexes-v2`);
+        stats.mismatched++;
         continue;
       }
 
@@ -379,6 +449,11 @@ async function createIndexes(): Promise<void> {
       deviceStats.success + readingStats.success + alertRuleStats.success + alertStats.success;
     const totalSkipped =
       deviceStats.skipped + readingStats.skipped + alertRuleStats.skipped + alertStats.skipped;
+    const totalMismatched =
+      deviceStats.mismatched +
+      readingStats.mismatched +
+      alertRuleStats.mismatched +
+      alertStats.mismatched;
     const totalFailed =
       deviceStats.failed + readingStats.failed + alertRuleStats.failed + alertStats.failed;
     const duration = Date.now() - startTime;
@@ -386,11 +461,23 @@ async function createIndexes(): Promise<void> {
     console.log('\n' + '═'.repeat(60));
     console.log('📊 Summary');
     console.log('═'.repeat(60));
-    console.log(`   ✅ Created: ${totalSuccess} indexes`);
-    console.log(`   ⏭️  Skipped: ${totalSkipped} indexes (already existed)`);
-    console.log(`   ❌ Failed:  ${totalFailed} indexes`);
+    console.log(`   ✅ Created:    ${totalSuccess} indexes`);
+    console.log(`   ⏭️  Skipped:    ${totalSkipped} indexes (already existed)`);
+    console.log(
+      `   🛑 Mismatched: ${totalMismatched} indexes (existing shape differs - see above)`
+    );
+    console.log(`   ❌ Failed:     ${totalFailed} indexes`);
     console.log(`   ⏱️  Duration: ${duration}ms`);
     console.log('═'.repeat(60));
+
+    if (totalMismatched > 0) {
+      console.log(
+        '\n⚠️  Some existing indexes do not match their expected shape. This script will ' +
+          'not drop or modify them automatically - see the [MISMATCH] entries above for the ' +
+          'exact dropIndex command to run before re-running this script.'
+      );
+      process.exit(1);
+    }
 
     if (totalFailed > 0) {
       console.log('\n⚠️  Some indexes failed to create. Please check the errors above.');
