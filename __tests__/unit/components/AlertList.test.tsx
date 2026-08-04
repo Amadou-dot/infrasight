@@ -1,25 +1,35 @@
 /**
  * AlertList Tests
  *
- * `@/lib/query/hooks`, `@/lib/auth/rbac-client`, and
- * `@/components/alerts/useAlertFilterParams` are mocked at the exact module
- * specifiers AlertList.tsx imports from (matching the working pattern in
- * DashboardStatCards.test.tsx) so the mock actually intercepts the import
- * AlertList uses, rather than a barrel re-export that never gets hit.
+ * `@/lib/query/hooks` and `@/components/alerts/useAlertFilterParams` are
+ * mocked at the exact module specifiers AlertList.tsx imports from (matching
+ * the working pattern in DashboardStatCards.test.tsx) so the mock actually
+ * intercepts the import AlertList uses, rather than a barrel re-export that
+ * never gets hit.
  *
- * The admin-gated Acknowledge/Resolve buttons are the focus: per the Phase 4
- * demo-mode rule, they must render DISABLED for a non-admin, never hidden, so
- * a visitor can see the workflow exists. A test that only checks the button
- * is disabled would pass vacuously if the button were hidden entirely (the
- * query would throw first); a test that only checks the button is present
- * would pass against a permanently-enabled button. Both are asserted below,
- * for both roles, and the deletion-check evidence proving each half actually
- * catches a regression is recorded in the task report.
+ * `useAdminAction`/`useRbac` (lib/auth/rbac-client.tsx) are deliberately NOT
+ * mocked — only their dependency on Clerk's `useAuth` is stubbed, exactly like
+ * __tests__/unit/lib/rbac-client.test.ts does for useRbac directly. That way
+ * these tests exercise the real gating contract end to end (mocking
+ * useAdminAction itself would only prove AlertList reads a mock correctly,
+ * not that the wiring to the real hook is correct — which is the class of bug
+ * fixed in this round: AlertList previously hand-rolled its own isAdmin
+ * gating instead of using useAdminAction()).
+ *
+ * The admin-gated Acknowledge/Resolve buttons are the focus. Per
+ * useAdminAction's three-branch contract: an admin sees them enabled; a
+ * non-admin in demo mode sees them present-and-disabled with a tooltip (so a
+ * visitor can see the workflow exists); a non-admin outside demo mode sees
+ * them absent entirely (matching every other admin-gated control in the
+ * app — app/devices/page.tsx, app/analytics/page.tsx, app/maintenance/page.tsx,
+ * app/page.tsx). All three branches are asserted below, and the
+ * deletion-check evidence proving each one actually catches a regression is
+ * recorded in the task report.
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { AlertList } from '@/components/alerts/AlertList';
+import { AlertList, formatRelativeTime } from '@/components/alerts/AlertList';
 import type { AlertV2Response } from '@/types/v2';
 
 const mockUseAlertsList = jest.fn();
@@ -35,9 +45,9 @@ jest.mock('@/lib/query/hooks', () => ({
   useResolveAlert: () => ({ mutate: mockResolveMutate, isPending: resolveIsPending }),
 }));
 
-const mockUseRbac = jest.fn();
-jest.mock('@/lib/auth/rbac-client', () => ({
-  useRbac: () => mockUseRbac(),
+const mockUseAuth = jest.fn();
+jest.mock('@clerk/nextjs', () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
 const mockUseAlertFilterParams = jest.fn();
@@ -53,6 +63,17 @@ jest.mock('react-toastify', () => ({
     error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
+
+function signedInAs(orgRole: 'org:admin' | 'org:member', orgSlug = 'users') {
+  mockUseAuth.mockReturnValue({ isLoaded: true, isSignedIn: true, orgRole, orgSlug });
+}
+
+function setDemoMode(value: 'true' | undefined) {
+  if (value === undefined) delete process.env.NEXT_PUBLIC_DEMO_MODE;
+  else process.env.NEXT_PUBLIC_DEMO_MODE = value;
+}
+
+const ORIGINAL_DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE;
 
 function makeAlert(overrides: Partial<AlertV2Response> = {}): AlertV2Response {
   return {
@@ -94,8 +115,16 @@ function defaultFilterParams() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers();
+  // Fixed 5 minutes after the default fixture's fired_at, so relative-time
+  // assertions are deterministic (also matches the fixture's last_observed_at).
+  jest.setSystemTime(new Date('2026-08-01T12:05:00.000Z'));
   acknowledgeIsPending = false;
   resolveIsPending = false;
+  setDemoMode(undefined);
+  // Most tests below don't care about role; default to admin so
+  // Acknowledge/Resolve are visible+enabled unless a test says otherwise.
+  signedInAs('org:admin');
   mockUseAlertFilterParams.mockReturnValue(defaultFilterParams());
   mockUseAlertsList.mockReturnValue({
     data: [makeAlert()],
@@ -105,11 +134,14 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  jest.useRealTimers();
+  setDemoMode(ORIGINAL_DEMO_MODE as 'true' | undefined);
+});
+
 describe('AlertList', () => {
   describe('rendering rows', () => {
-    it('should render severity, status, rule name, device id, and a plain-language condition', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
-
+    it('should render severity, status, rule name, device id, a plain-language condition, and a relative timestamp', () => {
       render(<AlertList />);
 
       expect(screen.getByText('Critical')).toBeInTheDocument();
@@ -118,10 +150,11 @@ describe('AlertList', () => {
       expect(screen.getByText('device_001')).toBeInTheDocument();
       expect(screen.getByText(/value above 30/)).toBeInTheDocument();
       expect(screen.getByText(/last 35/)).toBeInTheDocument();
+      // fired_at is 12:00:00.000Z, fixed "now" is 12:05:00.000Z.
+      expect(screen.getByText('5 minutes ago')).toBeInTheDocument();
     });
 
     it('should call onDeviceClick with the device id when the device button is clicked', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
       const onDeviceClick = jest.fn();
 
       render(<AlertList onDeviceClick={onDeviceClick} />);
@@ -129,11 +162,48 @@ describe('AlertList', () => {
 
       expect(onDeviceClick).toHaveBeenCalledWith('device_001');
     });
+
+    it('should fall back to breached_since for the relative timestamp when fired_at is absent', () => {
+      mockUseAlertsList.mockReturnValue({
+        data: [makeAlert({ fired_at: undefined, breached_since: '2026-08-01T10:00:00.000Z' })],
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+      });
+
+      render(<AlertList />);
+
+      // fixed "now" is 12:05:00.000Z; breached_since is 2h05m earlier, which
+      // rounds to "2 hours ago" — proves the row used breached_since, not a
+      // crash or blank on the missing fired_at.
+      expect(screen.getByText('2 hours ago')).toBeInTheDocument();
+    });
+  });
+
+  describe('formatRelativeTime', () => {
+    it('should describe a handful of seconds as "X seconds ago"', () => {
+      jest.setSystemTime(new Date('2026-08-01T12:00:30.000Z'));
+      expect(formatRelativeTime('2026-08-01T12:00:00.000Z')).toBe('30 seconds ago');
+    });
+
+    it('should describe minutes ago', () => {
+      jest.setSystemTime(new Date('2026-08-01T12:05:00.000Z'));
+      expect(formatRelativeTime('2026-08-01T12:00:00.000Z')).toBe('5 minutes ago');
+    });
+
+    it('should describe hours ago', () => {
+      jest.setSystemTime(new Date('2026-08-01T14:00:00.000Z'));
+      expect(formatRelativeTime('2026-08-01T12:00:00.000Z')).toBe('2 hours ago');
+    });
+
+    it('should describe days ago', () => {
+      jest.setSystemTime(new Date('2026-08-04T12:00:00.000Z'));
+      expect(formatRelativeTime('2026-08-01T12:00:00.000Z')).toBe('3 days ago');
+    });
   });
 
   describe('loading, error, and empty states', () => {
     it('should show a spinner while loading', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
       mockUseAlertsList.mockReturnValue({
         data: undefined,
         isLoading: true,
@@ -147,7 +217,6 @@ describe('AlertList', () => {
     });
 
     it('should show an error message when the query fails', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
       mockUseAlertsList.mockReturnValue({
         data: undefined,
         isLoading: false,
@@ -161,7 +230,6 @@ describe('AlertList', () => {
     });
 
     it('should show "No open alerts." when the list is empty', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
       mockUseAlertsList.mockReturnValue({
         data: [],
         isLoading: false,
@@ -175,11 +243,26 @@ describe('AlertList', () => {
     });
   });
 
-  // --- The demo-mode requirement: disabled, never hidden ----------------
+  // --- The three useAdminAction() branches --------------------------------
 
-  describe('admin gating on Acknowledge/Resolve (disabled, never hidden)', () => {
-    it('should render Acknowledge and Resolve PRESENT but DISABLED for a non-admin, with an explanatory tooltip', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
+  describe('admin gating on Acknowledge/Resolve (via useAdminAction)', () => {
+    it('should render Acknowledge and Resolve ENABLED for an admin, with no tooltip', () => {
+      signedInAs('org:admin');
+
+      render(<AlertList />);
+
+      const acknowledgeBtn = screen.getByRole('button', { name: /acknowledge/i });
+      const resolveBtn = screen.getByRole('button', { name: /resolve/i });
+
+      expect(acknowledgeBtn).not.toBeDisabled();
+      expect(acknowledgeBtn).not.toHaveAttribute('title');
+      expect(resolveBtn).not.toBeDisabled();
+      expect(resolveBtn).not.toHaveAttribute('title');
+    });
+
+    it('should render Acknowledge and Resolve PRESENT but DISABLED with a tooltip for a non-admin in demo mode', () => {
+      signedInAs('org:member');
+      setDemoMode('true');
 
       render(<AlertList />);
 
@@ -195,23 +278,18 @@ describe('AlertList', () => {
       expect(resolveBtn).toHaveAttribute('title', expect.stringMatching(/admin/i));
     });
 
-    it('should render Acknowledge and Resolve ENABLED for an admin, with no tooltip', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: true });
+    it('should HIDE Acknowledge and Resolve entirely for a non-admin outside demo mode', () => {
+      signedInAs('org:member');
+      setDemoMode(undefined);
 
       render(<AlertList />);
 
-      const acknowledgeBtn = screen.getByRole('button', { name: /acknowledge/i });
-      const resolveBtn = screen.getByRole('button', { name: /resolve/i });
-
-      expect(acknowledgeBtn).not.toBeDisabled();
-      expect(acknowledgeBtn).not.toHaveAttribute('title');
-
-      expect(resolveBtn).not.toBeDisabled();
-      expect(resolveBtn).not.toHaveAttribute('title');
+      expect(screen.queryByRole('button', { name: /acknowledge/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /resolve/i })).not.toBeInTheDocument();
     });
 
     it('should not render Acknowledge for an alert that is not firing, regardless of role', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: true });
+      signedInAs('org:admin');
       mockUseAlertsList.mockReturnValue({
         data: [makeAlert({ status: 'acknowledged', is_open: true })],
         isLoading: false,
@@ -226,7 +304,7 @@ describe('AlertList', () => {
     });
 
     it('should not render Resolve for an alert that is already resolved (not open)', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: true });
+      signedInAs('org:admin');
       mockUseAlertsList.mockReturnValue({
         data: [makeAlert({ status: 'resolved', is_open: false })],
         isLoading: false,
@@ -242,7 +320,7 @@ describe('AlertList', () => {
 
   describe('admin actions', () => {
     it('should acknowledge with the alert id and toast success on completion', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: true });
+      signedInAs('org:admin');
 
       render(<AlertList />);
       fireEvent.click(screen.getByRole('button', { name: /acknowledge/i }));
@@ -259,7 +337,7 @@ describe('AlertList', () => {
     });
 
     it('should resolve with the alert id and toast success on completion', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: true });
+      signedInAs('org:admin');
 
       render(<AlertList />);
       fireEvent.click(screen.getByRole('button', { name: /resolve/i }));
@@ -274,19 +352,15 @@ describe('AlertList', () => {
   });
 
   describe('pagination', () => {
-    it('should disable the previous-page control on page 1', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
+    it('should disable the previous-page control on page 1, discoverable by its accessible name', () => {
       mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), page: 1 });
 
-      const { container } = render(<AlertList />);
-      const pager = container.querySelector('.mt-4');
-      const [prevBtn] = pager?.querySelectorAll('button') ?? [];
+      render(<AlertList />);
 
-      expect(prevBtn).toBeDisabled();
+      expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
     });
 
-    it('should disable the next-page control when a page comes back short of PAGE_SIZE', () => {
-      mockUseRbac.mockReturnValue({ isAdmin: false });
+    it('should disable the next-page control when a page comes back short of PAGE_SIZE, discoverable by its accessible name', () => {
       mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), page: 2 });
       mockUseAlertsList.mockReturnValue({
         data: [makeAlert()], // 1 alert, well under PAGE_SIZE (10)
@@ -295,12 +369,9 @@ describe('AlertList', () => {
         refetch: mockRefetch,
       });
 
-      const { container } = render(<AlertList />);
-      const pager = container.querySelector('.mt-4');
-      const buttons = pager?.querySelectorAll('button') ?? [];
-      const nextBtn = buttons[buttons.length - 1];
+      render(<AlertList />);
 
-      expect(nextBtn).toBeDisabled();
+      expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
     });
   });
 });

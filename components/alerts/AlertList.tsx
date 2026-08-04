@@ -10,7 +10,7 @@ import { AlertSeverityBadge } from './AlertSeverityBadge';
 import { AlertStatusBadge } from './AlertStatusBadge';
 import { useAlertFilterParams } from './useAlertFilterParams';
 import { useAlertsList, useAcknowledgeAlert, useResolveAlert } from '@/lib/query/hooks';
-import { useRbac } from '@/lib/auth/rbac-client';
+import { useAdminAction } from '@/lib/auth/rbac-client';
 import type {
   AlertComparison,
   AlertSeverity,
@@ -55,14 +55,51 @@ export function describeCondition(
   return `${alert.metric} ${COMPARISON_WORDS[alert.comparison]} ${alert.threshold}`;
 }
 
-const ADMIN_ONLY_TOOLTIP = 'Admin role required — sign in as an admin to act on alerts';
+const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+/** Largest-unit-first thresholds for stepping a duration down into a display unit. */
+const RELATIVE_TIME_DIVISIONS: Array<{ amount: number; unit: Intl.RelativeTimeFormatUnit }> = [
+  { amount: 60, unit: 'seconds' },
+  { amount: 60, unit: 'minutes' },
+  { amount: 24, unit: 'hours' },
+  { amount: 7, unit: 'days' },
+  { amount: 4.34524, unit: 'weeks' },
+  { amount: 12, unit: 'months' },
+  { amount: Infinity, unit: 'years' },
+];
+
+/**
+ * "5 minutes ago" / "2 hours ago" — a small local helper rather than a
+ * date-fns dependency the repo doesn't otherwise carry (ScheduleList.tsx
+ * only ever needs absolute dates, via toLocaleDateString). Wraps the
+ * built-in Intl.RelativeTimeFormat. Shared with AlertDetailView (Task 16).
+ */
+export function formatRelativeTime(isoString: string): string {
+  let duration = (new Date(isoString).getTime() - Date.now()) / 1000;
+
+  for (const division of RELATIVE_TIME_DIVISIONS) {
+    if (Math.abs(duration) < division.amount)
+      return RELATIVE_TIME_FORMATTER.format(Math.round(duration), division.unit);
+
+    duration /= division.amount;
+  }
+
+  return RELATIVE_TIME_FORMATTER.format(Math.round(duration), 'years');
+}
 
 export function AlertList({
   initialFilters = {},
   showHeader = true,
   onDeviceClick,
 }: AlertListProps) {
-  const { isAdmin } = useRbac();
+  // Same useAdminAction() contract as app/analytics/page.tsx's report button:
+  // enabled for admins; visible-but-disabled with a tooltip in demo mode (so a
+  // visitor can see the workflow exists); hidden otherwise. requireAdmin()
+  // server-side is the real enforcement in every case. Two calls (rather than
+  // one shared value) name the two actions distinctly, matching how the hook
+  // is used elsewhere for a single action.
+  const ackAction = useAdminAction();
+  const resolveAction = useAdminAction();
   // URL is the source of truth — see useAlertFilterParams below.
   const { status, setStatus, severity, setSeverity, page, setPage } =
     useAlertFilterParams(initialFilters);
@@ -153,27 +190,30 @@ export function AlertList({
                 {describeCondition(alert)} — last {alert.last_value}
               </span>
 
+              {/* fired_at is unset while an episode is still pending; breached_since always exists. */}
+              <span className="text-sm text-muted-foreground">
+                {formatRelativeTime(alert.fired_at ?? alert.breached_since)}
+              </span>
+
               <div className="ml-auto flex items-center gap-2">
-                {/* Disabled, never hidden: a visitor should learn the workflow exists.
-                    requireAdmin() server-side is the real enforcement. */}
-                {alert.status === 'firing' && (
+                {ackAction.visible && alert.status === 'firing' && (
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!isAdmin || acknowledge.isPending}
-                    title={isAdmin ? undefined : ADMIN_ONLY_TOOLTIP}
+                    disabled={ackAction.disabled || acknowledge.isPending}
+                    title={ackAction.tooltip}
                     onClick={() => act(acknowledge, alert._id, 'Alert acknowledged')}
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Acknowledge
                   </Button>
                 )}
-                {alert.is_open && (
+                {resolveAction.visible && alert.is_open && (
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!isAdmin || resolve.isPending}
-                    title={isAdmin ? undefined : ADMIN_ONLY_TOOLTIP}
+                    disabled={resolveAction.disabled || resolve.isPending}
+                    title={resolveAction.tooltip}
                     onClick={() => act(resolve, alert._id, 'Alert resolved')}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
@@ -193,6 +233,7 @@ export function AlertList({
             onClick={() => setPage(page - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
+            Previous
           </Button>
           <span className="text-sm text-muted-foreground">Page {page}</span>
           <Button
@@ -201,6 +242,7 @@ export function AlertList({
             disabled={(alerts?.length ?? 0) < PAGE_SIZE}
             onClick={() => setPage(page + 1)}
           >
+            Next
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
