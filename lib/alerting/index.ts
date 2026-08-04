@@ -14,6 +14,17 @@
  *      their contract.
  *
  * This mirrors the existing treatment of the Pusher trigger in the simulate route.
+ *
+ * The Pusher broadcast (publishAlertEvents, Task 13) runs AFTER
+ * evaluateReadings()/sweepStaleAlerts() inside (2)'s try, but in its OWN nested
+ * try/catch — never (2)'s catch clause. A throw from the broadcast path
+ * (envelope math, or a Pusher failure notify.ts's own internal try/catch didn't
+ * already absorb) is swallowed right where it happens. If it shared (2)'s catch,
+ * it would reach `recordAlert('evaluation_error')` and mislabel a successful
+ * evaluation as failed, and `return emptyEvaluationResult()` /
+ * `return { deleted: 0, resolved: [] }` would discard a fired/resolved result
+ * that had already committed to the database — exactly the failure mode (2)
+ * exists to prevent, just for the broadcast instead of the DB write.
  */
 
 import { logger, recordAlert, captureException } from '@/lib/monitoring';
@@ -61,7 +72,13 @@ export async function safeEvaluateReadings(
 ): Promise<EvaluationResult> {
   try {
     const result = await evaluateReadings(readings, devices);
-    await publishAlertEvents(result.fired, result.resolved);
+    try {
+      await publishAlertEvents(result.fired, result.resolved);
+    } catch {
+      // trigger() already logs internally; this is belt-and-suspenders so a
+      // broadcast fault can never discard a committed evaluation result or
+      // reach the catch below, which would mislabel it as evaluation_error.
+    }
     return result;
   } catch (error) {
     recordAlert('evaluation_error');
@@ -81,7 +98,13 @@ export async function safeSweepStaleAlerts(
 ): Promise<SweepResult> {
   try {
     const result = await sweepStaleAlerts(reportingDeviceIds);
-    await publishAlertEvents([], result.resolved);
+    try {
+      await publishAlertEvents([], result.resolved);
+    } catch {
+      // trigger() already logs internally; this is belt-and-suspenders so a
+      // broadcast fault can never discard a committed sweep result or reach
+      // the catch below, which would mislabel it as evaluation_error.
+    }
     return result;
   } catch (error) {
     recordAlert('evaluation_error');
