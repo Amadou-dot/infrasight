@@ -41,6 +41,7 @@ jest.mock('@/components/dashboard', () => {
   const Actual = jest.requireActual('@/components/dashboard');
   return {
     ...Actual,
+    ActiveAlertsWidget: () => null,
     AnomalyDetectionChart: () => null,
     CriticalIssuesPanel: () => null,
     MaintenanceWidget: () => null,

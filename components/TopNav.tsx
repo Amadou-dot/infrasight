@@ -2,19 +2,34 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Monitor, Wrench, BarChart3, Map, Menu, X, ArchiveX } from 'lucide-react';
-import { useState } from 'react';
+import {
+  LayoutDashboard,
+  Monitor,
+  Wrench,
+  BarChart3,
+  Map,
+  Menu,
+  X,
+  ArchiveX,
+  Bell,
+} from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Logo } from '@/components/logo';
 import { cn } from '@/lib/utils';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { UserButtonWithTheme } from '@/components/user-button-with-theme';
 import { useRbac } from '@/lib/auth/rbac-client';
+import { useOpenAlertCount } from '@/lib/query/hooks';
+import { usePusherAlerts } from '@/lib/pusher-context';
+import { queryKeys } from '@/lib/query/queryClient';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/devices', label: 'Devices', icon: Monitor },
   { href: '/devices/deleted', label: 'Deleted Devices', icon: ArchiveX, adminOnly: true },
+  { href: '/alerts', label: 'Alerts', icon: Bell },
   { href: '/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/floor-plan', label: 'Floor Plan', icon: Map },
@@ -24,6 +39,19 @@ export default function TopNav() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isAdmin } = useRbac();
+  const queryClient = useQueryClient();
+  // pagination.total off a one-row page — see useOpenAlertCount's own doc
+  // comment for why this beats useAlertsList({ limit: 100 }).data?.length.
+  const { data: openAlertCount = 0 } = useOpenAlertCount();
+
+  // Same invalidation AlertToaster performs, so the badge updates on the
+  // same event that raises a toast. Memoized so usePusherAlerts's effect
+  // (which re-subscribes when the callback identity changes) doesn't
+  // re-subscribe on every TopNav render.
+  const handleAlertEvent = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
+  }, [queryClient]);
+  usePusherAlerts(handleAlertEvent);
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80">
@@ -57,6 +85,11 @@ export default function TopNav() {
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
+                  {item.href === '/alerts' && openAlertCount > 0 && (
+                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground">
+                      {openAlertCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -110,6 +143,11 @@ export default function TopNav() {
                   >
                     <Icon className="h-5 w-5" />
                     {item.label}
+                    {item.href === '/alerts' && openAlertCount > 0 && (
+                      <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground">
+                        {openAlertCount}
+                      </span>
+                    )}
                   </Link>
                 );
                 })}
