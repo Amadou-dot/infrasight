@@ -45,9 +45,11 @@ export default function TopNav() {
   const { data: openAlertCount = 0 } = useOpenAlertCount();
 
   // Same invalidation AlertToaster performs, so the badge updates on the
-  // same event that raises a toast. Memoized so usePusherAlerts's effect
-  // (which re-subscribes when the callback identity changes) doesn't
-  // re-subscribe on every TopNav render.
+  // same event that raises a toast. Memoized for a stable callback identity:
+  // usePusherAlerts holds the callback in a ref (see its own doc comment), so
+  // a non-memoized version here would not actually cause extra re-subscribes
+  // — but a stable reference is still good practice and keeps this
+  // useCallback's dependency array honest.
   const handleAlertEvent = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
   }, [queryClient]);
@@ -86,7 +88,10 @@ export default function TopNav() {
                   <Icon className="h-4 w-4" />
                   {item.label}
                   {item.href === '/alerts' && openAlertCount > 0 && (
-                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground">
+                    <span
+                      aria-label={`${openAlertCount} open alerts`}
+                      className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground"
+                    >
                       {openAlertCount}
                     </span>
                   )}
@@ -144,7 +149,10 @@ export default function TopNav() {
                     <Icon className="h-5 w-5" />
                     {item.label}
                     {item.href === '/alerts' && openAlertCount > 0 && (
-                      <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground">
+                      <span
+                        aria-label={`${openAlertCount} open alerts`}
+                        className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground"
+                      >
                         {openAlertCount}
                       </span>
                     )}
