@@ -367,7 +367,10 @@ async function seed(): Promise<void> {
 
     console.log(`\n✅ Inserted ${totalReadings} readings total\n`);
 
-    // Seed alert rules so /alerts is populated on first load.
+    // Seed alert rules so alert rules exist to be evaluated. This alone does not
+    // populate /alerts: readings are inserted directly via ReadingV2.insertMany
+    // above, bypassing the API route that runs evaluateReadings. Alerts appear
+    // only once an authenticated GET /api/v2/cron/simulate call evaluates them.
     console.log('🔔 Seeding alert rules...');
     const alertRules = buildAlertRuleSeeds();
     await AlertRuleV2.insertMany(alertRules);

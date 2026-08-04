@@ -29,8 +29,14 @@ export interface AlertRuleSeed {
 }
 
 /**
- * A small rule set so /alerts is populated on first load. Without it the whole
+ * A small rule set so alert rules exist to be evaluated. Without it the whole
  * phase is invisible to a visitor.
+ *
+ * Seeding rules is necessary but not sufficient for /alerts to show anything:
+ * neither `pnpm seed` nor `scripts/v2/simulate.ts` triggers evaluation — both
+ * insert readings via raw `ReadingV2.insertMany`, bypassing the API routes
+ * where `evaluateReadings` actually runs. Alerts only appear once an
+ * authenticated `GET /api/v2/cron/simulate` call runs the evaluator.
  */
 export function buildAlertRuleSeeds(): AlertRuleSeed[] {
   const now = new Date();
@@ -72,13 +78,18 @@ export function buildAlertRuleSeeds(): AlertRuleSeed[] {
       // No selector.types: battery is a DEVICE property, so a rule that only
       // watched temperature sensors' batteries would be close to useless. This
       // is the rule that motivates making selector.types optional.
+      //
+      // Threshold is 25, not 20, deliberately: both data generators floor
+      // context.battery_level at exactly 20 (seed-v2.ts:299,
+      // lib/simulation/readings.ts:262), so `lt 20` can never be satisfied.
+      // 25 catches the [20, 24] band — roughly 6% of devices.
       name: 'Low battery',
-      description: 'Any device reporting below 20% battery.',
+      description: 'Any device reporting below 25% battery.',
       enabled: true,
       selector: {},
       metric: 'battery_level',
       comparison: 'lt',
-      threshold: 20,
+      threshold: 25,
       for_duration_seconds: 0,
       severity: 'warning',
       cooldown_seconds: 3600,
