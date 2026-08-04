@@ -405,6 +405,10 @@ describe('safe wrappers', () => {
     const publishSpy = jest
       .spyOn(notifyModule, 'publishAlertEvents')
       .mockRejectedValueOnce(new Error('pusher exploded'));
+    const errorSpy = jest.spyOn(monitoring.logger, 'error').mockImplementation(() => undefined);
+    const captureSpy = jest
+      .spyOn(monitoring, 'captureException')
+      .mockImplementation(() => undefined);
 
     const result = await safeEvaluateReadings(
       [{ metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }, timestamp: new Date(), value: 1 }] as never,
@@ -426,7 +430,23 @@ describe('safe wrappers', () => {
     // Proves the mocked rejection was actually reached, not skipped.
     expect(publishSpy).toHaveBeenCalledTimes(1);
 
+    // The nested catch around publishAlertEvents must still give the fault a
+    // voice — a bare `catch {}` here would pass every assertion above while
+    // producing zero log line and zero Sentry event. This is the exact gap
+    // the backend review already flagged once for the alerting subsystem.
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Alert broadcast failed after a committed write',
+      expect.objectContaining({ error: 'pusher exploded' })
+    );
+    expect(captureSpy).toHaveBeenCalledTimes(1);
+    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), undefined, {
+      subsystem: 'alerting',
+    });
+    expect(captureSpy.mock.calls[0][0].message).toBe('pusher exploded');
+
     publishSpy.mockRestore();
+    errorSpy.mockRestore();
+    captureSpy.mockRestore();
   });
 
   it('should return the real sweep result, not the empty fallback, when publishAlertEvents throws', async () => {
@@ -436,6 +456,10 @@ describe('safe wrappers', () => {
     const publishSpy = jest
       .spyOn(notifyModule, 'publishAlertEvents')
       .mockRejectedValueOnce(new Error('pusher exploded'));
+    const errorSpy = jest.spyOn(monitoring.logger, 'error').mockImplementation(() => undefined);
+    const captureSpy = jest
+      .spyOn(monitoring, 'captureException')
+      .mockImplementation(() => undefined);
 
     const result = await safeSweepStaleAlerts(new Set(['device_001']));
 
@@ -454,7 +478,20 @@ describe('safe wrappers', () => {
 
     expect(publishSpy).toHaveBeenCalledTimes(1);
 
+    // Same voice requirement as the evaluator path above.
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Alert broadcast failed after a committed write',
+      expect.objectContaining({ error: 'pusher exploded' })
+    );
+    expect(captureSpy).toHaveBeenCalledTimes(1);
+    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), undefined, {
+      subsystem: 'alerting',
+    });
+    expect(captureSpy.mock.calls[0][0].message).toBe('pusher exploded');
+
     publishSpy.mockRestore();
+    errorSpy.mockRestore();
+    captureSpy.mockRestore();
   });
 
   // The whole point of catching around captureException (see the doc comment

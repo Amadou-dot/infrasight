@@ -38,7 +38,7 @@ function timestampOf(alert: TimestampedAlert): string {
   return 'fired_at' in alert ? alert.fired_at : alert.resolved_at;
 }
 
-function stormEnvelope(alerts: TimestampedAlert[]): AlertEvent {
+function stormEnvelope(alerts: TimestampedAlert[], of: 'fired' | 'resolved'): AlertEvent {
   const by_severity: Record<AlertSeverity, number> = { info: 0, warning: 0, critical: 0 };
   for (const alert of alerts) by_severity[alert.severity]++;
 
@@ -46,24 +46,28 @@ function stormEnvelope(alerts: TimestampedAlert[]): AlertEvent {
     .map(timestampOf)
     .reduce((earliest, ts) => (ts < earliest ? ts : earliest), timestampOf(alerts[0]));
 
-  return { kind: 'storm', count: alerts.length, by_severity, since };
+  return { kind: 'storm', of, count: alerts.length, by_severity, since };
 }
 
-function bound(envelope: AlertEvent, alerts: TimestampedAlert[]): AlertEvent {
-  if (alerts.length > ALERT_EVENT_MAX) return stormEnvelope(alerts);
+function bound(
+  envelope: AlertEvent,
+  alerts: TimestampedAlert[],
+  of: 'fired' | 'resolved'
+): AlertEvent {
+  if (alerts.length > ALERT_EVENT_MAX) return stormEnvelope(alerts, of);
   if (Buffer.byteLength(JSON.stringify(envelope), 'utf8') > ALERT_EVENT_MAX_BYTES)
-    return stormEnvelope(alerts);
+    return stormEnvelope(alerts, of);
   return envelope;
 }
 
 export function buildFiredEnvelope(alerts: FiredAlert[]): AlertEvent | null {
   if (alerts.length === 0) return null;
-  return bound({ kind: 'fired', alerts }, alerts as unknown as TimestampedAlert[]);
+  return bound({ kind: 'fired', alerts }, alerts as unknown as TimestampedAlert[], 'fired');
 }
 
 export function buildResolvedEnvelope(alerts: ResolvedAlert[]): AlertEvent | null {
   if (alerts.length === 0) return null;
-  return bound({ kind: 'resolved', alerts }, alerts as unknown as TimestampedAlert[]);
+  return bound({ kind: 'resolved', alerts }, alerts as unknown as TimestampedAlert[], 'resolved');
 }
 
 async function trigger(envelope: AlertEvent | null): Promise<void> {

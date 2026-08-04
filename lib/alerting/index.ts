@@ -74,10 +74,13 @@ export async function safeEvaluateReadings(
     const result = await evaluateReadings(readings, devices);
     try {
       await publishAlertEvents(result.fired, result.resolved);
-    } catch {
-      // trigger() already logs internally; this is belt-and-suspenders so a
-      // broadcast fault can never discard a committed evaluation result or
-      // reach the catch below, which would mislabel it as evaluation_error.
+    } catch (error) {
+      // Never let a broadcast fault discard an evaluation the DB already
+      // committed — but never let it vanish silently either.
+      logger.error('Alert broadcast failed after a committed write', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      reportToSentry(error);
     }
     return result;
   } catch (error) {
@@ -100,10 +103,13 @@ export async function safeSweepStaleAlerts(
     const result = await sweepStaleAlerts(reportingDeviceIds);
     try {
       await publishAlertEvents([], result.resolved);
-    } catch {
-      // trigger() already logs internally; this is belt-and-suspenders so a
-      // broadcast fault can never discard a committed sweep result or reach
-      // the catch below, which would mislabel it as evaluation_error.
+    } catch (error) {
+      // Never let a broadcast fault discard an evaluation the DB already
+      // committed — but never let it vanish silently either.
+      logger.error('Alert broadcast failed after a committed write', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      reportToSentry(error);
     }
     return result;
   } catch (error) {

@@ -74,6 +74,7 @@ describe('buildFiredEnvelope', () => {
 
     expect(envelope).toMatchObject({
       kind: 'storm',
+      of: 'fired',
       count: 25,
       by_severity: { critical: 15, warning: 0, info: 10 },
     });
@@ -93,7 +94,7 @@ describe('buildFiredEnvelope', () => {
       rule_name: 'x'.repeat(2000),
     }));
 
-    expect(buildFiredEnvelope(alerts)!.kind).toBe('storm');
+    expect(buildFiredEnvelope(alerts)).toMatchObject({ kind: 'storm', of: 'fired' });
   });
 });
 
@@ -102,8 +103,8 @@ describe('buildResolvedEnvelope', () => {
     expect(buildResolvedEnvelope([])).toBeNull();
     expect(buildResolvedEnvelope([resolved(1)])!.kind).toBe('resolved');
     expect(
-      buildResolvedEnvelope(Array.from({ length: 25 }, (_, i) => resolved(i)))!.kind
-    ).toBe('storm');
+      buildResolvedEnvelope(Array.from({ length: 25 }, (_, i) => resolved(i)))
+    ).toMatchObject({ kind: 'storm', of: 'resolved' });
   });
 });
 
