@@ -11,6 +11,7 @@ import ReadingV2 from '@/models/v2/ReadingV2';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
 import * as evaluateModule from '@/lib/alerting/evaluate';
+import * as monitoring from '@/lib/monitoring';
 import { createDeviceInput, createAlertRuleInput, resetCounters } from '../../setup/factories';
 
 // We need to import and test the handler more directly
@@ -1288,7 +1289,7 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
   describe('alert evaluation on the ingest path', () => {
     it('should open a firing alert for a breaching ingested reading', async () => {
       await seedDevice('device_alert_01');
-      await AlertRuleV2.create(
+      const rule = await AlertRuleV2.create(
         createAlertRuleInput({
           name: 'Ingest high temp',
           metric: 'value',
@@ -1298,6 +1299,7 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
           selector: { types: ['temperature'] },
         })
       );
+      const infoSpy = jest.spyOn(monitoring.logger, 'info');
 
       const { POST } = await import('@/app/api/v2/readings/ingest/route');
 
@@ -1319,6 +1321,17 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
       const alert = await AlertV2.findOne({ device_id: 'device_alert_01' }).lean();
       expect(alert).not.toBeNull();
       expect(alert!.status).toBe('firing');
+
+      // A fired alert is a domain event in its own right and must be logged,
+      // with the rule and device it involves — not just counted.
+      expect(infoSpy).toHaveBeenCalledWith('Alert rules fired or resolved during ingest', {
+        fired: 1,
+        resolved: 0,
+        ruleIds: [String(rule._id)],
+        deviceIds: ['device_alert_01'],
+      });
+
+      infoSpy.mockRestore();
     });
 
     it('should still return 201 with readings persisted when evaluation throws', async () => {
@@ -1326,6 +1339,7 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
       const spy = jest
         .spyOn(evaluateModule, 'evaluateReadings')
         .mockRejectedValueOnce(new Error('evaluator exploded'));
+      const infoSpy = jest.spyOn(monitoring.logger, 'info');
 
       const { POST } = await import('@/app/api/v2/readings/ingest/route');
 
@@ -1347,11 +1361,19 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
       // Prove the mocked rejection was actually reached, not merely that the
       // route succeeds regardless of whether alerting runs at all.
       expect(spy).toHaveBeenCalledTimes(1);
+      // The empty fallback result must not be reported as if something fired
+      // or resolved — the new logging must not regress the existing isolation
+      // guarantee it sits next to.
+      expect(infoSpy).not.toHaveBeenCalledWith(
+        'Alert rules fired or resolved during ingest',
+        expect.anything()
+      );
       expect(response.status).toBe(201);
       expect(body.data.inserted).toBe(1);
       expect(await ReadingV2.countDocuments({ 'metadata.device_id': 'device_alert_02' })).toBe(1);
 
       spy.mockRestore();
+      infoSpy.mockRestore();
     });
   });
 });

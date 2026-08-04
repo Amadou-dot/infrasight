@@ -254,11 +254,25 @@ async function handleIngest(request: NextRequest) {
 
     // Evaluate alert rules. Runs strictly after the inserts have committed and
     // cannot affect them; safeEvaluateReadings never throws.
-    if (results.inserted > 0)
-      await safeEvaluateReadings(
+    if (results.inserted > 0) {
+      const evaluation = await safeEvaluateReadings(
         validReadings,
         existingDevices as unknown as Parameters<typeof safeEvaluateReadings>[1]
       );
+
+      // An alert firing (or auto-resolving) is a domain event in its own right,
+      // not just an ingest side effect — log it distinctly from the "Readings
+      // ingested" summary below, which says nothing about alerting.
+      if (evaluation.fired.length || evaluation.resolved.length) {
+        const affected = [...evaluation.fired, ...evaluation.resolved];
+        logger.info('Alert rules fired or resolved during ingest', {
+          fired: evaluation.fired.length,
+          resolved: evaluation.resolved.length,
+          ruleIds: [...new Set(affected.map(a => a.rule_id))],
+          deviceIds: [...new Set(affected.map(a => a.device_id))],
+        });
+      }
+    }
 
     // Record metrics
     const duration = timer.elapsed();

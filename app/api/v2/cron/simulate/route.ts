@@ -72,7 +72,19 @@ export async function GET(request: NextRequest) {
     }
 
     // 4. Evaluate alert rules against the readings we just wrote.
-    await safeEvaluateReadings(newReadings, devices);
+    const evaluation = await safeEvaluateReadings(newReadings, devices);
+
+    // An alert firing (or auto-resolving) is a domain event in its own right;
+    // nothing else in this handler logs it.
+    if (evaluation.fired.length || evaluation.resolved.length) {
+      const affected = [...evaluation.fired, ...evaluation.resolved];
+      logger.info('Alert rules fired or resolved during simulation', {
+        fired: evaluation.fired.length,
+        resolved: evaluation.resolved.length,
+        ruleIds: [...new Set(affected.map(a => a.rule_id))],
+        deviceIds: [...new Set(affected.map(a => a.device_id))],
+      });
+    }
 
     // 5. Sweep alerts whose device has stopped reporting. Cron path only — the
     //    reporting set is the devices we just emitted for, so this needs no

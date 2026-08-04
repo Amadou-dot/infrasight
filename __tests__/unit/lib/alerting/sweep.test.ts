@@ -6,7 +6,7 @@ import AlertV2 from '@/models/v2/AlertV2';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import { sweepStaleAlerts, STALE_AFTER_SECONDS } from '@/lib/alerting/sweep';
 import { safeEvaluateReadings, safeSweepStaleAlerts } from '@/lib/alerting';
-import { logger } from '@/lib/monitoring';
+import * as monitoring from '@/lib/monitoring';
 import { createAlertInput, resetCounters, createAlertRuleInput } from '../../../setup/factories';
 
 function minutesAgo(n: number): Date {
@@ -268,6 +268,10 @@ describe('sweepStaleAlerts', () => {
 });
 
 describe('safe wrappers', () => {
+  beforeEach(() => {
+    monitoring.resetMetrics();
+  });
+
   it('should swallow an evaluation error and return an empty result', async () => {
     // A matching rule is MANDATORY here. Without one, no (rule, device) pair is
     // formed, evaluateReadings short-circuits on `pairs.size === 0` BEFORE it
@@ -285,7 +289,10 @@ describe('safe wrappers', () => {
     const spy = jest.spyOn(AlertV2, 'find').mockImplementationOnce(() => {
       throw new Error('database exploded');
     });
-    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(monitoring.logger, 'error').mockImplementation(() => undefined);
+    const captureSpy = jest
+      .spyOn(monitoring, 'captureException')
+      .mockImplementation(() => undefined);
 
     const result = await safeEvaluateReadings(
       [{ metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }, timestamp: new Date(), value: 1 }] as never,
@@ -298,15 +305,38 @@ describe('safe wrappers', () => {
     expect(spy).toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
 
+    // The console line the logger produces never leaves the process, and the
+    // counter resets on every cold start. Sentry is the one channel that
+    // survives both, so a swallowed evaluator error must reach it — tagged so
+    // it can be triaged as an alerting failure rather than a generic exception.
+    expect(captureSpy).toHaveBeenCalledTimes(1);
+    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), {
+      tags: { subsystem: 'alerting' },
+    });
+    // Not just "called with an Error" — the SAME error that was thrown, not a
+    // placeholder constructed independently of it.
+    expect(captureSpy.mock.calls[0][0].message).toBe('database exploded');
+
+    // Exact labelled value via getMetricsSnapshot(), per the brief — not
+    // "some metric changed". resetMetrics() in beforeEach makes 1 the whole
+    // count for this test, not a delta against unrelated prior activity.
+    const snapshot = monitoring.getMetricsSnapshot();
+    const alerts = snapshot.alerts as Record<string, unknown>;
+    expect(alerts.evaluationErrors).toBe(1);
+
     spy.mockRestore();
     errorSpy.mockRestore();
+    captureSpy.mockRestore();
   });
 
   it('should swallow a sweep error', async () => {
     const spy = jest.spyOn(AlertV2, 'find').mockImplementationOnce(() => {
       throw new Error('database exploded');
     });
-    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(monitoring.logger, 'error').mockImplementation(() => undefined);
+    const captureSpy = jest
+      .spyOn(monitoring, 'captureException')
+      .mockImplementation(() => undefined);
 
     const result = await safeSweepStaleAlerts(new Set(['device_001']));
 
@@ -317,7 +347,81 @@ describe('safe wrappers', () => {
     expect(spy).toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
 
+    expect(captureSpy).toHaveBeenCalledTimes(1);
+    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), {
+      tags: { subsystem: 'alerting' },
+    });
+    expect(captureSpy.mock.calls[0][0].message).toBe('database exploded');
+
+    const snapshot = monitoring.getMetricsSnapshot();
+    const alerts = snapshot.alerts as Record<string, unknown>;
+    expect(alerts.evaluationErrors).toBe(1);
+
     spy.mockRestore();
     errorSpy.mockRestore();
+    captureSpy.mockRestore();
+  });
+
+  // The whole point of catching around captureException (see the doc comment
+  // on reportToSentry in lib/alerting/index.ts) is that a misbehaving Sentry
+  // SDK must not turn an already-handled evaluator/sweep error into an
+  // unhandled one. These two tests make captureException itself throw and
+  // rely on Jest failing the test via an unhandled rejection if the wrapper
+  // ever lets that propagate — there is no try/catch around the `await`
+  // below to hide it.
+
+  it('should not throw when captureException itself throws (evaluator path)', async () => {
+    await AlertRuleV2.create(
+      createAlertRuleInput({
+        metric: 'value',
+        comparison: 'gt',
+        threshold: 0,
+        selector: { types: ['temperature'] },
+      })
+    );
+
+    const findSpy = jest.spyOn(AlertV2, 'find').mockImplementationOnce(() => {
+      throw new Error('database exploded');
+    });
+    const errorSpy = jest.spyOn(monitoring.logger, 'error').mockImplementation(() => undefined);
+    const captureSpy = jest.spyOn(monitoring, 'captureException').mockImplementation(() => {
+      throw new Error('sentry sdk exploded');
+    });
+
+    const result = await safeEvaluateReadings(
+      [{ metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }, timestamp: new Date(), value: 1 }] as never,
+      [{ _id: 'device_001', type: 'temperature', location: { building_id: 'HQ', floor: 1, room_name: 'X' }, metadata: { tags: [], department: 'x' } }] as never
+    );
+
+    // Still the normal swallow-and-return-empty behavior, unchanged by the
+    // second failure.
+    expect(result.fired).toEqual([]);
+    expect(result.resolved).toEqual([]);
+    // Proves captureException was actually reached (and threw), not skipped
+    // for some unrelated reason.
+    expect(captureSpy).toHaveBeenCalledTimes(1);
+
+    findSpy.mockRestore();
+    errorSpy.mockRestore();
+    captureSpy.mockRestore();
+  });
+
+  it('should not throw when captureException itself throws (sweep path)', async () => {
+    const findSpy = jest.spyOn(AlertV2, 'find').mockImplementationOnce(() => {
+      throw new Error('database exploded');
+    });
+    const errorSpy = jest.spyOn(monitoring.logger, 'error').mockImplementation(() => undefined);
+    const captureSpy = jest.spyOn(monitoring, 'captureException').mockImplementation(() => {
+      throw new Error('sentry sdk exploded');
+    });
+
+    const result = await safeSweepStaleAlerts(new Set(['device_001']));
+
+    expect(result).toEqual({ deleted: 0, resolved: [] });
+    expect(captureSpy).toHaveBeenCalledTimes(1);
+
+    findSpy.mockRestore();
+    errorSpy.mockRestore();
+    captureSpy.mockRestore();
   });
 });
