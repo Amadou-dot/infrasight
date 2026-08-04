@@ -276,7 +276,16 @@ async function createCollectionIndexes(
   const stats = { success: 0, skipped: 0, mismatched: 0, failed: 0 };
 
   // Get existing indexes, keyed by name, so a name match can be shape-checked below.
-  const existingIndexes = await collection.indexes();
+  // A collection that has never been created — e.g. alerts_v2 before any alert has
+  // ever fired, the normal state of a fresh database — makes `.indexes()` throw
+  // NamespaceNotFound rather than resolve empty. That is zero existing indexes,
+  // not a failure, so it is caught here instead of aborting the whole script.
+  let existingIndexes: Awaited<ReturnType<typeof collection.indexes>> = [];
+  try {
+    existingIndexes = await collection.indexes();
+  } catch (error) {
+    if ((error as { code?: number }).code !== 26) throw error;
+  }
   const existingIndexByName = new Map(existingIndexes.map(idx => [idx.name, idx]));
 
   console.log(`\n📦 Collection: ${collectionName}`);
