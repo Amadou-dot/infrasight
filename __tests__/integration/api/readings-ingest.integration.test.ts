@@ -14,6 +14,15 @@ import * as evaluateModule from '@/lib/alerting/evaluate';
 import * as monitoring from '@/lib/monitoring';
 import { createDeviceInput, createAlertRuleInput, resetCounters } from '../../setup/factories';
 
+// Mock Pusher to avoid network errors in tests. A breaching ingested reading
+// fires an alert, which now broadcasts via publishAlertEvents (Task 13) —
+// see the "alert evaluation on the ingest path" tests below.
+jest.mock('@/lib/pusher', () => ({
+  pusherServer: {
+    trigger: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // We need to import and test the handler more directly
 // The route exports POST which is wrapped with middleware
 

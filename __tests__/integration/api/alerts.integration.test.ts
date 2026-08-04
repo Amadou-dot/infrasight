@@ -13,6 +13,18 @@ import { mockAuthAsAdmin, mockAuthAsMember, mockAuthAsUnauthenticated } from '..
 import { GET as listAlerts } from '@/app/api/v2/alerts/route';
 import { GET as getAlert, PATCH } from '@/app/api/v2/alerts/[id]/route';
 
+// Mock Pusher to avoid network errors in tests. A manual resolve now
+// broadcasts via publishAlertEvents (Task 13), which every PATCH test below
+// reaches unless it separately spies on '@/lib/alerting' — this mock only
+// replaces the underlying pusherServer.trigger, so it composes with that spy
+// rather than fighting it: when publishAlertEvents itself is mocked, this
+// mock is simply never reached.
+jest.mock('@/lib/pusher', () => ({
+  pusherServer: {
+    trigger: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 function createMockGetRequest(path: string, searchParams: Record<string, string> = {}): NextRequest {
   const url = new URL(`http://localhost:3000${path}`);
   Object.entries(searchParams).forEach(([k, v]) => url.searchParams.set(k, v));
