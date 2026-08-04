@@ -154,7 +154,8 @@ describe('Sentry Integration', () => {
       process.env.SENTRY_DSN = 'https://key@sentry.io/project';
 
       jest.resetModules();
-      const { initSentry: init, captureException: capture } = require('@/lib/monitoring/sentry');
+      const { initSentry: init, captureException: capture } =
+        await import('@/lib/monitoring/sentry');
 
       await init();
 
@@ -164,7 +165,7 @@ describe('Sentry Integration', () => {
       const result = capture(error, context, tags);
 
       expect(result).toBe('event-id-123');
-      const Sentry = require('@sentry/nextjs');
+      const Sentry = await import('@sentry/nextjs');
       // Full-shape match, not objectContaining: `tags` must be its own top-level
       // key alongside `extra`, not nested inside it. Sentry only treats a
       // top-level `tags` key as an indexed/filterable tag facet — nesting it
@@ -180,14 +181,15 @@ describe('Sentry Integration', () => {
       process.env.SENTRY_DSN = 'https://key@sentry.io/project';
 
       jest.resetModules();
-      const { initSentry: init, captureException: capture } = require('@/lib/monitoring/sentry');
+      const { initSentry: init, captureException: capture } =
+        await import('@/lib/monitoring/sentry');
 
       await init();
 
       const error = new Error('Test error');
       capture(error, { userId: '123' });
 
-      const Sentry = require('@sentry/nextjs');
+      const Sentry = await import('@sentry/nextjs');
       const [, options] = (Sentry.captureException as jest.Mock).mock.calls[0];
       expect(Object.prototype.hasOwnProperty.call(options, 'tags')).toBe(false);
     });
