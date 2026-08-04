@@ -66,13 +66,21 @@ export async function GET(request: NextRequest) {
     const insertedReadings = await ReadingV2.bulkInsertReadings(newReadings);
     const rejectedCount = newReadings.length - insertedReadings.length;
 
-    // 3. Trigger Real-time Update (The "Hot" Path)
+    // 3. Trigger Real-time Update (The "Hot" Path). Broadcast only what was
+    //    actually written — a rejected reading must never appear on a client
+    //    tile as though it were stored. toObject() strips the Mongoose
+    //    document wrapper; versionKey: false keeps `__v` out of a payload
+    //    that is already sized against Pusher's 10 KB cap.
     try {
-      await pusherServer.trigger('InfraSight', 'new-readings', newReadings);
+      await pusherServer.trigger(
+        'InfraSight',
+        'new-readings',
+        insertedReadings.map(r => r.toObject({ versionKey: false }))
+      );
     } catch (pusherError) {
       logger.error('Pusher trigger failed after successful DB write', {
         error: pusherError instanceof Error ? pusherError.message : String(pusherError),
-        readingsCount: newReadings.length,
+        readingsCount: insertedReadings.length,
       });
     }
 
