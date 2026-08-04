@@ -68,7 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const query = queryValidation.data as GetAlertQuery;
 
-    const alert = await AlertV2.findById(id).lean();
+    const alert = await AlertV2.findById(id).select('-__v').lean();
     if (!alert) throw new ApiError(ErrorCodes.ALERT_NOT_FOUND, 404, `Alert '${id}' not found`);
 
     const response: Record<string, unknown> = { ...alert };
@@ -190,7 +190,7 @@ async function handleUpdateAlert(
     logger.info('Alert transitioned', { alertId: id, status, by: auditUser, duration });
 
     return jsonSuccess(
-      updated.toObject(),
+      updated.toObject({ versionKey: false }),
       status === 'acknowledged' ? 'Alert acknowledged' : 'Alert resolved'
     );
   })();

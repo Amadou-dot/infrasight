@@ -1,8 +1,9 @@
 /**
  * TypeScript Type Definitions for the Alerting Subsystem
  *
- * Client-safe: no mongoose or model imports. `lib/pusher-context.tsx` imports
- * AlertEvent from this file.
+ * Client-safe: no mongoose or model imports. Nothing imports from this file
+ * yet — `lib/pusher-context.tsx` will consume `AlertEvent` once Task 13/14
+ * wires up alert delivery over Pusher.
  *
  * Aligned with:
  * - Mongoose models: /models/v2/AlertRuleV2.ts, /models/v2/AlertV2.ts
@@ -60,20 +61,125 @@ export interface AlertRuleV2Response {
   audit: AlertRuleAudit;
 }
 
-export interface CreateAlertRuleBody {
+/**
+ * Selector variant for `metric: 'value'` rules. `types` is required and must
+ * list at least one reading type: a bare value threshold is meaningless across
+ * mixed units — 30 is a reasonable temperature ceiling and an absurd power one.
+ * Enforced by `typesRequiredForValueMetric` in alert-rule.validation.ts.
+ */
+export interface ValueMetricSelector extends Omit<AlertRuleSelector, 'types'> {
+  types: [ReadingTypeName, ...ReadingTypeName[]];
+}
+
+/**
+ * The `metric` / `comparison` / `threshold` / `selector` group for CREATE,
+ * discriminated on `metric` so the two states `createAlertRuleSchema` always
+ * rejects are unrepresentable:
+ * - `metric: 'value'` with `selector.types` missing or empty.
+ * - a `threshold` outside the metric's valid range.
+ *
+ * `selector` is optional for `anomaly_score` / `battery_level` because
+ * `createAlertRuleSchema` defaults it to `{}` when the key is omitted
+ * (`selector: alertRuleSelectorSchema.default({})`).
+ *
+ * Threshold bounds (`anomaly_score` in [0, 1], `battery_level` in [0, 100]) are
+ * enforced by Zod's `thresholdWithinMetricBounds` (alert-rule.validation.ts),
+ * not by these types — TypeScript has no numeric refinement types, so
+ * `threshold` stays `number` on every arm; the bounds are documented instead.
+ */
+export type CreateAlertRuleCondition =
+  | {
+      metric: 'value';
+      comparison: AlertComparison;
+      threshold: number;
+      selector: ValueMetricSelector;
+    }
+  | {
+      metric: 'anomaly_score';
+      comparison: AlertComparison;
+      /** Must be within [0, 1]. Enforced by Zod, not representable in TypeScript. */
+      threshold: number;
+      selector?: AlertRuleSelector;
+    }
+  | {
+      metric: 'battery_level';
+      comparison: AlertComparison;
+      /** Must be within [0, 100]. Enforced by Zod, not representable in TypeScript. */
+      threshold: number;
+      selector?: AlertRuleSelector;
+    };
+
+interface AlertRuleBodyBase {
   name: string;
   description?: string;
   enabled?: boolean;
-  selector?: AlertRuleSelector;
-  metric: AlertMetric;
-  comparison: AlertComparison;
-  threshold: number;
   for_duration_seconds?: number;
   severity: AlertSeverity;
   cooldown_seconds?: number;
 }
 
-export type UpdateAlertRuleBody = Partial<CreateAlertRuleBody>;
+export type CreateAlertRuleBody = AlertRuleBodyBase & CreateAlertRuleCondition;
+
+/**
+ * The same condition group for UPDATE — deliberately a separate type from
+ * `CreateAlertRuleCondition`, not a reuse of it, because `selector`'s
+ * requiredness differs between create and update:
+ *
+ * `updateAlertRuleSchema` gives `selector` no default
+ * (`selector: alertRuleSelectorSchema.optional()`), and its atomic-group
+ * refinement tests `data.selector !== undefined`. So whenever `metric` is
+ * being changed, `selector` must be an explicit key for EVERY metric — send
+ * `{}` for `anomaly_score` / `battery_level` if there is nothing to
+ * constrain — not just for `'value'`. Confirmed against the live schema:
+ * `{ metric: 'anomaly_score', comparison: 'gt', threshold: 0.5 }` with no
+ * `selector` key is always rejected ("metric, comparison, threshold and
+ * selector must be updated together — send all four or none"), while the same
+ * body plus `selector: {}` is accepted. `metric: 'value'` still additionally
+ * requires `selector.types` to be non-empty, same as create.
+ */
+type UpdateAlertRuleCondition =
+  | {
+      metric: 'value';
+      comparison: AlertComparison;
+      threshold: number;
+      selector: ValueMetricSelector;
+    }
+  | {
+      metric: 'anomaly_score';
+      comparison: AlertComparison;
+      /** Must be within [0, 1]. Enforced by Zod, not representable in TypeScript. */
+      threshold: number;
+      selector: AlertRuleSelector;
+    }
+  | {
+      metric: 'battery_level';
+      comparison: AlertComparison;
+      /** Must be within [0, 100]. Enforced by Zod, not representable in TypeScript. */
+      threshold: number;
+      selector: AlertRuleSelector;
+    };
+
+/**
+ * None of `metric` / `comparison` / `threshold` / `selector` present — the
+ * "leave the condition untouched" half of the atomic-group rule below.
+ */
+type NoConditionUpdate = {
+  metric?: undefined;
+  comparison?: undefined;
+  threshold?: undefined;
+  selector?: undefined;
+};
+
+/**
+ * `metric`, `comparison`, `threshold` and `selector` must be updated together —
+ * send all four or none (`updateAlertRuleSchema`'s `CONDITION_FIELDS` check,
+ * alert-rule.validation.ts:144-154). A partial condition like `{ threshold: 5 }`
+ * is therefore not expressible: it satisfies neither an `UpdateAlertRuleCondition`
+ * arm (missing `metric`/`comparison`/`selector`) nor `NoConditionUpdate`
+ * (`threshold` must be absent or `undefined`).
+ */
+export type UpdateAlertRuleBody = Partial<AlertRuleBodyBase> &
+  (UpdateAlertRuleCondition | NoConditionUpdate);
 
 export interface ListAlertRulesQueryParams {
   page?: number;
@@ -168,8 +274,17 @@ export interface FiredAlert {
 
 /**
  * Trimmed payload broadcast when an episode resolves.
- * `actor` is 'system' for automatic resolution, otherwise the Clerk USER ID.
- * Never an email — this payload reaches every connected client.
+ *
+ * `actor` is 'system' for automatic resolution. For a manual resolution it MUST
+ * be `userId` — the Clerk user ID returned by `requireAdmin()` — and NEVER an
+ * email, because this payload reaches every connected client.
+ *
+ * Concretely: use the `userId` from `requireAdmin()`. Do NOT use `auditUser` or
+ * `getAuditUser(userId, user)` (lib/auth/index.ts) to populate this field —
+ * `getAuditUser` resolves to `user.email` whenever Clerk has one on file, which
+ * is exactly the leak this field must not have. `auditUser`/`getAuditUser`
+ * remain correct for audit-trail fields (e.g. `audit.resolved_by`), which are
+ * never broadcast; they are wrong specifically for this Pusher payload.
  */
 export interface ResolvedAlert {
   _id: string;

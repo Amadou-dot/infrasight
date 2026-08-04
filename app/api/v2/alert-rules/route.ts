@@ -65,7 +65,12 @@ export async function GET(request: NextRequest) {
     const sort: Record<string, 1 | -1> = { [sortField]: query.sortDirection === 'asc' ? 1 : -1 };
 
     const [rules, total] = await Promise.all([
-      AlertRuleV2.find(filter).sort(sort).skip(pagination.skip).limit(pagination.limit).lean(),
+      AlertRuleV2.find(filter)
+        .select('-__v')
+        .sort(sort)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .lean(),
       AlertRuleV2.countDocuments(filter),
     ]);
 
@@ -120,7 +125,7 @@ async function handleCreateAlertRule(request: NextRequest) {
     recordRequest('POST', '/api/v2/alert-rules', 201, duration);
     logger.info('Alert rule created', { ruleId: String(created._id), createdBy: auditUser, duration });
 
-    return jsonSuccess(created.toObject(), 'Alert rule created successfully', 201);
+    return jsonSuccess(created.toObject({ versionKey: false }), 'Alert rule created successfully', 201);
   })();
 }
 
