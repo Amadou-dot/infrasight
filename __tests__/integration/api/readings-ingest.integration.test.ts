@@ -1375,5 +1375,99 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
       spy.mockRestore();
       infoSpy.mockRestore();
     });
+
+    // The PR widened the device projection in the ingest route (`_id`, `type`,
+    // `location`, `metadata.tags`) specifically so selectors that key on more
+    // than `types` can match. The tests above only ever use `selector: {
+    // types: [...] }`, which needs no device fields at all, so a regression
+    // that narrowed the projection back to `{ _id: 1 }` would pass every
+    // existing test in this file. This test exercises every non-type selector
+    // dimension against a real device, with a negative twin that differs by
+    // exactly one field (floor) to prove the rule discriminates on selector
+    // fields rather than merely firing whenever device data is present.
+    it('should fire only for the device whose location and tags match the selector', async () => {
+      const matchingDevice = createDeviceInput({
+        _id: 'device_selector_match_ingest',
+        type: 'temperature',
+        location: {
+          building_id: 'building_selector_ingest',
+          floor: 7,
+          room_name: 'Selector Room',
+          zone: 'zone_selector',
+        },
+        metadata: { tags: ['hvac_critical'], department: 'Facilities' },
+      });
+      // Negative twin: identical selector-relevant fields except floor. If
+      // matching degenerated to "device data is present" rather than a real
+      // per-field comparison, this device would incorrectly fire too.
+      const wrongFloorDevice = createDeviceInput({
+        _id: 'device_selector_wrongfloor_ingest',
+        type: 'temperature',
+        location: {
+          building_id: 'building_selector_ingest',
+          floor: 9,
+          room_name: 'Other Room',
+          zone: 'zone_selector',
+        },
+        metadata: { tags: ['hvac_critical'], department: 'Facilities' },
+      });
+      await DeviceV2.insertMany([matchingDevice, wrongFloorDevice]);
+
+      const rule = await AlertRuleV2.create(
+        createAlertRuleInput({
+          name: 'Building/floor/zone/tag scoped rule',
+          metric: 'value',
+          comparison: 'gt',
+          threshold: 30,
+          severity: 'critical',
+          selector: {
+            types: ['temperature'],
+            building_id: 'building_selector_ingest',
+            floor: 7,
+            zone: 'zone_selector',
+            tags: ['hvac_critical'],
+          },
+        })
+      );
+
+      const { POST } = await import('@/app/api/v2/readings/ingest/route');
+
+      const request = createMockPostRequest('/api/v2/readings/ingest', {
+        readings: [
+          {
+            device_id: 'device_selector_match_ingest',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42, // breaches threshold of 30 for both devices equally
+            timestamp: new Date().toISOString(),
+          },
+          {
+            device_id: 'device_selector_wrongfloor_ingest',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
+
+      const response = await POST(request);
+      expect(response.status).toBe(201);
+
+      const matchedAlert = await AlertV2.findOne({
+        device_id: 'device_selector_match_ingest',
+      }).lean();
+      expect(matchedAlert).not.toBeNull();
+      expect(matchedAlert!.status).toBe('firing');
+      expect(String(matchedAlert!.rule_id)).toBe(String(rule._id));
+
+      // The negative twin breaches the same metric/threshold and shares every
+      // selector dimension except floor — if an alert exists for it, matching
+      // is not actually discriminating on the selector.
+      const unmatchedAlert = await AlertV2.findOne({
+        device_id: 'device_selector_wrongfloor_ingest',
+      }).lean();
+      expect(unmatchedAlert).toBeNull();
+    });
   });
 });
