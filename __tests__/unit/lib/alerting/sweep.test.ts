@@ -6,6 +6,7 @@ import AlertV2 from '@/models/v2/AlertV2';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import { sweepStaleAlerts, STALE_AFTER_SECONDS } from '@/lib/alerting/sweep';
 import { safeEvaluateReadings, safeSweepStaleAlerts } from '@/lib/alerting';
+import * as notifyModule from '@/lib/alerting/notify';
 import * as monitoring from '@/lib/monitoring';
 import { createAlertInput, resetCounters, createAlertRuleInput } from '../../../setup/factories';
 
@@ -382,6 +383,78 @@ describe('safe wrappers', () => {
     spy.mockRestore();
     errorSpy.mockRestore();
     captureSpy.mockRestore();
+  });
+
+  // publishAlertEvents runs in its OWN nested try/catch inside safeEvaluateReadings
+  // and safeSweepStaleAlerts (lib/alerting/index.ts), separate from the try/catch
+  // around the DB call. Spying on '@/lib/alerting/notify' rather than the
+  // '@/lib/alerting' barrel is deliberate: index.ts imports publishAlertEvents
+  // from './notify' directly (a relative import, resolving to the same module as
+  // '@/lib/alerting/notify'), so a spy on the barrel's re-export would never
+  // intercept the call index.ts actually makes — the exact dead-spy hazard this
+  // suite was warned about for the PATCH route's own barrel import.
+  it('should return the real evaluation result, not the empty fallback, when publishAlertEvents throws', async () => {
+    await AlertRuleV2.create(
+      createAlertRuleInput({
+        metric: 'value',
+        comparison: 'gt',
+        threshold: 0,
+        selector: { types: ['temperature'] },
+      })
+    );
+    const publishSpy = jest
+      .spyOn(notifyModule, 'publishAlertEvents')
+      .mockRejectedValueOnce(new Error('pusher exploded'));
+
+    const result = await safeEvaluateReadings(
+      [{ metadata: { device_id: 'device_001', type: 'temperature', unit: 'celsius', source: 'sensor' }, timestamp: new Date(), value: 1 }] as never,
+      [{ _id: 'device_001', type: 'temperature', location: { building_id: 'HQ', floor: 1, room_name: 'X' }, metadata: { tags: [], department: 'x' } }] as never
+    );
+
+    // The evaluation itself succeeded and fired a real alert. If the broadcast
+    // failure reached the outer catch, this would come back
+    // emptyEvaluationResult() ({ fired: [], ... }) instead.
+    expect(result.fired).toHaveLength(1);
+    expect(await AlertV2.countDocuments({ status: 'firing' })).toBe(1);
+
+    // A broadcast fault must never be mislabeled as an evaluation_error — that
+    // counter is reserved for the DB call itself.
+    const snapshot = monitoring.getMetricsSnapshot();
+    const alerts = snapshot.alerts as Record<string, unknown>;
+    expect(alerts.evaluationErrors).toBe(0);
+
+    // Proves the mocked rejection was actually reached, not skipped.
+    expect(publishSpy).toHaveBeenCalledTimes(1);
+
+    publishSpy.mockRestore();
+  });
+
+  it('should return the real sweep result, not the empty fallback, when publishAlertEvents throws', async () => {
+    await AlertV2.create(
+      createAlertInput({ device_id: 'device_gone', status: 'firing', last_observed_at: minutesAgo(1) })
+    );
+    const publishSpy = jest
+      .spyOn(notifyModule, 'publishAlertEvents')
+      .mockRejectedValueOnce(new Error('pusher exploded'));
+
+    const result = await safeSweepStaleAlerts(new Set(['device_001']));
+
+    // The sweep itself succeeded and resolved a real alert. If the broadcast
+    // failure reached the outer catch, this would come back
+    // { deleted: 0, resolved: [] } instead — byte-identical to the DB-failure
+    // fallback, which is exactly why this needs its own assertion on the DB
+    // state, not just on the returned shape.
+    expect(result.resolved).toHaveLength(1);
+    expect(result.resolved[0].resolution).toBe('device_inactive');
+    expect((await AlertV2.findOne({}).lean())!.status).toBe('resolved');
+
+    const snapshot = monitoring.getMetricsSnapshot();
+    const alerts = snapshot.alerts as Record<string, unknown>;
+    expect(alerts.evaluationErrors).toBe(0);
+
+    expect(publishSpy).toHaveBeenCalledTimes(1);
+
+    publishSpy.mockRestore();
   });
 
   // The whole point of catching around captureException (see the doc comment
