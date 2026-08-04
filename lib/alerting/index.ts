@@ -42,8 +42,11 @@ export type { EvaluableDevice, EvaluableReading, EvaluationResult, CachedAlertRu
  */
 function reportToSentry(error: unknown): void {
   try {
-    captureException(error instanceof Error ? error : new Error(String(error)), {
-      tags: { subsystem: 'alerting' },
+    // `{ subsystem: 'alerting' }` goes in the THIRD argument (Sentry tags — an
+    // indexed, filterable facet), not the second (context/"Additional Data").
+    // Passing it as context would silently stop working as a triage classifier.
+    captureException(error instanceof Error ? error : new Error(String(error)), undefined, {
+      subsystem: 'alerting',
     });
   } catch {
     // Deliberately swallowed — see doc comment above.

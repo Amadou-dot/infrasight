@@ -149,6 +149,48 @@ describe('Sentry Integration', () => {
         extra: context,
       });
     });
+
+    it('should forward tags as a distinct field from context, not folded into it', async () => {
+      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+
+      jest.resetModules();
+      const { initSentry: init, captureException: capture } = require('@/lib/monitoring/sentry');
+
+      await init();
+
+      const error = new Error('Test error');
+      const context = { readingsCount: 5 };
+      const tags = { subsystem: 'alerting' };
+      const result = capture(error, context, tags);
+
+      expect(result).toBe('event-id-123');
+      const Sentry = require('@sentry/nextjs');
+      // Full-shape match, not objectContaining: `tags` must be its own top-level
+      // key alongside `extra`, not nested inside it. Sentry only treats a
+      // top-level `tags` key as an indexed/filterable tag facet — nesting it
+      // under `extra` (the bug this test guards) silently downgrades it to
+      // unfilterable "Additional Data" instead.
+      expect(Sentry.captureException).toHaveBeenCalledWith(error, {
+        extra: context,
+        tags,
+      });
+    });
+
+    it('should omit the tags key entirely when no tags are passed', async () => {
+      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+
+      jest.resetModules();
+      const { initSentry: init, captureException: capture } = require('@/lib/monitoring/sentry');
+
+      await init();
+
+      const error = new Error('Test error');
+      capture(error, { userId: '123' });
+
+      const Sentry = require('@sentry/nextjs');
+      const [, options] = (Sentry.captureException as jest.Mock).mock.calls[0];
+      expect(Object.prototype.hasOwnProperty.call(options, 'tags')).toBe(false);
+    });
   });
 
   // ==========================================================================

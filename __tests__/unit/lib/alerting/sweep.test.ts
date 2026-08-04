@@ -309,9 +309,11 @@ describe('safe wrappers', () => {
     // counter resets on every cold start. Sentry is the one channel that
     // survives both, so a swallowed evaluator error must reach it — tagged so
     // it can be triaged as an alerting failure rather than a generic exception.
+    // The tag rides in the THIRD argument (Sentry tags), not folded into the
+    // second (context/"Additional Data") — see lib/monitoring/sentry.ts.
     expect(captureSpy).toHaveBeenCalledTimes(1);
-    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), {
-      tags: { subsystem: 'alerting' },
+    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), undefined, {
+      subsystem: 'alerting',
     });
     // Not just "called with an Error" — the SAME error that was thrown, not a
     // placeholder constructed independently of it.
@@ -348,8 +350,8 @@ describe('safe wrappers', () => {
     expect(errorSpy).toHaveBeenCalled();
 
     expect(captureSpy).toHaveBeenCalledTimes(1);
-    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), {
-      tags: { subsystem: 'alerting' },
+    expect(captureSpy).toHaveBeenCalledWith(expect.any(Error), undefined, {
+      subsystem: 'alerting',
     });
     expect(captureSpy.mock.calls[0][0].message).toBe('database exploded');
 

@@ -61,16 +61,24 @@ export async function initSentry(): Promise<boolean> {
 }
 
 /**
- * Capture an exception to Sentry
+ * Capture an exception to Sentry.
+ *
+ * `context` lands under Sentry's "Additional Data" (`extra`) — searchable but not filterable.
+ * `tags` are indexed, filterable facets (Sentry's Tags panel / issue search). Pass a coarse
+ * classifier like `{ subsystem: 'alerting' }` as `tags`, not folded into `context` — nesting it
+ * under `extra` (e.g. `captureException(err, { tags: {...} })`) does NOT make it a real tag, it
+ * just produces a literal `tags` key inside Additional Data.
  */
 export function captureException(
   error: Error,
-  context?: Record<string, unknown>
+  context?: Record<string, unknown>,
+  tags?: Record<string, string>
 ): string | undefined {
   if (!Sentry || !sentryInitialized) return undefined;
 
   return Sentry.captureException(error, {
     extra: context,
+    ...(tags ? { tags } : {}),
   });
 }
 
