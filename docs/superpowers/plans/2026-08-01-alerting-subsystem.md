@@ -8112,7 +8112,13 @@ and inside the desktop and mobile item renderers:
 
 ```tsx
   {item.href === '/alerts' && openAlertCount > 0 && (
-    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground">
+    <span
+      // Without this a screen reader announces the link as "Alerts 5" — a bare
+      // number with no unit. The badge's whole job is to signal an operational
+      // state, which it cannot do if part of your users can't parse it.
+      aria-label={`${openAlertCount} open alerts`}
+      className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground"
+    >
       {openAlertCount}
     </span>
   )}
