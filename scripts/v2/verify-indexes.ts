@@ -102,7 +102,17 @@ async function main() {
   }
 
   console.log('Connecting to MongoDB...');
-  await mongoose.connect(uri);
+  // autoIndex: false is required, not optional. This script imports every v2
+  // model to register their schemas (see the imports above), and Mongoose's
+  // default is to auto-build any index declared on a schema as soon as the
+  // connection opens. AlertV2's dedup index has no explicit name, so Mongoose
+  // would build it under an auto-generated name (rule_id_1_device_id_1)
+  // alongside whatever is already on disk. checkIndexExists is name-agnostic —
+  // it asks "does *some* index satisfy this shape" — so a correctly-shaped index
+  // this connection just created would make a broken, differently-named
+  // rule_device_open_unique read as verified. A verification script must observe
+  // the database as it actually is, not as connecting to it would leave it.
+  await mongoose.connect(uri, { autoIndex: false });
   console.log('Connected successfully\n');
 
   // ---- DeviceV2 Indexes ----
