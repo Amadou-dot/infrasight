@@ -8,8 +8,15 @@
  * without a second state store, it raises no notification, and it is deleted
  * rather than resolved when the condition clears.
  *
- * Deliberately NOT cached. The list changes on every ingest and is already pushed
- * over Pusher; a cache-aside layer would add staleness in exchange for nothing.
+ * Deliberately NOT cached. The set changes whenever the evaluator fires or
+ * resolves an episode — i.e. on every ingest, see lib/alerting/index.ts — and,
+ * unlike alert-rules (which calls `invalidateAlertRules()` on every mutation),
+ * no invalidation hook is wired to those writes. A cache-aside layer here would
+ * mean stale results for an operator actively triaging what is currently
+ * firing. Nothing publishes alerts over Pusher yet either: both
+ * `safeEvaluateReadings()` call sites (readings/ingest, cron/simulate) discard
+ * its result after logging it. Real-time delivery is Task 13/14's job, not
+ * this endpoint's.
  */
 
 import type { NextRequest } from 'next/server';
@@ -93,7 +100,12 @@ export async function GET(request: NextRequest) {
     const sort: Record<string, 1 | -1> = { [sortField]: query.sortDirection === 'asc' ? 1 : -1 };
 
     const [alerts, total] = await Promise.all([
-      AlertV2.find(filter).sort(sort).skip(pagination.skip).limit(pagination.limit).lean(),
+      AlertV2.find(filter)
+        .select('-__v')
+        .sort(sort)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .lean(),
       AlertV2.countDocuments(filter),
     ]);
 

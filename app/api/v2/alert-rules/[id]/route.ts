@@ -54,7 +54,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const rule = await AlertRuleV2.findOne({
       _id: id,
       'audit.deleted_at': { $exists: false },
-    }).lean();
+    })
+      .select('-__v')
+      .lean();
 
     if (!rule)
       throw new ApiError(ErrorCodes.ALERT_RULE_NOT_FOUND, 404, `Alert rule '${id}' not found`);
@@ -103,7 +105,9 @@ async function handleUpdateAlertRule(
         },
       },
       { new: true, runValidators: true }
-    ).lean();
+    )
+      .select('-__v')
+      .lean();
 
     if (!updated)
       throw new ApiError(ErrorCodes.ALERT_RULE_NOT_FOUND, 404, `Alert rule '${id}' not found`);

@@ -113,6 +113,18 @@ describe('Alerts API Integration Tests', () => {
       expect(response.status).toBe(400);
     });
 
+    // __v is Mongoose's internal version key. It is not part of AlertV2Response
+    // (types/v2/alert.types.ts) and must never reach a client.
+    it('should not expose the internal __v field', async () => {
+      await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+      const response = await listAlerts(createMockGetRequest('/api/v2/alerts'));
+      const body = await parseResponse<{ data: Array<Record<string, unknown>> }>(response);
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]).not.toHaveProperty('__v');
+    });
+
     it('should allow a member to read', async () => {
       mockAuthAsMember();
       await AlertV2.create(createAlertInput({ status: 'firing' }));
@@ -243,6 +255,18 @@ describe('Alerts API Integration Tests', () => {
       expect(body.data._id).toBe(String(alert._id));
     });
 
+    it('should not expose the internal __v field', async () => {
+      const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+      const response = await getAlert(
+        createMockGetRequest(`/api/v2/alerts/${alert._id}`),
+        { params: params(String(alert._id)) }
+      );
+      const body = await parseResponse<{ data: Record<string, unknown> }>(response);
+
+      expect(body.data).not.toHaveProperty('__v');
+    });
+
     it('should include device details when requested', async () => {
       await DeviceV2.create(createDeviceInput({ _id: 'device_detail' }));
       const alert = await AlertV2.create(
@@ -324,6 +348,18 @@ describe('Alerts API Integration Tests', () => {
       expect(body.data.is_open).toBe(false);
       expect(body.data.audit.resolution).toBe('manual');
       expect(body.data.audit.note).toBe('Swapped sensor');
+    });
+
+    it('should not expose the internal __v field on the updated alert', async () => {
+      const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+      const response = await PATCH(
+        createMockPatchRequest(`/api/v2/alerts/${alert._id}`, { status: 'acknowledged' }),
+        { params: params(String(alert._id)) }
+      );
+      const body = await parseResponse<{ data: Record<string, unknown> }>(response);
+
+      expect(body.data).not.toHaveProperty('__v');
     });
 
     it('should return 422 ALERT_ALREADY_ACKNOWLEDGED', async () => {

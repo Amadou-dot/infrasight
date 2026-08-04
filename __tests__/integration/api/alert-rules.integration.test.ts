@@ -85,6 +85,18 @@ describe('Alert Rules API Integration Tests', () => {
       const response = await listRules(get('/api/v2/alert-rules'));
       expect(response.status).toBe(200);
     });
+
+    // __v is Mongoose's internal version key. It is not part of
+    // AlertRuleV2Response (types/v2/alert.types.ts) and must never reach a client.
+    it('should not expose the internal __v field', async () => {
+      await AlertRuleV2.create(createAlertRuleInput());
+
+      const response = await listRules(get('/api/v2/alert-rules'));
+      const body = await parseResponse<{ data: Array<Record<string, unknown>> }>(response);
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]).not.toHaveProperty('__v');
+    });
   });
 
   describe('POST /api/v2/alert-rules', () => {
@@ -135,6 +147,14 @@ describe('Alert Rules API Integration Tests', () => {
       expect(response.status).toBe(403);
       expect(await AlertRuleV2.countDocuments({})).toBe(0);
     });
+
+    it('should not expose the internal __v field', async () => {
+      const response = await POST(withBody('/api/v2/alert-rules', 'POST', VALID_BODY));
+      const body = await parseResponse<{ data: Record<string, unknown> }>(response);
+
+      expect(response.status).toBe(201);
+      expect(body.data).not.toHaveProperty('__v');
+    });
   });
 
   describe('GET /api/v2/alert-rules/[id]', () => {
@@ -170,6 +190,17 @@ describe('Alert Rules API Integration Tests', () => {
       expect(response.status).toBe(404);
       expect(body.error.code).toBe('ALERT_RULE_NOT_FOUND');
     });
+
+    it('should not expose the internal __v field', async () => {
+      const rule = await AlertRuleV2.create(createAlertRuleInput());
+
+      const response = await getRule(get(`/api/v2/alert-rules/${rule._id}`), {
+        params: params(String(rule._id)),
+      });
+      const body = await parseResponse<{ data: Record<string, unknown> }>(response);
+
+      expect(body.data).not.toHaveProperty('__v');
+    });
   });
 
   describe('PATCH /api/v2/alert-rules/[id]', () => {
@@ -202,6 +233,18 @@ describe('Alert Rules API Integration Tests', () => {
 
       expect(response.status).toBe(200);
       expect(body.data.threshold).toBe(45);
+    });
+
+    it('should not expose the internal __v field', async () => {
+      const rule = await AlertRuleV2.create(createAlertRuleInput());
+
+      const response = await PATCH(
+        withBody(`/api/v2/alert-rules/${rule._id}`, 'PATCH', { enabled: false }),
+        { params: params(String(rule._id)) }
+      );
+      const body = await parseResponse<{ data: Record<string, unknown> }>(response);
+
+      expect(body.data).not.toHaveProperty('__v');
     });
 
     it('should invalidate the alert rules cache on update', async () => {
