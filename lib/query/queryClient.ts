@@ -58,4 +58,14 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) => ['schedules', 'list', filters] as const,
     detail: (id: string) => ['schedules', 'detail', id] as const,
   },
+  alerts: {
+    all: ['alerts'] as const,
+    list: (filters?: Record<string, unknown>) => ['alerts', 'list', filters] as const,
+    detail: (id: string) => ['alerts', 'detail', id] as const,
+  },
+  alertRules: {
+    all: ['alert-rules'] as const,
+    list: (filters?: Record<string, unknown>) => ['alert-rules', 'list', filters] as const,
+    detail: (id: string) => ['alert-rules', 'detail', id] as const,
+  },
 } as const;

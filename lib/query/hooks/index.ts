@@ -5,3 +5,5 @@ export * from './useAnomalies';
 export * from './useMetadata';
 export * from './useEnergyAnalytics';
 export * from './useSchedules';
+export * from './useAlerts';
+export * from './useAlertRules';

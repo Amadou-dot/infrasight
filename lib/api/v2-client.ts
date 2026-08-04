@@ -27,6 +27,12 @@ import type {
   CreateScheduleInput,
   UpdateScheduleInput,
   BulkCreateScheduleResponse,
+  AlertV2Response,
+  AlertRuleV2Response,
+  ListAlertsQueryParams,
+  ListAlertRulesQueryParams,
+  CreateAlertRuleBody,
+  UpdateAlertRuleBody,
 } from '@/types/v2';
 
 // ============================================================================
@@ -823,6 +829,87 @@ export const reportsApi = {
 };
 
 // ============================================================================
+// ALERTS API
+// ============================================================================
+
+export const alertsApi = {
+  /**
+   * List alerts. Defaults server-side to open alerts (firing + acknowledged);
+   * `pending` is internal and is never returned.
+   */
+  async list(query: ListAlertsQueryParams = {}): Promise<PaginatedResponse<AlertV2Response>> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    return apiCall(`/api/v2/alerts${queryString}`);
+  },
+
+  async getById(
+    id: string,
+    options: { include_device?: boolean } = {}
+  ): Promise<ApiSuccessResponse<AlertV2Response>> {
+    const queryString = buildQueryString(options as Record<string, unknown>);
+    return apiCall(`/api/v2/alerts/${id}${queryString}`);
+  },
+
+  async acknowledge(id: string, note?: string): Promise<ApiSuccessResponse<AlertV2Response>> {
+    return apiCall(`/api/v2/alerts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'acknowledged', ...(note ? { note } : {}) }),
+    });
+  },
+
+  async resolve(id: string, note?: string): Promise<ApiSuccessResponse<AlertV2Response>> {
+    return apiCall(`/api/v2/alerts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'resolved', ...(note ? { note } : {}) }),
+    });
+  },
+};
+
+// ============================================================================
+// ALERT RULES API
+// ============================================================================
+
+export const alertRulesApi = {
+  async list(
+    query: ListAlertRulesQueryParams = {}
+  ): Promise<PaginatedResponse<AlertRuleV2Response>> {
+    const queryString = buildQueryString(query as Record<string, unknown>);
+    return apiCall(`/api/v2/alert-rules${queryString}`);
+  },
+
+  async getById(id: string): Promise<ApiSuccessResponse<AlertRuleV2Response>> {
+    return apiCall(`/api/v2/alert-rules/${id}`);
+  },
+
+  async create(data: CreateAlertRuleBody): Promise<ApiSuccessResponse<AlertRuleV2Response>> {
+    return apiCall('/api/v2/alert-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(
+    id: string,
+    data: UpdateAlertRuleBody
+  ): Promise<ApiSuccessResponse<AlertRuleV2Response>> {
+    return apiCall(`/api/v2/alert-rules/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(
+    id: string
+  ): Promise<ApiSuccessResponse<{ _id: string; deleted: boolean; deleted_at?: string }>> {
+    return apiCall(`/api/v2/alert-rules/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -837,6 +924,8 @@ export const v2Api = {
   audit: auditApi,
   reports: reportsApi,
   schedules: schedulesApi,
+  alerts: alertsApi,
+  alertRules: alertRulesApi,
 };
 
 export default v2Api;
