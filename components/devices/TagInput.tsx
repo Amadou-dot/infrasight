@@ -14,6 +14,8 @@ interface TagInputProps {
   maxTags?: number;
   className?: string;
   disabled?: boolean;
+  /** Forwarded to the underlying text input so a `<Label htmlFor>` can target it. */
+  id?: string;
 }
 
 export function TagInput({
@@ -23,6 +25,7 @@ export function TagInput({
   maxTags = 20,
   className,
   disabled = false,
+  id,
 }: TagInputProps) {
   const [inputValue, setInputValue] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -57,6 +60,7 @@ export function TagInput({
       <div className="flex gap-2">
         <Input
           ref={inputRef}
+          id={id}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}

@@ -10,6 +10,19 @@ import '@testing-library/jest-dom';
 // Set test timeout
 jest.setTimeout(15000);
 
+// jsdom does not implement ResizeObserver. @radix-ui/react-use-size (used by
+// Checkbox, Switch, and other Radix primitives to measure themselves) calls
+// it unconditionally in a layout effect, so any test that renders one of
+// those primitives crashes with "ResizeObserver is not defined" without this
+// stub. No test exercised a Radix Checkbox before CreateAlertRuleModal.test.tsx,
+// which is why this gap wasn't hit earlier.
+if (typeof global.ResizeObserver === 'undefined') 
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+
 // Mock Clerk auth for component tests
 jest.mock('@clerk/nextjs/server', () => ({
   auth: jest.fn().mockResolvedValue({

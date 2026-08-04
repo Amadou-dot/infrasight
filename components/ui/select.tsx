@@ -24,6 +24,8 @@ export interface SelectProps {
   className?: string;
   /** Size variant */
   size?: 'sm' | 'md';
+  /** Forwarded to the trigger button so a `<Label htmlFor>` can target it. */
+  id?: string;
 }
 
 // ============================================================================
@@ -39,6 +41,7 @@ export function Select({
   disabled = false,
   className,
   size = 'sm',
+  id,
 }: SelectProps) {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -80,6 +83,7 @@ export function Select({
       {/* Trigger Button */}
       <button
         type="button"
+        id={id}
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
         aria-haspopup="listbox"
