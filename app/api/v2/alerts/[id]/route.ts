@@ -34,6 +34,7 @@ import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { requireAdmin, requireOrgMembership, getAuditUser } from '@/lib/auth';
 import { logger, recordRequest, createRequestTimer, recordAlert } from '@/lib/monitoring';
+import { publishAlertEvents } from '@/lib/alerting';
 
 // ============================================================================
 // GET /api/v2/alerts/[id]
@@ -184,6 +185,23 @@ async function handleUpdateAlert(
     }
 
     if (status === 'resolved') recordAlert('resolved', { resolution: 'manual' });
+    if (status === 'resolved')
+      await publishAlertEvents(
+        [],
+        [
+          {
+            _id: String(updated._id),
+            rule_id: String(updated.rule_id),
+            device_id: updated.device_id,
+            severity: updated.severity,
+            resolution: 'manual',
+            resolved_at: new Date().toISOString(),
+            // The Clerk USER ID, never getAuditUser's email — this payload
+            // reaches every connected client, including anonymous demo visitors.
+            actor: userId,
+          },
+        ]
+      );
 
     const duration = timer.elapsed();
     recordRequest('PATCH', '/api/v2/alerts/[id]', 200, duration);

@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server';
 import { Types } from 'mongoose';
 import AlertV2 from '@/models/v2/AlertV2';
 import DeviceV2 from '@/models/v2/DeviceV2';
+import * as alerting from '@/lib/alerting';
 import { createAlertInput, createDeviceInput, resetCounters } from '../../setup/factories';
 import { mockAuthAsAdmin, mockAuthAsMember, mockAuthAsUnauthenticated } from '../../setup/auth-helpers';
 
@@ -519,6 +520,22 @@ describe('Alerts API Integration Tests', () => {
       expect(body.data.is_open).toBe(false);
       expect(body.data.audit.resolution).toBe('manual');
       expect(body.data.audit.note).toBe('Swapped sensor');
+    });
+
+    it('should broadcast a manual resolution with the user id, never an email', async () => {
+      const spy = jest.spyOn(alerting, 'publishAlertEvents').mockResolvedValue(undefined);
+      const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+      await PATCH(
+        createMockPatchRequest(`/api/v2/alerts/${alert._id}`, { status: 'resolved' }),
+        { params: params(String(alert._id)) }
+      );
+
+      const [, resolvedArg] = spy.mock.calls[0];
+      expect(resolvedArg[0].actor).toBe('user_test_admin');
+      expect(resolvedArg[0].actor).not.toContain('@');
+
+      spy.mockRestore();
     });
 
     it('should not expose the internal __v field on the updated alert', async () => {

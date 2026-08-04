@@ -18,6 +18,7 @@
 
 import { logger, recordAlert, captureException } from '@/lib/monitoring';
 import { evaluateReadings } from './evaluate';
+import { publishAlertEvents } from './notify';
 import { sweepStaleAlerts, type SweepResult } from './sweep';
 import { emptyEvaluationResult, type EvaluableDevice, type EvaluableReading, type EvaluationResult } from './types';
 
@@ -25,6 +26,7 @@ export { evaluateReadings } from './evaluate';
 export { sweepStaleAlerts, STALE_AFTER_SECONDS, type SweepResult } from './sweep';
 export { matchesSelector, compare, METRIC_ACCESSORS } from './selector';
 export { getRuleBuckets, loadActiveRules, buildRuleBuckets } from './rule-cache';
+export { publishAlertEvents, ALERT_EVENT_NAME, ALERT_EVENT_MAX, ALERT_EVENT_MAX_BYTES } from './notify';
 export type { EvaluableDevice, EvaluableReading, EvaluationResult, CachedAlertRule } from './types';
 
 /**
@@ -58,7 +60,9 @@ export async function safeEvaluateReadings(
   devices: EvaluableDevice[]
 ): Promise<EvaluationResult> {
   try {
-    return await evaluateReadings(readings, devices);
+    const result = await evaluateReadings(readings, devices);
+    await publishAlertEvents(result.fired, result.resolved);
+    return result;
   } catch (error) {
     recordAlert('evaluation_error');
     logger.error('Alert evaluation failed after a committed write', {
@@ -76,7 +80,9 @@ export async function safeSweepStaleAlerts(
   reportingDeviceIds: Set<string>
 ): Promise<SweepResult> {
   try {
-    return await sweepStaleAlerts(reportingDeviceIds);
+    const result = await sweepStaleAlerts(reportingDeviceIds);
+    await publishAlertEvents([], result.resolved);
+    return result;
   } catch (error) {
     recordAlert('evaluation_error');
     logger.error('Alert staleness sweep failed', {
