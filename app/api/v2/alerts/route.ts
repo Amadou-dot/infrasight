@@ -45,6 +45,17 @@ const SORT_FIELD_MAP: Record<string, string> = {
   last_observed_at: 'last_observed_at',
 };
 
+/** Urgency rank. Mongo sorts the raw string lexically, which puts `critical` last. */
+const SEVERITY_RANK = {
+  $switch: {
+    branches: [
+      { case: { $eq: ['$severity', 'critical'] }, then: 3 },
+      { case: { $eq: ['$severity', 'warning'] }, then: 2 },
+    ],
+    default: 1, // info
+  },
+};
+
 export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
@@ -99,15 +110,27 @@ export async function GET(request: NextRequest) {
     const sortField = SORT_FIELD_MAP[query.sortBy ?? 'created_at'] ?? 'audit.created_at';
     const sort: Record<string, 1 | -1> = { [sortField]: query.sortDirection === 'asc' ? 1 : -1 };
 
-    const [alerts, total] = await Promise.all([
-      AlertV2.find(filter)
-        .select('-__v')
-        .sort(sort)
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .lean(),
-      AlertV2.countDocuments(filter),
-    ]);
+    const direction: 1 | -1 = query.sortDirection === 'asc' ? 1 : -1;
+
+    const alertsQuery =
+      query.sortBy === 'severity'
+        ? AlertV2.aggregate([
+            { $match: filter },
+            { $addFields: { _severity_rank: SEVERITY_RANK } },
+            // fired_at breaks ties so paging is stable within a severity band.
+            { $sort: { _severity_rank: direction, fired_at: -1 } },
+            { $skip: pagination.skip },
+            { $limit: pagination.limit },
+            { $project: { __v: 0, _severity_rank: 0 } },
+          ])
+        : AlertV2.find(filter)
+            .select('-__v')
+            .sort(sort)
+            .skip(pagination.skip)
+            .limit(pagination.limit)
+            .lean();
+
+    const [alerts, total] = await Promise.all([alertsQuery, AlertV2.countDocuments(filter)]);
 
     const paginationInfo = calculateOffsetPagination(total, pagination.page, pagination.limit);
 
