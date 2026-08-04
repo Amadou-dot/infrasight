@@ -2,6 +2,7 @@
  * Alert Evaluation Tests
  */
 
+import { Types } from 'mongoose';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
 import { evaluateReadings, extractWriteErrors } from '@/lib/alerting/evaluate';
@@ -229,6 +230,28 @@ describe('evaluateReadings', () => {
 
     expect(result.pendingCleared).toBe(1);
     expect(await AlertV2.countDocuments({})).toBe(0);
+  });
+
+  // The deleteOne for a cleared pending episode (unlike every update op around
+  // it) carries no last_observed_at guard of its own — the ONLY protection on
+  // that path is the out-of-order check earlier in the loop that skips a pair
+  // whose incoming observation is not newer than what is already stored. A
+  // reading that arrives late (e.g. retried, replayed, or reordered in
+  // transit) must not be able to destroy a live pending episode just because
+  // it happens to be non-breaching.
+  it('should not delete a live pending episode when a stale non-breaching reading arrives out of order', async () => {
+    await seedRule({ for_duration_seconds: 600 });
+    const late = new Date('2026-08-01T12:10:00.000Z');
+    const stale = new Date('2026-08-01T12:00:00.000Z'); // earlier than `late`
+
+    await evaluateReadings([reading(35, late)], [DEVICE]); // opens pending, last_observed_at = 12:10
+    const result = await evaluateReadings([reading(20, stale)], [DEVICE]); // stale non-breach, arrives late
+
+    expect(result.pendingCleared).toBe(0);
+    expect(await AlertV2.countDocuments({ status: 'pending' })).toBe(1);
+
+    const stored = await AlertV2.findOne({}).lean();
+    expect(new Date(stored!.last_observed_at).toISOString()).toBe(late.toISOString());
   });
 
   it('should auto-resolve a firing alert when the condition clears', async () => {
@@ -624,6 +647,54 @@ describe('evaluateReadings', () => {
     bulkSpy.mockRestore();
   });
 
+  // The module's central cost claim (evaluate.ts:6-13): the number of AlertV2
+  // round trips does not scale with batch size. Both phases below are FRESH
+  // inserts against disjoint device ids — no existing episode, and
+  // cooldown_seconds: 0 from seedRule()'s defaults — so both take the exact
+  // same query shape: one `find` for openEpisodes, no cooldown lookback (
+  // maxCooldownSeconds stays 0), and no write-confirmation reconciliation
+  // query (insertOne notifications are confirmed via failedIndices, which
+  // costs nothing extra — only a guarded updateOne needs the follow-up
+  // `find`). What is asserted is that the two counts are EQUAL to each
+  // other, not that either equals some specific number: the post-Task-2
+  // reconciliation query changed the absolute count without breaking the
+  // constant-per-batch-size invariant this test is about.
+  it('should keep the AlertV2.find call count constant regardless of batch size', async () => {
+    await seedRule({ selector: { types: ['temperature'] } });
+
+    const findSpy = jest.spyOn(AlertV2, 'find');
+
+    await evaluateReadings([reading(35, new Date())], [DEVICE]);
+    const smallBatchCalls = findSpy.mock.calls.length;
+    findSpy.mockClear();
+
+    const devices = Array.from({ length: 50 }, (_, i) => ({
+      ...DEVICE,
+      _id: `device_bulk_${String(i).padStart(3, '0')}`,
+    })) as EvaluableDevice[];
+    const now = new Date();
+    const readings: EvaluableReading[] = [];
+    // 10 readings per device (500 total), all breaching, at distinct
+    // timestamps within the batch — exercises the same per-pair reduction as
+    // a real high-volume ingest, not just "50 pairs of 1 reading each".
+    for (const d of devices)
+      for (let j = 0; j < 10; j++) {
+        const r = reading(35 + (j % 5), new Date(now.getTime() + j * 1000));
+        (r.metadata as { device_id: string }).device_id = String(d._id);
+        readings.push(r);
+      }
+    expect(readings).toHaveLength(500);
+
+    const result = await evaluateReadings(readings, devices);
+    const largeBatchCalls = findSpy.mock.calls.length;
+
+    expect(result.fired).toHaveLength(50); // sanity: the batch actually reduced to 50 pairs
+    expect(smallBatchCalls).toBeGreaterThan(0); // sanity: the spy actually observed calls
+    expect(largeBatchCalls).toBe(smallBatchCalls);
+
+    findSpy.mockRestore();
+  });
+
   describe('per-rule error boundary', () => {
     it('should skip a rule with an unknown metric and still fire the valid rule', async () => {
       await seedRawRule({ name: 'Bad metric rule', metric: 'not_a_real_metric' });
@@ -714,6 +785,55 @@ describe('evaluateReadings', () => {
       );
 
       errorSpy.mockRestore();
+    });
+  });
+
+  describe('index-enforced dedup', () => {
+    // evaluate.test.ts's other "should not open a second episode" coverage
+    // (see above) only proves the in-memory `openByPair` map works WITHIN one
+    // call — it is rebuilt fresh on every invocation and cannot see a write a
+    // different, concurrent call has not committed yet. What actually keeps
+    // two INDEPENDENT calls from opening two open episodes for the same
+    // (rule, device) pair is MongoDB's partial unique index
+    // (models/v2/AlertV2.ts) — see rule-cache.ts:24-32 for the failure mode
+    // this guards: a rule_id written as a string rather than an ObjectId
+    // would silently stop colliding with itself under that index.
+    it("should let the partial unique index — not the in-memory map — dedupe two concurrent evaluateReadings calls", async () => {
+      await AlertV2.init(); // the partial unique index must exist to be exercised
+      await seedRule();
+      const t0 = new Date('2026-08-01T12:00:00.000Z');
+
+      // Force the two calls to genuinely race: the "concurrent" call is run
+      // to completion strictly between this run's own `find` (which sees no
+      // existing episode, since neither call has written yet) and its
+      // `bulkWrite` (which is about to insert one). Spying on bulkWrite is
+      // the only hook with that timing — the same technique used throughout
+      // this file for the other read/write races. The nested call's OWN
+      // bulkWrite is NOT intercepted: mockImplementationOnce's queue is
+      // already consumed by THIS invocation, so it falls through to the real
+      // implementation automatically.
+      const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+      const bulkWriteSpy = jest
+        .spyOn(AlertV2, 'bulkWrite')
+        .mockImplementationOnce(async (writes, options) => {
+          const nested = await evaluateReadings([reading(35, t0)], [DEVICE]);
+          expect(nested.fired).toHaveLength(1); // the "other request" that wins the race
+          return realBulkWrite(writes, options);
+        });
+
+      const result = await evaluateReadings([reading(35, t0)], [DEVICE]);
+
+      // The two assertions the brief calls for, checked first so a mutation
+      // that breaks either one is never masked by the supporting checks below.
+      expect(await AlertV2.countDocuments({ is_open: true })).toBe(1);
+      const stored = await AlertV2.findOne({ is_open: true }).lean();
+      expect(stored!.rule_id).toBeInstanceOf(Types.ObjectId);
+
+      // Supporting detail: this run's own insert lost the race (E11000,
+      // absorbed) — its notification must not have landed either.
+      expect(result.fired).toHaveLength(0);
+
+      bulkWriteSpy.mockRestore();
     });
   });
 });

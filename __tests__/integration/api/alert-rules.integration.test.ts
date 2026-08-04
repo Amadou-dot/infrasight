@@ -86,6 +86,36 @@ describe('Alert Rules API Integration Tests', () => {
       expect(response.status).toBe(200);
     });
 
+    // Proves sortBy is actually wired to SORT_FIELD_MAP rather than silently
+    // falling back to the default (audit.created_at desc). audit.created_at
+    // order (oldest -> newest) is Charlie, Alpha, Bravo — chosen so neither
+    // the created_at-asc order [Charlie, Alpha, Bravo] nor the created_at-desc
+    // order [Bravo, Alpha, Charlie] coincidentally matches the expected
+    // name-asc order [Alpha, Bravo, Charlie]. A collapsed SORT_FIELD_MAP
+    // would fall back to created_at desc and fail this assertion.
+    it('should sort by name, not silently fall back to created_at', async () => {
+      const t1 = new Date('2026-01-01T08:00:00.000Z');
+      const t2 = new Date('2026-01-01T09:00:00.000Z');
+      const t3 = new Date('2026-01-01T10:00:00.000Z');
+      const auditAt = (created_at: Date) => ({
+        created_at,
+        created_by: 'test@example.com',
+        updated_at: created_at,
+        updated_by: 'test@example.com',
+      });
+
+      await AlertRuleV2.create(createAlertRuleInput({ name: 'Charlie', audit: auditAt(t1) }));
+      await AlertRuleV2.create(createAlertRuleInput({ name: 'Alpha', audit: auditAt(t2) }));
+      await AlertRuleV2.create(createAlertRuleInput({ name: 'Bravo', audit: auditAt(t3) }));
+
+      const response = await listRules(
+        get('/api/v2/alert-rules', { sortBy: 'name', sortDirection: 'asc' })
+      );
+      const body = await parseResponse<{ data: Array<{ name: string }> }>(response);
+
+      expect(body.data.map(r => r.name)).toEqual(['Alpha', 'Bravo', 'Charlie']);
+    });
+
     // __v is Mongoose's internal version key. It is not part of
     // AlertRuleV2Response (types/v2/alert.types.ts) and must never reach a client.
     it('should not expose the internal __v field', async () => {

@@ -58,6 +58,26 @@ describe('sweepStaleAlerts', () => {
     expect(stored!.audit.resolution).toBe('device_inactive');
   });
 
+  // sweep.ts has its own recordAlert('resolved', ...) call site, independent
+  // of evaluate.ts's — evaluate.test.ts asserting alerts_resolved_total on an
+  // auto-resolve does not exercise this one. Nothing elsewhere in the suite
+  // checks that a SWEEP resolve moves the counter, so deleting this call site
+  // alone would break zero tests.
+  it('should increment alerts_resolved_total on a real sweep resolve', async () => {
+    monitoring.resetMetrics();
+    await AlertV2.create(
+      createAlertInput({ device_id: 'device_gone', status: 'firing', last_observed_at: minutesAgo(1) })
+    );
+
+    const result = await sweepStaleAlerts(new Set(['device_001']));
+
+    expect(result.resolved).toHaveLength(1);
+    const snapshot = monitoring.getMetricsSnapshot();
+    const alerts = snapshot.alerts as Record<string, unknown>;
+    const resolvedCounts = alerts.resolved as Record<string, number>;
+    expect(resolvedCounts.device_inactive).toBe(1);
+  });
+
   it('should resolve a firing alert that has gone stale', async () => {
     await AlertV2.create(
       createAlertInput({ device_id: 'device_001', status: 'firing', last_observed_at: minutesAgo(60) })
