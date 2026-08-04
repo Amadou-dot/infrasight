@@ -8157,7 +8157,7 @@ git commit -m "refactor(ui): rename AlertsPanel to AnomalyPanel and add alerts n
 | --- | --- | --- | --- | --- |
 | High temperature | `value` | `> 30` on `temperature` | 300s | Exercises the `pending → firing` promotion |
 | Power spike | `value` | `> 4000` on `power` | 0s | Fires immediately; the common case |
-| Low battery | `battery_level` | `< 20`, **no `selector.types`** | 0s | The rule that motivates optional `selector.types` — battery is a device property, and a rule that only watched temperature sensors' batteries would be close to useless |
+| Low battery | `battery_level` | `< 25`, **no `selector.types`** | 0s | The rule that motivates optional `selector.types` — battery is a device property, and a rule that only watched temperature sensors' batteries would be close to useless. **25, not 20:** both generators floor `context.battery_level` at exactly 20 (`seed-v2.ts:299`, `lib/simulation/readings.ts:262`), so `lt 20` can never be satisfied and this rule would be dead on arrival |
 | High anomaly score | `anomaly_score` | `>= 0.85`, no `selector.types` | 0s | The single coupling point between alerting and the existing anomaly endpoint |
 
 **Interfaces:**
@@ -8305,13 +8305,18 @@ export function buildAlertRuleSeeds(): AlertRuleSeed[] {
       // No selector.types: battery is a DEVICE property, so a rule that only
       // watched temperature sensors' batteries would be close to useless. This
       // is the rule that motivates making selector.types optional.
+      //
+      // Threshold is 25, not a rounder 20, deliberately: both data generators
+      // floor context.battery_level at exactly 20 (seed-v2.ts:299 and
+      // lib/simulation/readings.ts:262), so `lt 20` can never be satisfied and
+      // this rule would never fire. 25 catches the [20, 24] band.
       name: 'Low battery',
-      description: 'Any device reporting below 20% battery.',
+      description: 'Any device reporting below 25% battery.',
       enabled: true,
       selector: {},
       metric: 'battery_level',
       comparison: 'lt',
-      threshold: 20,
+      threshold: 25,
       for_duration_seconds: 0,
       severity: 'warning',
       cooldown_seconds: 3600,
@@ -8372,6 +8377,25 @@ Also confirm the new module has no import side effects: `npx tsx -e "import('./s
 
 Run: `pnpm seed` (requires a local `MONGODB_URI` in `.env.local`; the script refuses a non-local target without `--force`)
 Expected: 500 devices, readings, and 4 alert rules. Then run `pnpm create-indexes-v2 && pnpm verify-indexes` and confirm the eight new alert indexes are reported present.
+
+**`create-indexes-v2.ts` crashes on a genuinely fresh database — fix it here.** `createCollectionIndexes()`'s first operation, `await collection.indexes()` (`scripts/v2/create-indexes-v2.ts:279`), is unguarded; the `try/catch` only begins inside the loop below it. On a database where no alert has ever fired, `alerts_v2` does not exist, so that call raises `NamespaceNotFound` and aborts the whole script with exit 1 — *after* the devices, readings and rules sections have already succeeded. The script imports no model files, so nothing in it can auto-create the collection: **the crash is deterministic, not a race.** Because the documented recipe is `&&`-chained, `verify-indexes` never runs, and re-running the identical command fails identically forever.
+
+Guard it so a missing collection means "zero existing indexes":
+
+```typescript
+let existing: { name?: string }[] = [];
+try {
+  existing = await collection.indexes();
+} catch (error) {
+  // NamespaceNotFound (26): the collection has never been created, which is the
+  // normal state of a fresh database. Zero existing indexes, not a failure.
+  if ((error as { code?: number }).code !== 26) throw error;
+}
+```
+
+Then prove it: drop `alerts_v2`, run the bare `&&` chain once, and confirm it completes with all eight alert indexes present. That command is a Definition of Done line, so its literal form must pass.
+
+**Seeding rules does not populate `/alerts`.** Neither `pnpm seed` nor `scripts/v2/simulate.ts` triggers evaluation — both insert through raw `ReadingV2.insertMany` and bypass the API routes, which are the only place `evaluateReadings` is called. Alerts appear only after authenticated `GET /api/v2/cron/simulate` requests. Keep the seed module's comments honest about that.
 
 - [ ] **Step 6: Commit**
 
