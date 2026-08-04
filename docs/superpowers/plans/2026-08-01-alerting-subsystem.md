@@ -33,14 +33,17 @@ Every task's requirements implicitly include this section.
 - **Alerts are never cached.** Deliberate departure from the other v2 read endpoints.
 - **Alerting is not a backfill engine.** A batch is reduced to one aggregate decision per (rule, device) pair; a breach→clear→breach batch yields one episode.
 - **Tests:** `pnpm test <path>` runs Jest. Node tests match `**/__tests__/**/*.test.ts`; component tests match `**/__tests__/**/*.test.tsx` (jsdom project). Clerk is globally mocked as `org:admin` in `__tests__/setup/jest.setup.ts`; override per-test with helpers from `__tests__/setup/auth-helpers.ts`.
-- **`npx tsc --noEmit` is NOT clean on this repo and never has been.** The branch starts with **39 pre-existing errors**, all inside `__tests__/` (`TS2352`/`TS2353` factory-cast noise, `TS2540` read-only `process.env` assignments, `TS18046` unknown-typed catches). Production code is clean; `pnpm test` passes because ts-jest runs with `isolatedModules: true` and does not typecheck. **The gate is "no NEW errors", never "no errors".** Compare against the recorded baseline:
+- **All four gates are STRICT — zero tolerance, no baselines.** `main`'s `chore: fix typecheck and lint failures across the repo` (b43468d) is merged into this branch, so the baseline-diffing `tscheck`/`lintcheck` scripts this plan used through Task 11 are **retired**. Do not run them; do not consult their baseline files. The gates are the raw commands:
 
-  **Wherever this plan says "run `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`", that is the gate.** The script runs `tsc`, diffs the result against the recorded baseline, and exits non-zero only on errors you introduced — printing exactly which ones. Never substitute a bare `npx tsc --noEmit` and never treat its non-zero exit as your failure.
+  | Gate | Command | Required result |
+  | --- | --- | --- |
+  | Types | `npx tsc --noEmit` | **0 errors** |
+  | Lint | `pnpm lint` | **0 problems** |
+  | Build | `pnpm build` | clean |
+  | Tests | `pnpm test` | **2433 passing / 98 suites** (node 2272 + jsdom) |
 
-  **Fixing the 39 baseline errors is out of scope for this plan.** Note that Tasks 1 and 2 modify `__tests__/setup/factories.ts`, which is itself one of the baseline-error files; adding to it is fine as long as `tscheck` stays green.
-- **`pnpm lint` is NOT clean either.** The branch starts with **311 reported problems (308 errors)** — mostly `@typescript-eslint/no-require-imports` (145) and `curly` (116) in existing files. Same rule: the gate is **`./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck`**, which diffs `file|rule` pairs against the recorded baseline and fails only on additions. Never substitute a bare `pnpm lint`. Fixing baseline lint problems is out of scope.
-- **`pnpm build` IS clean at baseline** — a build failure is genuinely yours.
-- **`pnpm test` IS green at baseline: 85 suites, 2173 tests.** A failing pre-existing test is genuinely yours.
+  Any error from any of them is genuinely yours. Note `jest.config.js` defines two projects — `node` (`**/__tests__/**/*.test.ts`) and `jsdom` (`**/__tests__/**/*.test.tsx`) — so a bare `pnpm test` runs both, and a test file's **extension decides its environment**. A React test named `.test.ts` lands in the node project and fails with no DOM.
+- **`pnpm test` counts grow as you go.** The numbers above are the baseline entering Task 12; each task adds to them. A *falling* count means you broke something.
 - **Commit style:** conventional commits (`feat:`, `test:`, `fix:`, `refactor:`, `docs:`). Commit at the end of every task, never mid-task.
 
 ## File Structure
@@ -95,7 +98,7 @@ Every task's requirements implicitly include this section.
 
 **New UI**
 
-`app/alerts/page.tsx`, `app/alerts/[id]/page.tsx`, `app/alerts/rules/page.tsx`, `components/alerts/{AlertSeverityBadge,AlertStatusBadge,AlertList,AlertDetailView,AlertRuleList,CreateAlertRuleModal}.tsx`, `components/dashboard/ActiveAlertsWidget.tsx`, `lib/query/hooks/{useAlerts,useAlertRules}.ts`. `components/AlertsPanel.tsx` is **renamed** to `components/AnomalyPanel.tsx` (it is live at `app/analytics/page.tsx:5,84` — deleting it breaks the build).
+`app/alerts/page.tsx`, `app/alerts/[id]/page.tsx`, `app/alerts/rules/page.tsx`, `components/alerts/{AlertSeverityBadge,AlertStatusBadge,AlertList,AlertDetailView,AlertRuleList,CreateAlertRuleModal}.tsx`, `components/alerts/useAlertFilterParams.ts`, `components/dashboard/ActiveAlertsWidget.tsx`, `lib/query/hooks/{useAlerts,useAlertRules}.ts`. `components/AlertsPanel.tsx` is **renamed** to `components/AnomalyPanel.tsx` (it is live at `app/analytics/page.tsx:5,84` — deleting it breaks the build).
 
 ---
 
@@ -534,8 +537,8 @@ Then register it inside `createIndexes()` alongside the existing collections, fo
 
 - [ ] **Step 6: Verify the scripts still typecheck**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`
-Expected: lint clean; tscheck OK (no NEW type errors — the repo carries 39 pre-existing ones).
+Run: `pnpm lint && npx tsc --noEmit`
+Expected: lint clean; no type errors.
 
 - [ ] **Step 7: Commit**
 
@@ -1226,8 +1229,8 @@ const ALERT_V2_INDEXES: IndexDefinition[] = [
 
 - [ ] **Step 8: Verify everything typechecks and the suite is green**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test __tests__/unit/models`
-Expected: tscheck OK (no NEW type errors); all model tests pass.
+Run: `npx tsc --noEmit && pnpm test __tests__/unit/models`
+Expected: no type errors; all model tests pass.
 
 - [ ] **Step 9: Commit**
 
@@ -2105,8 +2108,8 @@ export type {
 
 - [ ] **Step 10: Verify the whole validation suite and typecheck**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test __tests__/unit/validations`
-Expected: tscheck OK (no NEW type errors); all validation tests pass.
+Run: `npx tsc --noEmit && pnpm test __tests__/unit/validations`
+Expected: no type errors; all validation tests pass.
 
 - [ ] **Step 11: Commit**
 
@@ -4343,7 +4346,7 @@ Expected: PASS.
 
 - [ ] **Step 6: Verify no regression across the whole suite**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test`
+Run: `npx tsc --noEmit && pnpm test`
 Expected: full suite green. Coverage thresholds (`branches 55, functions 55, lines 75, statements 75`) must still hold — if `pnpm test:coverage` drops below them, the alerting modules need the missing branches covered before moving on.
 
 - [ ] **Step 7: Commit**
@@ -5629,7 +5632,7 @@ Expected: PASS, 16 tests.
 
 - [ ] **Step 6: Confirm the v2 surface is now 33 endpoints**
 
-Run: `pnpm test __tests__/integration/api && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`
+Run: `pnpm test __tests__/integration/api && npx tsc --noEmit`
 Expected: all integration suites green. The v2 API has gone from 25 endpoints to 33.
 
 - [ ] **Step 7: Commit**
@@ -5641,16 +5644,18 @@ git commit -m "feat(alerting): add alert rules API with soft delete and cache in
 
 ---
 
-### Task 12: API client and React Query hooks
+### Task 12: API client, React Query hooks, and a correct severity sort
 
 **Files:**
+- Modify: `app/api/v2/alerts/route.ts` (Step 0 — make `sortBy=severity` order by urgency)
+- Modify: `__tests__/integration/api/alerts.integration.test.ts` (Step 0 — replace the test that pins the lexical order)
 - Modify: `lib/api/v2-client.ts`
 - Modify: `lib/query/queryClient.ts`
 - Create: `lib/query/hooks/useAlerts.ts`
 - Create: `lib/query/hooks/useAlertRules.ts`
 - Modify: `lib/query/hooks/index.ts`
 - Test: `__tests__/unit/lib/v2-client-alerts.test.ts`
-- Test: `__tests__/unit/lib/useAlerts.test.ts`
+- Test: `__tests__/unit/lib/useAlerts.test.tsx` — **`.tsx`, not `.ts`** (see Step 6)
 
 **Interfaces:**
 - Consumes: wire types from `@/types/v2` (Task 3); the routes from Tasks 10–11.
@@ -5658,8 +5663,63 @@ git commit -m "feat(alerting): add alert rules API with soft delete and cache in
   - `v2Api.alerts.list(query)`, `.getById(id, options)`, `.acknowledge(id, note?)`, `.resolve(id, note?)`
   - `v2Api.alertRules.list(query)`, `.getById(id)`, `.create(data)`, `.update(id, data)`, `.delete(id)`
   - `queryKeys.alerts.all` / `.list(filters)` / `.detail(id)`; `queryKeys.alertRules.all` / `.list(filters)` / `.detail(id)`
-  - `useAlertsList(filters, config)`, `useAlertDetail(id, options, config)`, `useAcknowledgeAlert()`, `useResolveAlert()`
+  - `useAlertsList(filters, config)`, `useAlertDetail(id, options, config)`, `useOpenAlertCount()`, `useAcknowledgeAlert()`, `useResolveAlert()`
   - `useAlertRulesList(filters, config)`, `useAlertRuleDetail(id, config)`, `useCreateAlertRule()`, `useUpdateAlertRule()`, `useDeleteAlertRule()`
+
+- [ ] **Step 0: Make `sortBy=severity` order by urgency**
+
+`SORT_FIELD_MAP.severity` maps to the raw string field (`app/api/v2/alerts/route.ts:43`), so Mongo sorts it **lexically**: `critical` < `info` < `warning`. Descending — what a caller means by "most severe first" — therefore returns **warning → info → critical**, with critical dead last. Task 18's dashboard widget asks for exactly this sort, and Task 12 is where the client first exposes `sortBy: 'severity'` to callers, so the contract is made true here, before anything depends on it. Human ruling: fix the API rather than work around it in one component.
+
+Keep `.find()` for every other sort field; branch only for `severity`:
+
+```typescript
+/** Urgency rank. Mongo sorts the raw string lexically, which puts `critical` last. */
+const SEVERITY_RANK = {
+  $switch: {
+    branches: [
+      { case: { $eq: ['$severity', 'critical'] }, then: 3 },
+      { case: { $eq: ['$severity', 'warning'] }, then: 2 },
+    ],
+    default: 1, // info
+  },
+};
+```
+
+```typescript
+    const direction: 1 | -1 = query.sortDirection === 'asc' ? 1 : -1;
+
+    const alertsQuery =
+      query.sortBy === 'severity'
+        ? AlertV2.aggregate([
+            { $match: filter },
+            { $addFields: { _severity_rank: SEVERITY_RANK } },
+            // fired_at breaks ties so paging is stable within a severity band.
+            { $sort: { _severity_rank: direction, fired_at: -1 } },
+            { $skip: pagination.skip },
+            { $limit: pagination.limit },
+            { $project: { __v: 0, _severity_rank: 0 } },
+          ])
+        : AlertV2.find(filter)
+            .select('-__v')
+            .sort(sort)
+            .skip(pagination.skip)
+            .limit(pagination.limit)
+            .lean();
+
+    const [alerts, total] = await Promise.all([alertsQuery, AlertV2.countDocuments(filter)]);
+```
+
+`aggregate()` already returns plain objects, so the response shape is identical to the `.lean()` path — no other part of the handler changes.
+
+**Replace the test that pins the old behaviour.** `__tests__/integration/api/alerts.integration.test.ts` has `it('should sort by severity, not silently fall back to created_at')`, whose comment documents the lexical order as "an oddity, not a bug to fix here". It is being fixed here, so update the assertion **and** that comment. Keep the fixture's most valuable property: its three `audit.created_at` values are chosen so a collapsed `SORT_FIELD_MAP` falling back to `created_at` could not coincidentally satisfy the assertion. That still holds after the change —
+
+| Order | Result |
+| --- | --- |
+| severity desc (**the fix**) | `device_crit`, `device_warn`, `device_info` |
+| created_at desc (fallback) | `device_info`, `device_crit`, `device_warn` |
+| created_at asc (fallback) | `device_warn`, `device_crit`, `device_info` |
+
+— so change the expectation to `['device_crit', 'device_warn', 'device_info']` and keep the three distinct timestamps. Add one more case asserting `sortDirection: 'asc'` returns `['device_info', 'device_warn', 'device_crit']`, so the rank is proven to be ordered rather than merely different from lexical.
 
 - [ ] **Step 1: Add the query keys**
 
@@ -5876,11 +5936,19 @@ Expected: PASS, 6 tests.
 
 - [ ] **Step 6: Write the failing hooks test**
 
-Create `__tests__/unit/lib/useAlerts.test.ts`, modelled on the existing `__tests__/unit/lib/useSchedules.test.ts` (copy its `QueryClientProvider` wrapper and `v2Api` mocking style verbatim):
+Create `__tests__/unit/lib/useAlerts.test.tsx`.
+
+**The `.tsx` extension is load-bearing, not cosmetic.** `jest.config.js` routes `**/__tests__/**/*.test.ts` to the **node** project and `**/__tests__/**/*.test.tsx` to the **jsdom** project. `renderHook` needs a DOM, so naming this file `.ts` puts it in node and it fails with no `document`.
+
+Model it on `__tests__/unit/lib/useDeviceDetail.test.tsx` — the repo's precedent for a hook test with a real `QueryClient`. It opens with a `/** @jest-environment jsdom */` docblock; that is redundant once the extension is `.tsx`, but harmless and consistent, so keep it.
+
+Do **not** model this on `__tests__/unit/lib/useSchedules.test.ts`, despite the sibling naming. That file has no `QueryClientProvider` at all — it replaces `@tanstack/react-query` wholesale with a mock that captures the arguments handed to `useQuery`/`useMutation`. That asserts what you passed React Query, not what React Query does with it, and cannot catch a broken `enabled` guard or a mis-wired `onSuccess`. Use a real `QueryClient` here.
 
 ```typescript
 /**
  * useAlerts Hook Tests
+ *
+ * @jest-environment jsdom
  */
 
 import { renderHook, waitFor } from '@testing-library/react';
@@ -5957,6 +6025,38 @@ describe('mutations', () => {
 });
 ```
 
+Add a `useOpenAlertCount` block too. It must assert the two properties that make the hook worth having, or it is only testing React Query:
+
+```typescript
+describe('useOpenAlertCount', () => {
+  it('should read pagination.total, not the row count', async () => {
+    (v2Api.alerts.list as jest.Mock).mockResolvedValue({
+      data: [{ _id: 'a1' }],     // one row...
+      pagination: { total: 143 }, // ...but 143 open alerts
+    });
+
+    const { result } = renderHook(() => useOpenAlertCount(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(143);
+  });
+
+  it('should request a single row rather than a full page', async () => {
+    (v2Api.alerts.list as jest.Mock).mockResolvedValue({
+      data: [],
+      pagination: { total: 0 },
+    });
+
+    const { result } = renderHook(() => useOpenAlertCount(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(v2Api.alerts.list).toHaveBeenCalledWith({ limit: 1 });
+  });
+});
+```
+
+The first case is the one that matters: `data.length` is 1 and `total` is 143, so a hook that counted the array would return 1 and fail. Do not make them equal — that is exactly the shape of test that passes for the wrong reason.
+
 - [ ] **Step 7: Write the hooks**
 
 Create `lib/query/hooks/useAlerts.ts`:
@@ -6004,6 +6104,29 @@ export function useAlertDetail(
       return response.data;
     },
     enabled: !!id,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    ...config,
+  });
+}
+
+/**
+ * Count of open alerts, for the nav badge.
+ *
+ * Reads `pagination.total` off a one-row page rather than counting a fetched
+ * array. Counting `data.length` would be wrong twice over: the API caps `limit`
+ * at 100 (`lib/validations/common.validation.ts:17`), so a real storm would
+ * display a frozen "100"; and TopNav renders on every route, so it would pull
+ * 100 full alert documents on every navigation to render one number.
+ */
+export function useOpenAlertCount(config?: QueryConfig<number>) {
+  return useQuery({
+    queryKey: queryKeys.alerts.list({ count: true }),
+    queryFn: async () => {
+      // No `status` filter — the server defaults to open (firing + acknowledged).
+      const response = await v2Api.alerts.list({ limit: 1 });
+      return response.pagination.total;
+    },
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
     ...config,
@@ -6062,13 +6185,21 @@ export * from './useAlertRules';
 
 - [ ] **Step 8: Run tests to verify they pass**
 
-Run: `pnpm test __tests__/unit/lib/useAlerts.test.ts __tests__/unit/lib/v2-client-alerts.test.ts`
-Expected: PASS.
+Run: `pnpm test __tests__/unit/lib/useAlerts.test.tsx __tests__/unit/lib/v2-client-alerts.test.ts __tests__/integration/api/alerts.integration.test.ts`
+Expected: PASS, including the two rewritten severity-sort cases from Step 0.
+
+Then the full gates: `npx tsc --noEmit && pnpm lint`
+Expected: 0 errors, 0 problems.
 
 - [ ] **Step 9: Commit**
 
+Two commits — the API fix is independently reviewable and independently revertable, and it is the only change here that alters server behaviour:
+
 ```bash
-git add lib/api/v2-client.ts lib/query/queryClient.ts lib/query/hooks/useAlerts.ts lib/query/hooks/useAlertRules.ts lib/query/hooks/index.ts __tests__/unit/lib/v2-client-alerts.test.ts __tests__/unit/lib/useAlerts.test.ts
+git add app/api/v2/alerts/route.ts __tests__/integration/api/alerts.integration.test.ts
+git commit -m "fix(alerting): sort alerts by severity rank, not lexically"
+
+git add lib/api/v2-client.ts lib/query/queryClient.ts lib/query/hooks/useAlerts.ts lib/query/hooks/useAlertRules.ts lib/query/hooks/index.ts __tests__/unit/lib/v2-client-alerts.test.ts __tests__/unit/lib/useAlerts.test.tsx
 git commit -m "feat(alerting): add alerts API client and React Query hooks"
 ```
 
@@ -6081,7 +6212,10 @@ git commit -m "feat(alerting): add alerts API client and React Query hooks"
 **Files:**
 - Create: `lib/alerting/notify.ts`
 - Modify: `lib/alerting/index.ts` (publish from `safeEvaluateReadings` and `safeSweepStaleAlerts`)
+- Modify: `app/api/v2/alerts/[id]/route.ts` (broadcast manual resolutions, Step 5)
+- Modify: `app/api/v2/cron/simulate/route.ts` (broadcast only persisted readings, Step 6)
 - Test: `__tests__/unit/lib/alerting/notify.test.ts`
+- Test: `__tests__/integration/api/alerts.integration.test.ts` (Step 5) and the cron route's integration test (Step 6)
 
 **Interfaces:**
 - Consumes: `FiredAlert`, `ResolvedAlert`, `AlertEvent` from `@/types/v2/alert.types` (Task 3); `pusherServer` from `@/lib/pusher`.
@@ -6401,16 +6535,51 @@ Add this assertion to `__tests__/integration/api/alerts.integration.test.ts`:
 
 with `import * as alerting from '@/lib/alerting';` added to that file.
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [ ] **Step 6: Stop broadcasting readings that never persisted**
 
-Run: `pnpm test __tests__/unit/lib/alerting __tests__/integration/api/alerts.integration.test.ts`
+While this task owns Pusher payload correctness, close the one remaining case on the cron path. `app/api/v2/cron/simulate/route.ts` already captures the persisted subset — `const insertedReadings = await ReadingV2.bulkInsertReadings(newReadings)` — because `bulkInsertReadings` runs `insertMany({ ordered: false })` and silently skips documents that fail validation. Alert evaluation correctly uses `insertedReadings`. **The Pusher trigger still sends `newReadings`**, so a rejected reading is broadcast to every connected client as though it were stored, and the surrounding comment claiming otherwise is false.
+
+```typescript
+    // 3. Trigger Real-time Update (The "Hot" Path). Broadcast only what was
+    //    actually written — a rejected reading must never appear on a client
+    //    tile as though it were stored. toObject() strips the Mongoose
+    //    document wrapper; versionKey: false keeps `__v` out of a payload
+    //    that is already sized against Pusher's 10 KB cap.
+    try {
+      await pusherServer.trigger(
+        'InfraSight',
+        'new-readings',
+        insertedReadings.map(r => r.toObject({ versionKey: false }))
+      );
+    } catch (pusherError) {
+      logger.error('Pusher trigger failed after successful DB write', {
+        error: pusherError instanceof Error ? pusherError.message : String(pusherError),
+        readingsCount: insertedReadings.length,
+      });
+    }
+```
+
+Note `readingsCount` moves to `insertedReadings.length` too — the old value overstated what the failed broadcast would have carried.
+
+Add a case to the cron route's existing integration test asserting that a batch with one rejected reading broadcasts `insertedReadings.length` rows, not `newReadings.length`. Drive the rejection through `bulkInsertReadings` rather than mocking the trigger's argument, or the test proves nothing about the wiring.
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `pnpm test __tests__/unit/lib/alerting __tests__/integration/api`
 Expected: PASS. The existing evaluate and sweep suites must stay green — `publishAlertEvents` is only called from the wrappers, not from `evaluateReadings` itself.
 
-- [ ] **Step 7: Commit**
+Then: `npx tsc --noEmit && pnpm lint` — 0 errors, 0 problems.
+
+- [ ] **Step 8: Commit**
+
+Two commits; the cron payload fix is unrelated to alert delivery and should not be buried in it:
 
 ```bash
 git add lib/alerting/notify.ts lib/alerting/index.ts app/api/v2/alerts/[id]/route.ts __tests__/unit/lib/alerting/notify.test.ts __tests__/integration/api/alerts.integration.test.ts
 git commit -m "feat(alerting): broadcast bounded alert events over Pusher"
+
+git add app/api/v2/cron/simulate/route.ts __tests__/integration/api
+git commit -m "fix(cron): broadcast only the readings that persisted"
 ```
 
 ---
@@ -6667,16 +6836,17 @@ export function usePusherAlerts(callback: AlertsCallback): void {
 
 Also export the `AlertsCallback` type.
 
-**Apply the same change to the existing `usePusherReadings`** so the two sibling hooks in this file stay identical, replacing its bare `callbackRef.current = callback;` with the same commit-phase effect:
+**Do NOT modify the existing `usePusherReadings` — it already has this shape.** An earlier draft of this plan told you to fix it here, because it used to assign the ref during render and that was one of the repo's baseline lint problems (`lib/pusher-context.tsx | react-hooks/refs`). `main`'s b43468d already fixed it. As of this branch, `lib/pusher-context.tsx:105-109` reads:
 
 ```typescript
   const callbackRef = useRef<ReadingsCallback>(callback);
+
   useEffect(() => {
     callbackRef.current = callback;
-  });
+  }, [callback]);
 ```
 
-This is a deliberate, human-approved deviation from "follow the existing shape verbatim": the existing shape is one of the 311 baseline lint problems (`lib/pusher-context.tsx | react-hooks/refs`), so copying it would introduce a *second* instance and fail `lintcheck`. Fixing both removes the violation instead of duplicating it, and `lintcheck` should report **310** problems afterwards rather than 311. The existing `__tests__/unit/lib/*` suites covering `usePusherReadings` must stay green — run them in Step 4.
+So the human ruling that both hooks must be lint-clean is already satisfied for the readings hook. **Copy that shape verbatim for `usePusherAlerts`, including the `[callback]` dependency array** — the code block above for `usePusherAlerts` omits the array, which also lints clean but makes the two sibling hooks gratuitously different. Match the file. `pnpm lint` must report **0** problems afterwards.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -6762,7 +6932,7 @@ Render `<AlertToaster />` once, inside the same provider tree that already hosts
 
 - [ ] **Step 7: Verify the app builds**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm build`
+Run: `npx tsc --noEmit && pnpm build`
 Expected: clean build. A failure mentioning `mongoose` inside a client component means `types/v2/alert.types.ts` picked up a server-only import — it must stay dependency-free.
 
 - [ ] **Step 8: Commit**
@@ -6779,9 +6949,11 @@ git commit -m "feat(alerting): subscribe to alert events and toast on fire"
 **Files:**
 - Create: `components/alerts/AlertSeverityBadge.tsx`
 - Create: `components/alerts/AlertStatusBadge.tsx`
+- Create: `components/alerts/useAlertFilterParams.ts`
 - Create: `components/alerts/AlertList.tsx`
 - Create: `app/alerts/page.tsx`
 - Test: `__tests__/unit/components/AlertBadges.test.tsx`
+- Test: `__tests__/unit/components/useAlertFilterParams.test.tsx`
 
 Badges mirror `components/ScheduleStatusBadge.tsx` exactly: a `Record<T, { label, className, icon }>` config object, `Badge variant="outline"`, `cn()` for class merging, and light/dark class pairs. `AlertList` is modelled on `components/ScheduleList.tsx` — same `Card` shell, same `Select` filters, same `PAGE_SIZE = 10` pagination, same `useRbac()` gating.
 
@@ -6918,7 +7090,6 @@ Concretely:
 ```typescript
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
 import { CheckCircle, Eye, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
@@ -6927,6 +7098,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { AlertSeverityBadge } from './AlertSeverityBadge';
 import { AlertStatusBadge } from './AlertStatusBadge';
+import { useAlertFilterParams } from './useAlertFilterParams';
 import { useAlertsList, useAcknowledgeAlert, useResolveAlert } from '@/lib/query/hooks';
 import { useRbac } from '@/lib/auth/rbac-client';
 import type {
@@ -6977,9 +7149,9 @@ const ADMIN_ONLY_TOOLTIP = 'Admin role required — sign in as an admin to act o
 
 export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClick }: AlertListProps) {
   const { isAdmin } = useRbac();
-  const [status, setStatus] = useState<string>((initialFilters.status as string) ?? 'open');
-  const [severity, setSeverity] = useState<string>((initialFilters.severity as string) ?? 'all');
-  const [page, setPage] = useState(1);
+  // URL is the source of truth — see useAlertFilterParams below.
+  const { status, setStatus, severity, setSeverity, page, setPage } =
+    useAlertFilterParams(initialFilters);
 
   const filters: ListAlertsQueryParams = {
     ...initialFilters,
@@ -7014,22 +7186,18 @@ export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClic
           <CardTitle>Alerts</CardTitle>
           <div className="flex items-center gap-2">
             <Select
-              aria-label="Status"
+              label="Status"
               value={status}
-              onChange={e => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
+              onValueChange={setStatus}
               options={STATUS_OPTIONS}
+              size="sm"
             />
             <Select
-              aria-label="Severity"
+              label="Severity"
               value={severity}
-              onChange={e => {
-                setSeverity(e.target.value);
-                setPage(1);
-              }}
+              onValueChange={setSeverity}
               options={SEVERITY_OPTIONS}
+              size="sm"
             />
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4" />
@@ -7129,7 +7297,32 @@ export function AlertList({ initialFilters = {}, showHeader = true, onDeviceClic
 export default AlertList;
 ```
 
-Check `components/ui/select.tsx`'s actual prop contract before writing this — if it does not take an `options` array, render `<option>` children the way `ScheduleList.tsx` does.
+`Select`'s prop contract has been verified against `components/ui/select.tsx` and is used above exactly as `components/ScheduleList.tsx:183-200` uses it: `{ value, onValueChange: (value: string) => void, options: SelectOption[], label?, size?: 'sm' | 'md' }`. It is **not** a native `<select>` — there is no `onChange`, no `event.target.value`, and no `aria-label` prop. Use `label` for the accessible name.
+
+**Write `components/alerts/useAlertFilterParams.ts` first.** Modelled on `app/devices/_components/useDeviceFilterParams.ts`, which is the repo's precedent and whose central rule applies here too: **the URL is the single source of truth**, and nothing writes derived state back into it, so there is no round-trip loop. This is what makes `/alerts?status=resolved` a shareable link and browser Back step through filter changes.
+
+```typescript
+export interface AlertFilterParams {
+  status: string;   // 'open' (default) | 'firing' | 'acknowledged' | 'resolved'
+  severity: string; // 'all' (default) | 'critical' | 'warning' | 'info'
+  page: number;     // 1-based
+  setStatus: (value: string) => void;
+  setSeverity: (value: string) => void;
+  setPage: (page: number) => void;
+}
+
+export function useAlertFilterParams(
+  initialFilters?: Partial<ListAlertsQueryParams>
+): AlertFilterParams;
+```
+
+Three rules the tests must pin:
+
+1. **`setStatus` and `setSeverity` reset `page` to 1 in the same URL write.** Two sequential writes would race and leave a junk history entry — and land the user on page 4 of a two-page result.
+2. **Default values are omitted from the query string**, so `/alerts` stays clean: no `status=open`, no `severity=all`, no `page=1`. This mirrors `buildQueryString` in the devices hook.
+3. **Unparseable values fall back to the default** rather than reaching the API — `?page=banana` is page 1, `?severity=purple` is `all`.
+
+`initialFilters` seeds only what the URL does not already specify; an explicit URL parameter always wins, or a shared link would not survive the first render.
 
 - [ ] **Step 6: Write the alerts page**
 
@@ -7173,17 +7366,19 @@ export default function AlertsPage() {
 }
 ```
 
-Filters are synced to the URL so `/alerts?status=resolved` is a shareable link: read `useSearchParams()` in `AlertList` for the initial filter state and push updates with `router.replace`, following `app/devices/_components/useDeviceFilterParams.ts`.
+URL syncing is already handled by `useAlertFilterParams` from Step 5 — there is nothing extra to do here. `app/alerts/page.tsx` stays a thin shell.
+
+Because `AlertList` calls `useSearchParams()`, Next.js requires it to sit under a Suspense boundary or the build fails with a prerender error on `/alerts`. Wrap it: `<Suspense fallback={…}><AlertList … /></Suspense>`. Check how `app/devices/page.tsx` handles the same constraint and follow it.
 
 - [ ] **Step 7: Verify build and tests**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test __tests__/unit/components && pnpm build`
+Run: `npx tsc --noEmit && pnpm test __tests__/unit/components && pnpm build`
 Expected: clean.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add components/alerts app/alerts/page.tsx __tests__/unit/components/AlertBadges.test.tsx
+git add components/alerts app/alerts/page.tsx __tests__/unit/components/AlertBadges.test.tsx __tests__/unit/components/useAlertFilterParams.test.tsx
 git commit -m "feat(alerting): add alert badges, list, and /alerts page"
 ```
 
@@ -7459,8 +7654,8 @@ Two things to confirm against the existing code rather than assume:
 
 - [ ] **Step 5: Run tests and build**
 
-Run: `pnpm test __tests__/unit/components/AlertDetailView.test.tsx && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck`
-Expected: PASS, 6 tests; tscheck OK (no NEW type errors).
+Run: `pnpm test __tests__/unit/components/AlertDetailView.test.tsx && npx tsc --noEmit`
+Expected: PASS, 6 tests; no type errors.
 
 - [ ] **Step 6: Commit**
 
@@ -7568,6 +7763,59 @@ Create `components/alerts/CreateAlertRuleModal.tsx` following `components/device
 - A `validate()` returning `Record<string, string>` implementing the two refinements above, with messages "Select at least one reading type when the metric is a raw value" and "Threshold must be between 0 and 1 for anomaly_score" / "…between 0 and 100 for battery_level"
 - Submit via `useCreateAlertRule()`; `toast.success('Alert rule created')` on success then `onClose()`; `toast.error(err.message)` on failure
 - Every input carries a `<label htmlFor>` so the tests above (and screen readers) can find it
+- `metric` / `comparison` / `severity` use `components/ui/select.tsx`, whose contract is `{ value, onValueChange, options, label?, size? }` — **not** a native `<select>`, so there is no `onChange` and no `event.target.value`
+
+**Building the request body needs care — a flat object literal will not compile.** `CreateAlertRuleBody` (`types/v2/alert.types.ts:121`) is `AlertRuleBodyBase & CreateAlertRuleCondition`, and `CreateAlertRuleCondition` is a **discriminated union on `metric`** where the `'value'` arm requires `selector.types` to be a non-empty tuple `[ReadingTypeName, ...ReadingTypeName[]]`. Two consequences:
+
+1. Assembling `{ ...base, metric, comparison, threshold, selector }` from a `metric: AlertMetric` state variable fails: TypeScript cannot pick an arm from a union-typed discriminant.
+2. Form state holds `types: ReadingTypeName[]`, which is not assignable to a non-empty tuple no matter which arm is chosen.
+
+Branch on the discriminant and destructure the array to produce a genuinely non-empty tuple — **no `as` cast, which would defeat the type that exists precisely to make this state unrepresentable**:
+
+```typescript
+function buildCreateBody(form: RuleFormState): CreateAlertRuleBody | null {
+  const base = {
+    name: form.name.trim(),
+    description: form.description.trim() || undefined,
+    enabled: form.enabled,
+    for_duration_seconds: form.durationMinutes * 60,
+    severity: form.severity,
+    cooldown_seconds: form.cooldownSeconds,
+  };
+
+  const selector = {
+    ...(form.buildingId ? { building_id: form.buildingId } : {}),
+    ...(form.floor !== '' ? { floor: Number(form.floor) } : {}),
+    ...(form.zone ? { zone: form.zone } : {}),
+    ...(form.tags.length ? { tags: form.tags } : {}),
+  };
+
+  if (form.metric === 'value') {
+    // The destructure is what proves non-emptiness to the compiler.
+    // validate() has already blocked this branch, so null is unreachable.
+    const [firstType, ...restTypes] = form.types;
+    if (!firstType) return null;
+
+    return {
+      ...base,
+      metric: 'value',
+      comparison: form.comparison,
+      threshold: Number(form.threshold),
+      selector: { ...selector, types: [firstType, ...restTypes] },
+    };
+  }
+
+  return {
+    ...base,
+    metric: form.metric, // narrowed to 'anomaly_score' | 'battery_level'
+    comparison: form.comparison,
+    threshold: Number(form.threshold),
+    selector,
+  };
+}
+```
+
+If you also build an edit path, note `UpdateAlertRuleBody` differs deliberately: whenever the condition is being changed, `selector` must be an **explicit key for every metric** — send `{}` for `anomaly_score`/`battery_level` rather than omitting it — because `updateAlertRuleSchema` gives `selector` no default and its atomic-group refinement tests `data.selector !== undefined`. The rationale is documented at `types/v2/alert.types.ts:123-139`.
 
 - [ ] **Step 4: Write the rule list and page**
 
@@ -7577,7 +7825,7 @@ Create `app/alerts/rules/page.tsx` with the same header shell as `app/alerts/pag
 
 - [ ] **Step 5: Run tests and build**
 
-Run: `pnpm test __tests__/unit/components && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm build`
+Run: `pnpm test __tests__/unit/components && npx tsc --noEmit && pnpm build`
 Expected: clean.
 
 - [ ] **Step 6: Commit**
@@ -7618,8 +7866,8 @@ In `app/analytics/page.tsx`, change the import to `import AnomalyPanel from '@/c
 
 - [ ] **Step 3: Verify the rename**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && grep -rn "AlertsPanel" --include="*.tsx" . | grep -v node_modules`
-Expected: tscheck OK (no NEW type errors), no remaining `AlertsPanel` references.
+Run: `npx tsc --noEmit && grep -rn "AlertsPanel" --include="*.tsx" . | grep -v node_modules`
+Expected: no type errors, no remaining `AlertsPanel` references.
 
 - [ ] **Step 4: Write the failing widget test**
 
@@ -7720,7 +7968,7 @@ describe('ActiveAlertsWidget', () => {
 
 Create `components/dashboard/ActiveAlertsWidget.tsx` **fresh against `GET /api/v2/alerts`**, rather than lifting the layout out of `AnomalyPanel`. It is a different data shape — status, acknowledgement, duration — and copying a panel built for anomaly rows would import assumptions that no longer hold.
 
-- `'use client'`; `useAlertsList({ limit: 5, sortBy: 'severity', sortDirection: 'desc' })`
+- `'use client'`; `useAlertsList({ limit: 5, sortBy: 'severity', sortDirection: 'desc' })` — this returns **critical first** only because Task 12 Step 0 replaced the lexical severity sort with a rank-based one. If you find criticals sorting last, that fix is missing; do not paper over it in this component.
 - `Card` shell matching the other `components/dashboard/*` widgets
 - Rows: `AlertSeverityBadge`, `AlertStatusBadge`, rule name as a `<Link href={`/alerts/${alert._id}`}>`, device id, and time since `fired_at`
 - Loading: skeleton with `animate-pulse`. Empty: "No active alerts". Error: "Failed to load alerts"
@@ -7739,9 +7987,10 @@ In `components/TopNav.tsx`, add `Bell` to the `lucide-react` import and insert i
 Add an open-alert count badge. Because `navItems` is a module-level constant, the badge is rendered in the map rather than baked into the item:
 
 ```typescript
-  const { data: openAlerts } = useAlertsList({ limit: 100 });
-  const openAlertCount = openAlerts?.length ?? 0;
+  const { data: openAlertCount = 0 } = useOpenAlertCount();
 ```
+
+Use `useOpenAlertCount()` (Task 12), **not** `useAlertsList({ limit: 100 }).data?.length`. The API caps `limit` at 100, so a real storm would freeze the badge at "100" — and because `TopNav` renders on every route, the list variant would fetch 100 full alert documents on every navigation just to display one integer. The count hook asks for one row and reads `pagination.total`.
 
 and inside the desktop and mobile item renderers:
 
@@ -7757,7 +8006,7 @@ The badge is the single clearest signal that this is an operations tool rather t
 
 - [ ] **Step 7: Verify**
 
-Run: `pnpm test __tests__/unit/components && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm build`
+Run: `pnpm test __tests__/unit/components && npx tsc --noEmit && pnpm build`
 Expected: clean. `/alerts` must be reachable from the nav in both the desktop and mobile menus.
 
 - [ ] **Step 8: Commit**
@@ -8119,8 +8368,8 @@ Expected: PASS (some tests may `skip` if the seeded database has no alerts yet �
 
 - [ ] **Step 3: Full verification**
 
-Run: `./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test:coverage && pnpm build`
-Expected: lint clean, tscheck OK (no NEW type errors), coverage at or above `branches 55 / functions 55 / lines 75 / statements 75`, clean production build.
+Run: `pnpm lint && npx tsc --noEmit && pnpm test:coverage && pnpm build`
+Expected: lint clean, no type errors, coverage at or above `branches 55 / functions 55 / lines 75 / statements 75`, clean production build.
 
 - [ ] **Step 4: Commit**
 
@@ -8171,10 +8420,13 @@ Tasks 1, 2, 4, and 5 have no dependencies on each other and can be done in any o
 
 The phase is complete when all of the following hold:
 
-- `./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck && ./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck && pnpm test:coverage && pnpm build` is clean, with coverage at or above the configured thresholds.
+- `pnpm lint && npx tsc --noEmit && pnpm test:coverage && pnpm build` is clean, with coverage at or above the configured thresholds.
 - `pnpm create-indexes-v2 && pnpm verify-indexes` reports all eight new alert indexes present.
 - A fresh `pnpm seed` followed by a few authenticated `GET /api/v2/cron/simulate` calls produces visible alerts on `/alerts`.
 - An anonymous visitor can read `/alerts`, `/alerts/[id]`, and `/alerts/rules`, and sees Acknowledge / Resolve / New rule **disabled with a tooltip** rather than hidden.
 - A member `PATCH` to `/api/v2/alerts/[id]` returns 403; an admin `PATCH` returns 200.
 - Triggering a rule while `/alerts` is open in a browser raises a toast and updates the nav badge without a refresh.
 - `grep -rn "AlertsPanel" --include="*.tsx" .` returns nothing outside `node_modules`.
+- `GET /api/v2/alerts?sortBy=severity&sortDirection=desc` returns **critical before warning before info**, and the dashboard widget shows the same order.
+- The cron path broadcasts only readings that persisted — `newReadings` appears in no `pusherServer.trigger` call.
+- `/alerts?status=resolved&severity=critical` survives a reload and a browser Back, and `/alerts` carries no default parameters in its query string.
