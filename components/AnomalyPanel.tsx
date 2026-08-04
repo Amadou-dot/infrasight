@@ -6,12 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { v2Api, type AnomalyData } from '@/lib/api/v2-client';
 import { AlertTriangle, Battery, Clock, TrendingUp, Zap } from 'lucide-react';
 
-interface AlertsPanelProps {
+interface AnomalyPanelProps {
   onDeviceClick?: (deviceId: string) => void;
   maxAlerts?: number;
 }
 
-export default function AlertsPanel({ onDeviceClick, maxAlerts = 10 }: AlertsPanelProps) {
+export default function AnomalyPanel({ onDeviceClick, maxAlerts = 10 }: AnomalyPanelProps) {
   const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export default function AlertsPanel({ onDeviceClick, maxAlerts = 10 }: AlertsPan
         // Extract anomalies array from the response object
         setAnomalies(response.data.anomalies || []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load alerts');
+        setError(err instanceof Error ? err.message : 'Failed to load anomalies');
         console.error('Error fetching anomalies:', err);
       } finally {
         if (showLoading) setLoading(false);
@@ -101,7 +101,7 @@ export default function AlertsPanel({ onDeviceClick, maxAlerts = 10 }: AlertsPan
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            Recent Alerts
+            Recent Anomalies
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -118,7 +118,7 @@ export default function AlertsPanel({ onDeviceClick, maxAlerts = 10 }: AlertsPan
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
             <AlertTriangle className="h-5 w-5" />
-            Alerts - Error
+            Anomalies - Error
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -133,7 +133,7 @@ export default function AlertsPanel({ onDeviceClick, maxAlerts = 10 }: AlertsPan
         <CardTitle className="flex items-center justify-between">
           <span className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            Recent Alerts
+            Recent Anomalies
           </span>
           {anomalies.length > 0 && (
             <Badge variant="destructive" className="ml-2">

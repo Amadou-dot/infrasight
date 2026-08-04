@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import AlertsPanel from '@/components/AlertsPanel';
+import AnomalyPanel from '@/components/AnomalyPanel';
 import DeviceHealthWidget from '@/components/DeviceHealthWidget';
 import EnergyUsageChart from '@/components/AnomalyChart';
 import GenerateReportModal from '@/components/GenerateReportModal';
@@ -81,7 +81,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <EnergyUsageChart selectedFloor={selectedFloor} />
         <DeviceHealthWidget selectedFloor={selectedFloor} />
-        <AlertsPanel
+        <AnomalyPanel
           onDeviceClick={deviceId => router.push(`/devices/${deviceId}`)}
           maxAlerts={8}
         />
