@@ -158,19 +158,16 @@ describe('Alerts API Integration Tests', () => {
       expect(body.data.map(a => a.device_id).sort()).toEqual(['device_crit', 'device_info']);
     });
 
-    // Proves sortBy is actually wired to SORT_FIELD_MAP rather than silently
-    // falling back to the default (audit.created_at desc). Chosen orderings
-    // are deliberately NOT a coincidental match: audit.created_at order
-    // (oldest -> newest) is warning, critical, info, so a collapsed
-    // SORT_FIELD_MAP (which would fall back to created_at desc, giving
-    // info/critical/warning) cannot accidentally satisfy this assertion.
-    //
-    // Also documents an oddity, not a bug to fix here: severity sorts
-    // LEXICALLY (there is no severity-rank comparator), so descending yields
-    // warning -> info -> critical — 'critical' sorts last because 'c' < 'i' <
-    // 'w'. A user asking for "most severe first" almost certainly does not
-    // mean this. See the task report for why this is surfaced, not changed.
-    it('should sort by severity, not silently fall back to created_at', async () => {
+    // Proves sortBy=severity orders by urgency RANK (critical > warning >
+    // info), not lexically and not by silently falling back to
+    // audit.created_at. Chosen orderings are deliberately NOT a coincidental
+    // match for either fallback:
+    //   - severity desc (the fix):    device_crit, device_warn, device_info
+    //   - created_at desc (fallback): device_info, device_crit, device_warn
+    //   - created_at asc (fallback):  device_warn, device_crit, device_info
+    // A collapsed SORT_FIELD_MAP falling back to created_at, in either
+    // direction, therefore cannot accidentally satisfy the assertion below.
+    async function seedThreeSeverities() {
       const t1 = new Date('2026-01-01T08:00:00.000Z');
       const t2 = new Date('2026-01-01T09:00:00.000Z');
       const t3 = new Date('2026-01-01T10:00:00.000Z');
@@ -205,13 +202,40 @@ describe('Alerts API Integration Tests', () => {
           audit: auditAt(t3),
         })
       );
+    }
+
+    it('should sort by severity rank descending, most severe first', async () => {
+      await seedThreeSeverities();
 
       const response = await listAlerts(
         createMockGetRequest('/api/v2/alerts', { sortBy: 'severity', sortDirection: 'desc' })
       );
+      const body = await parseResponse<{
+        data: Array<{ _id: string; device_id: string }>;
+      }>(response);
+
+      expect(body.data.map(a => a.device_id)).toEqual(['device_crit', 'device_warn', 'device_info']);
+
+      // The route branches to AlertV2.aggregate() for this sort only.
+      // aggregate() must serialize identically to the .lean() path used by
+      // every other sort: a bare hex-string _id, and __v projected away.
+      expect(typeof body.data[0]._id).toBe('string');
+      expect(body.data[0]._id).toMatch(/^[a-f0-9]{24}$/);
+      expect(body.data[0]).not.toHaveProperty('__v');
+    });
+
+    // Proves the rank is genuinely ORDERED (info < warning < critical), not
+    // merely "different from lexical" — reversing sortDirection must reverse
+    // the whole rank order, not just move 'critical' out of last place.
+    it('should sort by severity rank ascending, least severe first', async () => {
+      await seedThreeSeverities();
+
+      const response = await listAlerts(
+        createMockGetRequest('/api/v2/alerts', { sortBy: 'severity', sortDirection: 'asc' })
+      );
       const body = await parseResponse<{ data: Array<{ device_id: string }> }>(response);
 
-      expect(body.data.map(a => a.device_id)).toEqual(['device_warn', 'device_info', 'device_crit']);
+      expect(body.data.map(a => a.device_id)).toEqual(['device_info', 'device_warn', 'device_crit']);
     });
 
     it('should paginate', async () => {
