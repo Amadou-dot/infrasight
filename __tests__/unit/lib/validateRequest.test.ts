@@ -4,7 +4,7 @@
  * Tests for combined request validation.
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import {
   validateRequest,
   withRequestValidation,
@@ -20,14 +20,14 @@ const createMockNextRequest = (
   searchParams: Record<string, string> = {}
 ): NextRequest => {
   const url = new URL(`http://localhost${pathname}`);
-  for (const [key, value] of Object.entries(searchParams)) {
+  for (const [key, value] of Object.entries(searchParams)) 
     url.searchParams.set(key, value);
-  }
+  
 
   const h = new Headers();
-  for (const [key, value] of Object.entries(headers)) {
+  for (const [key, value] of Object.entries(headers)) 
     h.set(key, value);
-  }
+  
 
   return {
     method,

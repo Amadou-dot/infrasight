@@ -5,6 +5,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import type { LucideIcon } from 'lucide-react';
 import StatCard from '@/components/dashboard/StatCard';
 
 const MockIcon = (props: React.SVGProps<SVGSVGElement>) => <svg data-testid="mock-icon" {...props} />;
@@ -13,7 +14,7 @@ describe('StatCard', () => {
   const defaultProps = {
     title: 'Total Devices',
     value: 42,
-    icon: MockIcon as unknown as import('lucide-react').LucideIcon,
+    icon: MockIcon as unknown as LucideIcon,
     iconColor: 'text-blue-500',
     iconBgColor: 'bg-blue-100',
   };
@@ -100,7 +101,7 @@ describe('StatCard', () => {
   });
 
   it('passes iconColor class to the icon element', () => {
-    const { container } = render(<StatCard {...defaultProps} />);
+    render(<StatCard {...defaultProps} />);
     const icon = screen.getByTestId('mock-icon');
     expect(icon.getAttribute('class')).toContain('text-blue-500');
   });

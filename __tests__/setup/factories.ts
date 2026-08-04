@@ -22,6 +22,15 @@ import type {
 } from '@/models/v2/ReadingV2';
 
 // ============================================================================
+// SCHEDULE V2 FACTORIES
+// ============================================================================
+
+import type {
+  ServiceType as ScheduleServiceType,
+  ScheduleStatus,
+} from '@/models/v2/ScheduleV2';
+
+// ============================================================================
 // DEVICE FACTORIES
 // ============================================================================
 
@@ -30,7 +39,7 @@ import type {
  */
 let deviceCounter = 0;
 let _readingCounter = 0;
-let readingV2Counter = 0;
+let _readingV2Counter = 0;
 
 /**
  * Reset counters (for test isolation)
@@ -38,7 +47,7 @@ let readingV2Counter = 0;
 export function resetCounters(): void {
   deviceCounter = 0;
   _readingCounter = 0;
-  readingV2Counter = 0;
+  _readingV2Counter = 0;
   scheduleCounter = 0;
   alertRuleCounter = 0;
   alertCounter = 0;
@@ -116,9 +125,14 @@ export type ReadingSource = (typeof VALID_READING_SOURCES)[number];
 /**
  * Device input type matching the model
  */
-export interface DeviceInput extends Omit<IDeviceV2, 'audit' | 'health'> {
+export interface DeviceInput extends Omit<IDeviceV2, 'audit' | 'health' | 'configuration'> {
   audit?: Partial<IDeviceV2['audit']>;
   health?: Partial<IDeviceV2['health']>;
+  // calibration_date is optional here: inputs omit it and let the Mongoose
+  // default (null) apply -- the API's Zod schema rejects an explicit null.
+  configuration: Omit<IDeviceV2['configuration'], 'calibration_date'> & {
+    calibration_date?: Date;
+  };
 }
 
 /**
@@ -524,7 +538,7 @@ export function createReadingV2Input(
   deviceId: string,
   overrides: Partial<ReadingV2Input> = {}
 ): ReadingV2Input {
-  readingV2Counter += 1;
+  _readingV2Counter += 1;
 
   return {
     metadata: {
@@ -681,15 +695,6 @@ export function createBulkIngestPayloadV2(deviceId: string, count: number = 10) 
 
   return { readings };
 }
-
-// ============================================================================
-// SCHEDULE V2 FACTORIES
-// ============================================================================
-
-import type {
-  ServiceType as ScheduleServiceType,
-  ScheduleStatus,
-} from '@/models/v2/ScheduleV2';
 
 /**
  * Valid service types for schedule testing

@@ -591,7 +591,7 @@ describe('Pagination Utilities', () => {
     });
 
     it('should return undefined for undefined item', () => {
-      const cursor = createCursorFromItem(undefined, 'createdAt');
+      const cursor = createCursorFromItem<{ _id?: string; createdAt?: Date }>(undefined, 'createdAt');
 
       expect(cursor).toBeUndefined();
     });

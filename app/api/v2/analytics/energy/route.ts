@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
         .lean();
 
       const ids = floorDeviceIds.map(d => d._id);
-      if (ids.length === 0) {
+      if (ids.length === 0) 
         // No devices on this floor — return empty results immediately
         return jsonSuccess({
           results: [],
@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
             compare_with: query.compare_with || null,
           },
         });
-      }
+      
 
       matchStage['metadata.device_id'] = ids.length === 1 ? ids[0] : { $in: ids };
     }
@@ -282,14 +282,14 @@ export async function GET(request: NextRequest) {
 
       // When floor filter was deferred (N+1 elimination), apply it after $lookup/$unwind
       // instead of making a separate pre-query to the devices collection
-      if (deferFloorFilter) {
+      if (deferFloorFilter) 
         pipeline.push({
           $match: {
             'device.location.floor': query.floor,
             'device.audit.deleted_at': { $exists: false },
           },
         } as PipelineStage.Match);
-      }
+      
     }
 
     pipeline.push(
@@ -405,14 +405,14 @@ export async function GET(request: NextRequest) {
         );
 
         // Apply deferred floor filter after $lookup in comparison pipeline too
-        if (deferFloorFilter) {
+        if (deferFloorFilter) 
           comparisonPipeline.push({
             $match: {
               'device.location.floor': query.floor,
               'device.audit.deleted_at': { $exists: false },
             },
           } as PipelineStage.Match);
-        }
+        
       }
 
       comparisonPipeline.push(

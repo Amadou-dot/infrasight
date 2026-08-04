@@ -1,5 +1,8 @@
 import { queryKeys } from '@/lib/query/queryClient';
 
+import { v2Api } from '@/lib/api/v2-client';
+import { useEnergyAnalytics } from '@/lib/query/hooks/useEnergyAnalytics';
+
 let capturedUseQueryArgs: Record<string, unknown> | null = null;
 
 jest.mock('@tanstack/react-query', () => ({
@@ -21,9 +24,6 @@ jest.mock('@/lib/api/v2-client', () => ({
     },
   },
 }));
-
-import { v2Api } from '@/lib/api/v2-client';
-import { useEnergyAnalytics } from '@/lib/query/hooks/useEnergyAnalytics';
 
 describe('queryKeys.analytics.energy', () => {
   it('should generate key without params', () => {

@@ -143,9 +143,10 @@ describe('Error Handler', () => {
 
         expect(error.metadata?.errors).toBeDefined();
         expect(Array.isArray(error.metadata?.errors)).toBe(true);
-        expect(error.metadata?.errors[0]).toHaveProperty('path');
-        expect(error.metadata?.errors[0]).toHaveProperty('message');
-        expect(error.metadata?.errors[0]).toHaveProperty('code');
+        const issues = error.metadata?.errors as unknown[];
+        expect(issues[0]).toHaveProperty('path');
+        expect(issues[0]).toHaveProperty('message');
+        expect(issues[0]).toHaveProperty('code');
       }
     });
   });
@@ -494,7 +495,7 @@ describe('Error Handler', () => {
         {
           code: 'invalid_type',
           expected: 'string',
-          received: 'number',
+          input: 42,
           path: ['field'],
           message: 'Expected string',
         },

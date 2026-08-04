@@ -53,9 +53,9 @@ describe('Rate Limit Middleware', () => {
   describe('getClientIp()', () => {
     const createMockRequest = (headers: Record<string, string>): NextRequest => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
+      for (const [key, value] of Object.entries(headers)) 
         h.set(key, value);
-      }
+      
       return { headers: h } as NextRequest;
     };
 

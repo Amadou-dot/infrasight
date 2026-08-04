@@ -194,9 +194,9 @@ describe('Schedule Validation Schemas', () => {
     it('should transform string dates to Date objects', () => {
       const result = createScheduleSchema.safeParse(validInput);
       expect(result.success).toBe(true);
-      if (result.success) {
+      if (result.success) 
         expect(result.data.scheduled_date).toBeInstanceOf(Date);
-      }
+      
     });
   });
 

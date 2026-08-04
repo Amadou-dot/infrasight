@@ -186,9 +186,9 @@ export function CreateDeviceModal({
     value: typeof formData[K]
   ) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
-    if (errors[key]) {
+    if (errors[key]) 
       setErrors((prev) => ({ ...prev, [key]: undefined }));
-    }
+    
   };
 
   const updateNestedField = <
@@ -203,9 +203,9 @@ export function CreateDeviceModal({
       [parent]: { ...prev[parent], [key]: value },
     }));
     const errorKey = `${parent}.${String(key)}`;
-    if (errors[errorKey]) {
+    if (errors[errorKey]) 
       setErrors((prev) => ({ ...prev, [errorKey]: undefined }));
-    }
+    
   };
 
   // Validation
@@ -241,7 +241,7 @@ export function CreateDeviceModal({
       onSuccess(response.data);
       onClose();
     } catch (err) {
-      if (err instanceof ApiClientError) {
+      if (err instanceof ApiClientError) 
         // Handle specific error codes
         switch (err.errorCode) {
           case 'SERIAL_NUMBER_EXISTS':
@@ -258,9 +258,9 @@ export function CreateDeviceModal({
                 newErrors[path] = error.message;
               }
               setErrors(newErrors);
-            } else {
+            } else 
               setGeneralError(err.message);
-            }
+            
             break;
           case 'RATE_LIMIT_EXCEEDED':
             setGeneralError('Too many requests. Please try again later.');
@@ -271,9 +271,9 @@ export function CreateDeviceModal({
           default:
             setGeneralError(err.message || 'An error occurred. Please try again.');
         }
-      } else {
+       else 
         setGeneralError('An unexpected error occurred. Please try again.');
-      }
+      
     } finally {
       setIsSubmitting(false);
     }

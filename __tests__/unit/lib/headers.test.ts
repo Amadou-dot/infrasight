@@ -18,9 +18,9 @@ describe('Header Validation Middleware', () => {
       headers: Record<string, string> = {}
     ): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
+      for (const [key, value] of Object.entries(headers)) 
         h.set(key, value);
-      }
+      
       return { method, headers: h } as Request;
     };
 
@@ -216,9 +216,9 @@ describe('Header Validation Middleware', () => {
   describe('extractRequestMetadata()', () => {
     const createMockRequest = (headers: Record<string, string>): Request => {
       const h = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
+      for (const [key, value] of Object.entries(headers)) 
         h.set(key, value);
-      }
+      
       return { headers: h } as Request;
     };
 

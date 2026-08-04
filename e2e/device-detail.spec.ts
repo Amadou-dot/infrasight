@@ -127,9 +127,9 @@ test.describe('Device Detail', () => {
         '[data-testid="device-status"], [class*="badge"], [class*="Badge"]'
       );
 
-      if ((await statusBadge.count()) > 0) {
+      if ((await statusBadge.count()) > 0) 
         await expect(statusBadge.first()).toBeVisible();
-      }
+      
     });
 
     test('should show device location information', async ({ page }) => {
@@ -303,11 +303,11 @@ test.describe('Device Detail', () => {
         const input = filterInput.first();
         const tagName = await input.evaluate((el) => el.tagName.toLowerCase());
 
-        if (tagName === 'input') {
+        if (tagName === 'input') 
           await input.fill('temperature');
-        } else if (tagName === 'select') {
+         else if (tagName === 'select') 
           await input.selectOption({ index: 1 });
-        }
+        
 
         // Wait for filter to apply
         await page.waitForTimeout(1000);

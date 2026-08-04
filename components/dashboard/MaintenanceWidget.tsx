@@ -43,7 +43,7 @@ export default function MaintenanceWidget({ onItemClick, maxItems = 4 }: Mainten
 
         const maintenanceItems: MaintenanceItem[] = allDevices
           .filter(d => d.metadata?.next_maintenance)
-          .map((d, index) => {
+          .map(d => {
             // Determine maintenance type based on device type or serial
             let maintType: MaintenanceItem['type'] = 'inspection';
 

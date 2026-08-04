@@ -7,13 +7,6 @@
 import {
   isSentryConfigured,
   initSentry,
-  captureException,
-  captureMessage,
-  addBreadcrumb,
-  setUser,
-  setTag,
-  setExtra,
-  startTransaction,
   withSentryErrorHandling,
 } from '@/lib/monitoring/sentry';
 
@@ -105,7 +98,7 @@ describe('Sentry Integration', () => {
 
     it('should use production sample rate in production', async () => {
       process.env.SENTRY_DSN = 'https://key@sentry.io/project';
-      process.env.NODE_ENV = 'production';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
 
       // Reset module to get fresh initialization
       jest.resetModules();

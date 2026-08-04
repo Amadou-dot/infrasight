@@ -21,9 +21,9 @@ export function useDevicesList(
         if (totalPages > 1) {
           // Fetch remaining pages in parallel
           const pagePromises = [];
-          for (let p = 2; p <= totalPages; p++) {
+          for (let p = 2; p <= totalPages; p++) 
             pagePromises.push(v2Api.devices.list({ ...filters, limit: 100, page: p }));
-          }
+          
           const results = await Promise.all(pagePromises);
           results.forEach(r => allDevices.push(...r.data));
         }

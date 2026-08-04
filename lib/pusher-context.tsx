@@ -103,7 +103,10 @@ export function usePusherReadings(callback: ReadingsCallback): void {
   // Keep a mutable ref so the effect closure always calls the latest callback
   // without needing to re-subscribe on every render.
   const callbackRef = useRef<ReadingsCallback>(callback);
-  callbackRef.current = callback;
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   useEffect(() => {
     if (!ctx) {

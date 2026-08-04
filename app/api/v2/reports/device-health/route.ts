@@ -97,9 +97,9 @@ async function aggregateDeviceData(
     status: { $ne: 'decommissioned' },
   };
 
-  if (scope === 'building' && buildingId) {
+  if (scope === 'building' && buildingId) 
     activeMatch['location.building_id'] = buildingId;
-  }
+  
 
   // Aggregate active devices by building, floor, and status
   const activeAggregation = await DeviceV2.aggregate([
@@ -122,9 +122,9 @@ async function aggregateDeviceData(
     $or: [{ status: 'decommissioned' }, { 'audit.deleted_at': { $exists: true } }],
   };
 
-  if (scope === 'building' && buildingId) {
+  if (scope === 'building' && buildingId) 
     deletedMatch['location.building_id'] = buildingId;
-  }
+  
 
   const deletedAggregation = await DeviceV2.aggregate([
     { $match: deletedMatch },
@@ -159,21 +159,21 @@ async function aggregateDeviceData(
     addToSummary(globalSummary, status, count);
 
     // Get or create building entry
-    if (!buildingMap.has(building_id)) {
+    if (!buildingMap.has(building_id)) 
       buildingMap.set(building_id, {
         summary: createEmptySummary(),
         floors: new Map(),
       });
-    }
+    
     const building = buildingMap.get(building_id)!;
 
     // Update building summary
     addToSummary(building.summary, status, count);
 
     // Get or create floor entry
-    if (!building.floors.has(floor)) {
+    if (!building.floors.has(floor)) 
       building.floors.set(floor, createEmptySummary());
-    }
+    
     const floorSummary = building.floors.get(floor)!;
 
     // Update floor summary
@@ -190,12 +190,12 @@ async function aggregateDeviceData(
     globalSummary.total += count;
 
     // Get or create building entry
-    if (!buildingMap.has(building_id)) {
+    if (!buildingMap.has(building_id)) 
       buildingMap.set(building_id, {
         summary: createEmptySummary(),
         floors: new Map(),
       });
-    }
+    
     const building = buildingMap.get(building_id)!;
 
     // Update building decommissioned count
@@ -204,9 +204,9 @@ async function aggregateDeviceData(
 
     // Get or create floor entry (only for building scope)
     if (scope === 'building') {
-      if (!building.floors.has(floor)) {
+      if (!building.floors.has(floor)) 
         building.floors.set(floor, createEmptySummary());
-      }
+      
       const floorSummary = building.floors.get(floor)!;
       floorSummary.decommissioned += count;
       floorSummary.total += count;
@@ -221,9 +221,9 @@ async function aggregateDeviceData(
 
     // Only include per-floor breakdown for building scope
     if (scope === 'building') {
-      for (const [floor, summary] of data.floors) {
+      for (const [floor, summary] of data.floors) 
         floors.push({ floor, summary });
-      }
+      
       // Sort floors by floor number
       floors.sort((a, b) => a.floor - b.floor);
     }
@@ -330,11 +330,11 @@ async function generatePdf(data: ReportData): Promise<Uint8Array> {
   if (data.breakdowns.length > 0) {
     addNewPageIfNeeded(50);
 
-    if (data.scope === 'all') {
+    if (data.scope === 'all') 
       drawText('Per-Building Breakdown', margin, yPosition, 14, true);
-    } else {
+     else 
       drawText('Per-Floor Breakdown', margin, yPosition, 14, true);
-    }
+    
     yPosition -= 25;
 
     for (const building of data.breakdowns) {
@@ -350,7 +350,7 @@ async function generatePdf(data: ReportData): Promise<Uint8Array> {
       yPosition -= 20;
 
       // Floor breakdowns (only for building scope)
-      if (data.scope === 'building' && building.floors.length > 0) {
+      if (data.scope === 'building' && building.floors.length > 0) 
         for (const floor of building.floors) {
           addNewPageIfNeeded(40);
 
@@ -361,7 +361,7 @@ async function generatePdf(data: ReportData): Promise<Uint8Array> {
           drawText(floorSummaryText, margin + 30, yPosition, 9);
           yPosition -= lineHeight;
         }
-      }
+      
 
       yPosition -= 15;
     }
@@ -397,14 +397,14 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const validationResult = validateQuery(searchParams, reportGenerateQuerySchema);
-    if (!validationResult.success) {
+    if (!validationResult.success) 
       throw new ApiError(
         ErrorCodes.VALIDATION_ERROR,
         400,
         validationResult.errors.map(e => e.message).join(', '),
         { errors: validationResult.errors }
       );
-    }
+    
 
     const { scope, building_id } = validationResult.data;
 
