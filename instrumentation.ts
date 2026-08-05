@@ -4,6 +4,13 @@
  * This file is used to register instrumentation hooks.
  * It must export a register function that is called once when Next.js starts.
  * https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
+ *
+ * This is the ONLY production Sentry initialization path. The imported config
+ * files call `Sentry.init()` on the `@sentry/nextjs` module singleton;
+ * `lib/monitoring/sentry.ts` talks to that same singleton and deliberately does
+ * NOT depend on its own `initSentry()` helper, which nothing here calls. See
+ * that file's header for why gating capture helpers on a private
+ * initialization flag silently disabled every escalation in the app.
  */
 
 export async function register() {

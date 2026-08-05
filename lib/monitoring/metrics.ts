@@ -185,9 +185,18 @@ export type AlertSeverityLabel = 'info' | 'warning' | 'critical';
 /**
  * Record an alerting lifecycle event.
  *
- * `evaluation_error` matters most: evaluation failures are swallowed by design so
- * they cannot drop readings, which makes this counter the only signal that
- * alerting has silently stopped working.
+ * `evaluation_error` matters most: evaluation failures are swallowed by design
+ * so they cannot drop readings, which means nothing about the request tells you
+ * the evaluator broke.
+ *
+ * This counter is the cheap in-process rate signal for that — how OFTEN it is
+ * failing, at a glance, with no per-failure detail. It complements rather than
+ * replaces the real escalation: `lib/alerting/index.ts`'s `reportToSentry()`
+ * forwards each swallowed failure to Sentry with stack and context. Two reasons
+ * this counter cannot stand alone: it is per-process memory that resets on every
+ * serverless cold start, and reading it means `GET /api/v2/metrics`, which sits
+ * behind `requireAdmin()` and `ENABLE_METRICS` (shipped `false` in
+ * `example.env`). Treat a nonzero value as a prompt to go look in Sentry.
  */
 export function recordAlert(
   event: 'fired' | 'resolved' | 'evaluation_error',

@@ -1,16 +1,30 @@
 /**
  * Sentry Integration Tests
  *
- * Tests for optional Sentry error tracking and performance monitoring.
+ * These tests exist to catch one specific class of regression, so read the
+ * setup before adding to them.
+ *
+ * `lib/monitoring/sentry.ts` once gated every capture helper on a module-local
+ * flag that only `initSentry()` set. Production never calls `initSentry()` —
+ * Next.js initializes Sentry through `instrumentation.ts` ->
+ * `sentry.server.config.ts` — so every escalation in the app was dead code.
+ * The bug survived review because the tests here called `initSentry()`
+ * themselves before asserting, performing setup production never performs.
+ *
+ * So: the escalation tests below deliberately do NOT call `initSentry()`, and
+ * several of them assert `init` was never called, which is what makes them fail
+ * if the module-local gate is ever reintroduced. Do not "fix" a failing test in
+ * this file by adding an `initSentry()` call.
  */
 
-import {
-  isSentryConfigured,
-  initSentry,
-  withSentryErrorHandling,
-} from '@/lib/monitoring/sentry';
+// Type-only, so it is erased at compile time: the shim itself is loaded through
+// `loadShim()` below, which gives each test a module instance with pristine
+// internal state.
+import type * as SentryShimModule from '@/lib/monitoring/sentry';
 
-// Mock Sentry
+// Mock the real client. Every assertion below is against THIS module — the
+// singleton the Next.js config files initialize — not against any state
+// private to the shim.
 jest.mock('@sentry/nextjs', () => ({
   init: jest.fn(),
   captureException: jest.fn().mockReturnValue('event-id-123'),
@@ -24,12 +38,45 @@ jest.mock('@sentry/nextjs', () => ({
   }),
 }));
 
+type SentryShim = typeof SentryShimModule;
+
+interface SentryClientMock {
+  init: jest.Mock;
+  captureException: jest.Mock;
+  captureMessage: jest.Mock;
+  addBreadcrumb: jest.Mock;
+  setUser: jest.Mock;
+  setTag: jest.Mock;
+  setExtra: jest.Mock;
+  startInactiveSpan: jest.Mock;
+}
+
+/**
+ * Load a pristine copy of the shim plus the client instance it bound to.
+ *
+ * `jest.resetModules()` guarantees the shim's module-local state starts at its
+ * cold-boot value, so no earlier test in this file can leave it "initialized"
+ * and mask a reintroduced gate. The client must be required AFTER the shim so
+ * both resolve to the same freshly-built mock.
+ */
+function loadShim(): { shim: SentryShim; client: SentryClientMock } {
+  jest.resetModules();
+  const shim = require('@/lib/monitoring/sentry') as SentryShim;
+  const client = require('@sentry/nextjs') as unknown as SentryClientMock;
+  return { shim, client };
+}
+
+const DSN = 'https://key@sentry.io/project';
+
 describe('Sentry Integration', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...originalEnv };
+    // Explicit: a developer machine with a real DSN exported must not turn the
+    // "not configured" cases into false passes.
+    delete process.env.SENTRY_DSN;
   });
 
   afterAll(() => {
@@ -42,156 +89,199 @@ describe('Sentry Integration', () => {
 
   describe('isSentryConfigured()', () => {
     it('should return false when SENTRY_DSN is not set', () => {
-      delete process.env.SENTRY_DSN;
+      const { shim } = loadShim();
 
-      expect(isSentryConfigured()).toBe(false);
+      expect(shim.isSentryConfigured()).toBe(false);
     });
 
     it('should return true when SENTRY_DSN is set', () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+      process.env.SENTRY_DSN = DSN;
+      const { shim } = loadShim();
 
-      expect(isSentryConfigured()).toBe(true);
+      expect(shim.isSentryConfigured()).toBe(true);
     });
 
     it('should return false for empty string', () => {
       process.env.SENTRY_DSN = '';
+      const { shim } = loadShim();
 
-      expect(isSentryConfigured()).toBe(false);
+      expect(shim.isSentryConfigured()).toBe(false);
+    });
+  });
+
+  // ==========================================================================
+  // captureException() — THE ESCALATION PATH
+  //
+  // The load-bearing block. Every test here runs with a DSN configured and
+  // initSentry() never called, mirroring production exactly.
+  // ==========================================================================
+
+  describe('captureException() escalation', () => {
+    it('reaches the real @sentry/nextjs client with only a DSN set — initSentry() is not a precondition', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
+
+      const error = new Error('evaluator exploded');
+      const result = shim.captureException(error);
+
+      // The two assertions have to hold together. `init` never being called is
+      // what proves the forward below did not depend on setup production skips:
+      // drop this and the test degrades into the one that shipped the bug.
+      expect(client.init).not.toHaveBeenCalled();
+      expect(client.captureException).toHaveBeenCalledTimes(1);
+      expect(client.captureException).toHaveBeenCalledWith(error, { extra: undefined });
+      expect(result).toBe('event-id-123');
+    });
+
+    it('forwards context as extra without any initialization of its own', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
+
+      const error = new Error('Test error');
+      const context = { userId: '123', action: 'test' };
+      const result = shim.captureException(error, context);
+
+      expect(client.init).not.toHaveBeenCalled();
+      expect(client.captureException).toHaveBeenCalledWith(error, { extra: context });
+      expect(result).toBe('event-id-123');
+    });
+
+    it('forwards tags as a distinct top-level field, not folded into context', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
+
+      const error = new Error('Test error');
+      const context = { readingsCount: 5 };
+      const tags = { subsystem: 'alerting' };
+      const result = shim.captureException(error, context, tags);
+
+      expect(result).toBe('event-id-123');
+      expect(client.init).not.toHaveBeenCalled();
+      // Full-shape match, not objectContaining: `tags` must be its own
+      // top-level key alongside `extra`. Sentry only indexes a top-level `tags`
+      // key as a filterable facet — nesting it under `extra` (the bug this test
+      // guards) silently downgrades it to unfilterable "Additional Data".
+      expect(client.captureException).toHaveBeenCalledWith(error, {
+        extra: context,
+        tags,
+      });
+
+      // Stated the other way round too, so a `{ extra: { ...context, tags } }`
+      // regression fails on the specific thing that is wrong with it rather
+      // than on a whole-object diff.
+      const [, options] = client.captureException.mock.calls[0];
+      expect(options.tags).toEqual(tags);
+      expect(options.extra).toEqual(context);
+      expect(Object.prototype.hasOwnProperty.call(options.extra, 'tags')).toBe(false);
+    });
+
+    it('omits the tags key entirely when no tags are passed', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
+
+      shim.captureException(new Error('Test error'), { userId: '123' });
+
+      const [, options] = client.captureException.mock.calls[0];
+      expect(Object.prototype.hasOwnProperty.call(options, 'tags')).toBe(false);
+    });
+
+    it('reads the DSN gate per call, not once at module load', () => {
+      // The shim is loaded with no DSN, then the DSN appears. Nothing may be
+      // cached at import time: serverless cold starts and test harnesses both
+      // populate env after modules resolve.
+      const { shim, client } = loadShim();
+      expect(shim.captureException(new Error('too early'))).toBeUndefined();
+
+      process.env.SENTRY_DSN = DSN;
+
+      expect(shim.captureException(new Error('now configured'))).toBe('event-id-123');
+      expect(client.captureException).toHaveBeenCalledTimes(1);
+    });
+
+    it('is a no-op that returns undefined when no DSN is configured', () => {
+      const { shim, client } = loadShim();
+
+      const result = shim.captureException(new Error('Test error'), { userId: '123' });
+
+      expect(result).toBeUndefined();
+      expect(client.captureException).not.toHaveBeenCalled();
     });
   });
 
   // ==========================================================================
   // initSentry()
+  //
+  // Still exported (and re-exported from lib/monitoring/index.ts) for entry
+  // points that are not Next.js request handlers. It is no longer a
+  // precondition for anything above.
   // ==========================================================================
 
   describe('initSentry()', () => {
     it('should return false when SENTRY_DSN is not set', async () => {
-      delete process.env.SENTRY_DSN;
+      const { shim, client } = loadShim();
 
-      const result = await initSentry();
-
-      expect(result).toBe(false);
+      await expect(shim.initSentry()).resolves.toBe(false);
+      expect(client.init).not.toHaveBeenCalled();
     });
 
     it('should initialize Sentry when DSN is configured', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      const result = await initSentry();
-
-      expect(result).toBe(true);
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.init).toHaveBeenCalledWith(
+      await expect(shim.initSentry()).resolves.toBe(true);
+      expect(client.init).toHaveBeenCalledWith(
         expect.objectContaining({
-          dsn: 'https://key@sentry.io/project',
+          dsn: DSN,
         })
       );
     });
 
-    it('should return true on subsequent calls (already initialized)', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should be idempotent — a second call does not re-init', async () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      await initSentry();
-      const result = await initSentry();
+      await shim.initSentry();
+      await expect(shim.initSentry()).resolves.toBe(true);
 
-      expect(result).toBe(true);
+      expect(client.init).toHaveBeenCalledTimes(1);
     });
 
     it('should use production sample rate in production', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+      process.env.SENTRY_DSN = DSN;
       (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+      const { shim, client } = loadShim();
 
-      // Reset module to get fresh initialization
-      jest.resetModules();
-      const { initSentry: init } = require('@/lib/monitoring/sentry');
+      await shim.initSentry();
 
-      await init();
-
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.init).toHaveBeenCalledWith(
+      expect(client.init).toHaveBeenCalledWith(
         expect.objectContaining({
           tracesSampleRate: 0.1,
         })
       );
     });
-  });
 
-  // ==========================================================================
-  // captureException()
-  // ==========================================================================
-
-  describe('captureException()', () => {
-    it('should return undefined when Sentry not initialized', () => {
-      // Reset module state - Sentry not initialized
-      jest.resetModules();
-      const { captureException: capture } = require('@/lib/monitoring/sentry');
-
-      const result = capture(new Error('Test error'));
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should capture exception with context after initialization', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
-
-      // Re-import to get fresh module
-      jest.resetModules();
-      const { initSentry: init, captureException: capture } = require('@/lib/monitoring/sentry');
-
-      await init();
-
-      const error = new Error('Test error');
-      const context = { userId: '123', action: 'test' };
-      const result = capture(error, context);
-
-      expect(result).toBe('event-id-123');
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.captureException).toHaveBeenCalledWith(error, {
-        extra: context,
+    it('should return false rather than throw when the SDK fails to initialize', async () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
+      client.init.mockImplementationOnce(() => {
+        throw new Error('bad DSN');
       });
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await expect(shim.initSentry()).resolves.toBe(false);
+
+      warn.mockRestore();
     });
 
-    it('should forward tags as a distinct field from context, not folded into it', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('does not gate captureException — capture works before and after it runs', async () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, captureException: capture } =
-        await import('@/lib/monitoring/sentry');
+      expect(shim.captureException(new Error('before'))).toBe('event-id-123');
+      await shim.initSentry();
+      expect(shim.captureException(new Error('after'))).toBe('event-id-123');
 
-      await init();
-
-      const error = new Error('Test error');
-      const context = { readingsCount: 5 };
-      const tags = { subsystem: 'alerting' };
-      const result = capture(error, context, tags);
-
-      expect(result).toBe('event-id-123');
-      const Sentry = await import('@sentry/nextjs');
-      // Full-shape match, not objectContaining: `tags` must be its own top-level
-      // key alongside `extra`, not nested inside it. Sentry only treats a
-      // top-level `tags` key as an indexed/filterable tag facet — nesting it
-      // under `extra` (the bug this test guards) silently downgrades it to
-      // unfilterable "Additional Data" instead.
-      expect(Sentry.captureException).toHaveBeenCalledWith(error, {
-        extra: context,
-        tags,
-      });
-    });
-
-    it('should omit the tags key entirely when no tags are passed', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
-
-      jest.resetModules();
-      const { initSentry: init, captureException: capture } =
-        await import('@/lib/monitoring/sentry');
-
-      await init();
-
-      const error = new Error('Test error');
-      capture(error, { userId: '123' });
-
-      const Sentry = await import('@sentry/nextjs');
-      const [, options] = (Sentry.captureException as jest.Mock).mock.calls[0];
-      expect(Object.prototype.hasOwnProperty.call(options, 'tags')).toBe(false);
+      expect(client.captureException).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -200,28 +290,22 @@ describe('Sentry Integration', () => {
   // ==========================================================================
 
   describe('captureMessage()', () => {
-    it('should return undefined when Sentry not initialized', () => {
-      jest.resetModules();
-      const { captureMessage: capture } = require('@/lib/monitoring/sentry');
+    it('should return undefined when Sentry is not configured', () => {
+      const { shim, client } = loadShim();
 
-      const result = capture('Test message');
-
-      expect(result).toBeUndefined();
+      expect(shim.captureMessage('Test message')).toBeUndefined();
+      expect(client.captureMessage).not.toHaveBeenCalled();
     });
 
-    it('should capture message with level and context', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should capture message with level and context, without initSentry()', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, captureMessage: capture } = require('@/lib/monitoring/sentry');
-
-      await init();
-
-      const result = capture('Test message', 'warning', { key: 'value' });
+      const result = shim.captureMessage('Test message', 'warning', { key: 'value' });
 
       expect(result).toBe('message-id-456');
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.captureMessage).toHaveBeenCalledWith('Test message', {
+      expect(client.init).not.toHaveBeenCalled();
+      expect(client.captureMessage).toHaveBeenCalledWith('Test message', {
         level: 'warning',
         extra: { key: 'value' },
       });
@@ -233,28 +317,22 @@ describe('Sentry Integration', () => {
   // ==========================================================================
 
   describe('addBreadcrumb()', () => {
-    it('should do nothing when Sentry not initialized', () => {
-      jest.resetModules();
-      const { addBreadcrumb: add } = require('@/lib/monitoring/sentry');
+    it('should do nothing when Sentry is not configured', () => {
+      const { shim, client } = loadShim();
 
-      // Should not throw
-      add('Test breadcrumb', 'test');
+      shim.addBreadcrumb('Test breadcrumb', 'test');
 
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
+      expect(client.addBreadcrumb).not.toHaveBeenCalled();
     });
 
-    it('should add breadcrumb when initialized', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should add breadcrumb without initSentry()', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, addBreadcrumb: add } = require('@/lib/monitoring/sentry');
+      shim.addBreadcrumb('Test breadcrumb', 'navigation', { page: '/home' }, 'info');
 
-      await init();
-      add('Test breadcrumb', 'navigation', { page: '/home' }, 'info');
-
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      expect(client.init).not.toHaveBeenCalled();
+      expect(client.addBreadcrumb).toHaveBeenCalledWith({
         message: 'Test breadcrumb',
         category: 'navigation',
         data: { page: '/home' },
@@ -268,41 +346,31 @@ describe('Sentry Integration', () => {
   // ==========================================================================
 
   describe('setUser()', () => {
-    it('should do nothing when Sentry not initialized', () => {
-      jest.resetModules();
-      const { setUser: set } = require('@/lib/monitoring/sentry');
+    it('should do nothing when Sentry is not configured', () => {
+      const { shim, client } = loadShim();
 
-      set({ id: '123', email: 'test@example.com' });
+      shim.setUser({ id: '123', email: 'test@example.com' });
 
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.setUser).not.toHaveBeenCalled();
+      expect(client.setUser).not.toHaveBeenCalled();
     });
 
-    it('should set user when initialized', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should set user when configured', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, setUser: set } = require('@/lib/monitoring/sentry');
-
-      await init();
       const user = { id: '123', email: 'test@example.com' };
-      set(user);
+      shim.setUser(user);
 
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.setUser).toHaveBeenCalledWith(user);
+      expect(client.setUser).toHaveBeenCalledWith(user);
     });
 
-    it('should clear user when null is passed', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should clear user when null is passed', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, setUser: set } = require('@/lib/monitoring/sentry');
+      shim.setUser(null);
 
-      await init();
-      set(null);
-
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.setUser).toHaveBeenCalledWith(null);
+      expect(client.setUser).toHaveBeenCalledWith(null);
     });
   });
 
@@ -311,27 +379,21 @@ describe('Sentry Integration', () => {
   // ==========================================================================
 
   describe('setTag()', () => {
-    it('should do nothing when Sentry not initialized', () => {
-      jest.resetModules();
-      const { setTag: set } = require('@/lib/monitoring/sentry');
+    it('should do nothing when Sentry is not configured', () => {
+      const { shim, client } = loadShim();
 
-      set('version', '1.0.0');
+      shim.setTag('version', '1.0.0');
 
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.setTag).not.toHaveBeenCalled();
+      expect(client.setTag).not.toHaveBeenCalled();
     });
 
-    it('should set tag when initialized', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should set tag when configured', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, setTag: set } = require('@/lib/monitoring/sentry');
+      shim.setTag('version', '1.0.0');
 
-      await init();
-      set('version', '1.0.0');
-
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.setTag).toHaveBeenCalledWith('version', '1.0.0');
+      expect(client.setTag).toHaveBeenCalledWith('version', '1.0.0');
     });
   });
 
@@ -340,27 +402,21 @@ describe('Sentry Integration', () => {
   // ==========================================================================
 
   describe('setExtra()', () => {
-    it('should do nothing when Sentry not initialized', () => {
-      jest.resetModules();
-      const { setExtra: set } = require('@/lib/monitoring/sentry');
+    it('should do nothing when Sentry is not configured', () => {
+      const { shim, client } = loadShim();
 
-      set('metadata', { key: 'value' });
+      shim.setExtra('metadata', { key: 'value' });
 
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.setExtra).not.toHaveBeenCalled();
+      expect(client.setExtra).not.toHaveBeenCalled();
     });
 
-    it('should set extra when initialized', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should set extra when configured', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, setExtra: set } = require('@/lib/monitoring/sentry');
+      shim.setExtra('metadata', { key: 'value' });
 
-      await init();
-      set('metadata', { key: 'value' });
-
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.setExtra).toHaveBeenCalledWith('metadata', { key: 'value' });
+      expect(client.setExtra).toHaveBeenCalledWith('metadata', { key: 'value' });
     });
   });
 
@@ -369,48 +425,35 @@ describe('Sentry Integration', () => {
   // ==========================================================================
 
   describe('startTransaction()', () => {
-    it('should return undefined when Sentry not initialized', () => {
-      jest.resetModules();
-      const { startTransaction: start } = require('@/lib/monitoring/sentry');
+    it('should return undefined when Sentry is not configured', () => {
+      const { shim, client } = loadShim();
 
-      const result = start('test-transaction', 'http.request');
-
-      expect(result).toBeUndefined();
+      expect(shim.startTransaction('test-transaction', 'http.request')).toBeUndefined();
+      expect(client.startInactiveSpan).not.toHaveBeenCalled();
     });
 
-    it('should start transaction when initialized', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should start transaction when configured', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, startTransaction: start } = require('@/lib/monitoring/sentry');
-
-      await init();
-      const transaction = start('test-transaction', 'http.request');
+      const transaction = shim.startTransaction('test-transaction', 'http.request');
 
       expect(transaction).toBeDefined();
       expect(transaction?.finish).toBeDefined();
-
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.startInactiveSpan).toHaveBeenCalledWith({
+      expect(client.startInactiveSpan).toHaveBeenCalledWith({
         name: 'test-transaction',
         op: 'http.request',
       });
     });
 
-    it('should allow finishing the transaction', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
+    it('should allow finishing the transaction', () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
-      jest.resetModules();
-      const { initSentry: init, startTransaction: start } = require('@/lib/monitoring/sentry');
-
-      await init();
-      const transaction = start('test-transaction', 'http.request');
-
-      // Should not throw
+      const transaction = shim.startTransaction('test-transaction', 'http.request');
       transaction?.finish();
 
-      const Sentry = require('@sentry/nextjs');
-      const mockSpan = Sentry.startInactiveSpan.mock.results[0].value;
+      const mockSpan = client.startInactiveSpan.mock.results[0].value;
       expect(mockSpan.end).toHaveBeenCalled();
     });
   });
@@ -421,8 +464,9 @@ describe('Sentry Integration', () => {
 
   describe('withSentryErrorHandling()', () => {
     it('should execute function and return result', async () => {
+      const { shim } = loadShim();
       const fn = jest.fn().mockResolvedValue('result');
-      const wrapped = withSentryErrorHandling(fn);
+      const wrapped = shim.withSentryErrorHandling(fn);
 
       const result = await wrapped('arg1', 'arg2');
 
@@ -430,22 +474,18 @@ describe('Sentry Integration', () => {
       expect(fn).toHaveBeenCalledWith('arg1', 'arg2');
     });
 
-    it('should capture exception and rethrow on error', async () => {
-      process.env.SENTRY_DSN = 'https://key@sentry.io/project';
-
-      jest.resetModules();
-      const { initSentry: init, withSentryErrorHandling: wrap } = require('@/lib/monitoring/sentry');
-
-      await init();
+    it('should capture exception and rethrow on error, without initSentry()', async () => {
+      process.env.SENTRY_DSN = DSN;
+      const { shim, client } = loadShim();
 
       const error = new Error('Test error');
       const fn = jest.fn().mockRejectedValue(error);
-      const wrapped = wrap(fn, { action: 'test' });
+      const wrapped = shim.withSentryErrorHandling(fn, { action: 'test' });
 
       await expect(wrapped()).rejects.toThrow('Test error');
 
-      const Sentry = require('@sentry/nextjs');
-      expect(Sentry.captureException).toHaveBeenCalledWith(error, {
+      expect(client.init).not.toHaveBeenCalled();
+      expect(client.captureException).toHaveBeenCalledWith(error, {
         extra: { action: 'test', args: [] },
       });
     });
