@@ -44,6 +44,7 @@
 - **Device Health Scoring**: Calculated health metrics with predictive indicators
 - **Predictive Maintenance**: Forecasting for maintenance scheduling
 - **Maintenance Scheduling**: Create, track, and manage maintenance tasks with bulk support and status machine (scheduled/completed/cancelled)
+- **Threshold-Based Alerting**: Configurable alert rules (value/anomaly score/battery level), breach-aware evaluation, real-time Pusher delivery, and a staleness sweep for devices that stop reporting
 - **PDF Report Generation**: On-demand device health reports with per-building or all-buildings scope
 - **Temperature Correlation**: Cross-device temperature analysis
 - **Enhanced Anomaly Detection**: ML-based anomaly scoring and trends
@@ -202,11 +203,13 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ```
 infrasight/
 ├── app/                        # Next.js App Router
-│   ├── api/v2/                 # V2 API routes (25 endpoints)
+│   ├── api/v2/                 # V2 API routes (33 endpoints)
 │   │   ├── devices/            # Device CRUD + history
 │   │   ├── readings/           # Reading queries + ingest + latest
 │   │   ├── analytics/          # Health, energy, anomalies, forecast, correlation
 │   │   ├── schedules/          # Maintenance scheduling CRUD
+│   │   ├── alerts/             # Alert list/get + acknowledge/resolve
+│   │   ├── alert-rules/        # Alert rule CRUD (soft delete)
 │   │   ├── reports/            # PDF report generation
 │   │   ├── audit/              # Cross-device audit trail
 │   │   ├── metadata/           # System metadata
@@ -214,6 +217,7 @@ infrasight/
 │   ├── devices/                # Device list & deleted devices pages
 │   ├── analytics/              # Analytics dashboard
 │   ├── maintenance/            # Maintenance dashboard
+│   ├── alerts/                 # Alerts list, detail, and rule management pages
 │   ├── floor-plan/             # Floor plan visualization
 │   ├── settings/               # User settings
 │   ├── sign-in/                # Clerk sign-in
@@ -223,6 +227,12 @@ infrasight/
 │   ├── devices/
 │   │   ├── CreateDeviceModal.tsx    # Device creation (admin only)
 │   │   └── TagInput.tsx             # Tag input for device metadata
+│   ├── alerts/
+│   │   ├── AlertList.tsx            # Paginated alert list with filters
+│   │   ├── AlertDetailView.tsx      # Shared alert detail presentation
+│   │   ├── AlertRuleList.tsx        # Alert rule management list
+│   │   ├── AlertToaster.tsx         # Real-time toasts for fired/resolved alerts
+│   │   └── CreateAlertRuleModal.tsx # Alert rule creation (admin only)
 │   ├── ScheduleList.tsx             # Paginated schedule list
 │   ├── ScheduleServiceModal.tsx     # Schedule creation (bulk support)
 │   ├── ScheduleStatusBadge.tsx      # Status badge component
@@ -232,24 +242,28 @@ infrasight/
 ├── lib/                        # Utilities
 │   ├── api/                    # API client and response helpers
 │   ├── auth/                   # RBAC utilities (requireAdmin, requireOrgMembership)
-│   ├── cache/                  # Redis caching with invalidation
+│   ├── alerting/                # Alert rule evaluation, staleness sweep, Pusher notify
+│   ├── cache/                   # Redis caching with invalidation
 │   ├── errors/                 # Error handling
 │   ├── middleware/              # Request validation, body size, headers
-│   ├── monitoring/             # Sentry, Prometheus metrics, logging
-│   ├── query/                  # React Query hooks
-│   ├── ratelimit/              # Rate limiting config and middleware
-│   ├── redis/                  # Redis client configuration
-│   ├── validations/v2/         # Zod schemas
-│   └── db.ts                   # Database connection
+│   ├── monitoring/              # Sentry, Prometheus metrics, logging
+│   ├── query/                   # React Query hooks
+│   ├── ratelimit/               # Rate limiting config and middleware
+│   ├── redis/                   # Redis client configuration
+│   ├── validations/v2/          # Zod schemas
+│   └── db.ts                    # Database connection
 ├── models/v2/                  # Mongoose models
 │   ├── DeviceV2.ts             # Device model
 │   ├── ReadingV2.ts            # Reading model (timeseries)
-│   └── ScheduleV2.ts           # Maintenance schedule model
+│   ├── ScheduleV2.ts           # Maintenance schedule model
+│   ├── AlertRuleV2.ts          # Alert rule model (threshold conditions)
+│   └── AlertV2.ts              # Alert episode model (status machine)
 ├── scripts/v2/                 # Database scripts
 │   ├── seed-v2.ts              # Seed data
 │   └── simulate.ts             # Reading simulation
 ├── types/v2/                   # TypeScript types
-│   └── schedule.types.ts       # Schedule types
+│   ├── schedule.types.ts       # Schedule types
+│   └── alert.types.ts          # Alert / alert rule types + Pusher wire types
 ├── proxy.ts                    # Clerk middleware (route protection)
 ├── __tests__/                  # Jest test suites
 │   ├── unit/                   # Unit tests
@@ -299,6 +313,19 @@ infrasight/
 | GET    | `/api/v2/schedules/:id`   | Get schedule details |
 | PATCH  | `/api/v2/schedules/:id`   | Update schedule      |
 | DELETE | `/api/v2/schedules/:id`   | Cancel schedule      |
+
+### Alerting
+
+| Method | Endpoint                  | Description                      |
+| ------ | ------------------------- | --------------------------------- |
+| GET    | `/api/v2/alerts`          | List/filter alerts               |
+| GET    | `/api/v2/alerts/:id`      | Get alert details                 |
+| PATCH  | `/api/v2/alerts/:id`      | Acknowledge or resolve an alert   |
+| GET    | `/api/v2/alert-rules`     | List alert rules                  |
+| POST   | `/api/v2/alert-rules`     | Create an alert rule              |
+| GET    | `/api/v2/alert-rules/:id` | Get alert rule details            |
+| PATCH  | `/api/v2/alert-rules/:id` | Update an alert rule              |
+| DELETE | `/api/v2/alert-rules/:id` | Soft delete an alert rule         |
 
 ### Reports & System
 

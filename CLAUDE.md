@@ -10,7 +10,7 @@
 
 The migration from v1 to v2 is **complete**. All code now uses v2 exclusively:
 
-- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance, 7-day TTL), `schedules_v2` (maintenance scheduling)
+- **V2 Collections**: `devices_v2`, `readings_v2` (enhanced with audit trails, health metrics, compliance, 7-day TTL), `schedules_v2` (maintenance scheduling), `alert_rules_v2` + `alerts_v2` (threshold-based alerting)
 - **V2 API**: All endpoints under `/api/v2/`
 - **V1 Deprecated**: All v1 files moved to `_deprecated` folders and excluded from TypeScript compilation
 
@@ -182,7 +182,7 @@ const schedules = await v2Api.schedules.list({ status: 'scheduled' });
 const reportBlob = await v2Api.reports.generateDeviceHealth({ scope: 'all' });
 ```
 
-**Client namespaces**: `v2Api.devices`, `v2Api.readings`, `v2Api.analytics`, `v2Api.schedules`, `v2Api.reports`, `v2Api.metadata`, `v2Api.audit`
+**Client namespaces**: `v2Api.devices`, `v2Api.readings`, `v2Api.analytics`, `v2Api.schedules`, `v2Api.reports`, `v2Api.metadata`, `v2Api.audit`, `v2Api.alerts`, `v2Api.alertRules`
 
 Prefer this over raw `fetch()` for type safety.
 
@@ -213,12 +213,22 @@ const { data: anomalies } = useAnomalies({ minScore: 0.7 });
 - `useUpdateSchedule()` - Update schedule mutation
 - `useCompleteSchedule()` - Mark schedule as completed
 - `useCancelSchedule()` - Cancel schedule
+- `useAlertsList(filters)` - List alerts with filtering
+- `useAlertDetail(id, options)` - Single alert detail (optional: include device)
+- `useOpenAlertCount()` - Count of open alerts, for the TopNav badge
+- `useAcknowledgeAlert()` - Acknowledge an alert mutation
+- `useResolveAlert()` - Resolve an alert mutation
+- `useAlertRulesList(filters)` - List alert rules with filtering
+- `useAlertRuleDetail(id)` - Single alert rule detail
+- `useCreateAlertRule()` - Create alert rule mutation
+- `useUpdateAlertRule()` - Update alert rule mutation
+- `useDeleteAlertRule()` - Soft-delete alert rule mutation
 
 Hooks handle caching, refetching, and error states automatically via React Query.
 
 ## V2 API Endpoints Reference
 
-The v2 API provides 25 comprehensive endpoints organized into 8 categories:
+The v2 API provides 33 comprehensive endpoints organized into 9 categories:
 
 ### Device Management (6 endpoints)
 
@@ -251,6 +261,17 @@ The v2 API provides 25 comprehensive endpoints organized into 8 categories:
 - **PATCH /api/v2/schedules/[id]** - Update schedule (reschedule, change status/notes)
 - **DELETE /api/v2/schedules/[id]** - Cancel schedule (sets status to 'cancelled')
 
+### Alerting (8 endpoints)
+
+- **GET /api/v2/alerts** - List/filter alerts with pagination and sorting (never returns the internal `pending` status)
+- **GET /api/v2/alerts/[id]** - Get single alert (optional: include device details)
+- **PATCH /api/v2/alerts/[id]** - Acknowledge or resolve an alert
+- **GET /api/v2/alert-rules** - List alert rules with pagination, filtering
+- **POST /api/v2/alert-rules** - Create an alert rule
+- **GET /api/v2/alert-rules/[id]** - Get single alert rule
+- **PATCH /api/v2/alert-rules/[id]** - Update an alert rule
+- **DELETE /api/v2/alert-rules/[id]** - Soft delete an alert rule
+
 ### Reports (1 endpoint)
 
 - **GET /api/v2/reports/device-health** - Generate aggregate PDF report (all buildings or per-building scope)
@@ -282,6 +303,7 @@ The v2 API provides 25 comprehensive endpoints organized into 8 categories:
 models/
   v2/DeviceV2.ts, ReadingV2.ts    # Production models (7-day TTL, audit trails)
   v2/ScheduleV2.ts                # Maintenance scheduling model (status machine, audit trails)
+  v2/AlertRuleV2.ts, AlertV2.ts    # Threshold alerting models (alert_rules_v2, alerts_v2; 8 indexes total)
   v1 (deprecated)/                 # Archived v1 models (excluded from compilation)
 lib/
   db.ts                            # Global cached connection (prevents hot-reload leak)
@@ -293,7 +315,14 @@ lib/
     v2-client.ts                   # Typed client for v2 endpoints
     response.ts, pagination.ts     # Response helpers and pagination utilities
   pusher.ts                        # Server-side Pusher configuration
-  pusher-context.tsx               # Pusher React context provider
+  pusher-context.tsx               # Pusher React context provider (usePusherAlerts, usePusherReadings)
+  alerting/                        # Alert rule evaluation, staleness sweep, Pusher notify, demo redaction
+    evaluate.ts                    # Breach-aware evaluator, called by both write paths post-commit
+    sweep.ts                       # Staleness sweep (device_inactive / stale auto-resolution)
+    notify.ts                      # Bounded Pusher envelopes (publishAlertEvents)
+    rule-cache.ts                  # 60s rule cache, bucketed by reading type
+    selector.ts                    # Device selector matching + metric accessors
+    redact.ts                      # Demo-mode audit actor redaction (redactAuditForDemo)
   query/                           # React Query integration
     hooks/                         # API hooks (useDevicesList, useSchedulesList, etc.)
     queryClient.ts                 # Query client configuration
@@ -323,15 +352,20 @@ app/
     useDeviceFilterParams.ts       # Device list filter state, synced to the URL
   floor-plan/page.tsx              # Floor plan visualization
   maintenance/page.tsx             # Maintenance dashboard (+ scheduling)
+  alerts/page.tsx                  # Alerts list view
+  alerts/[id]/page.tsx             # Canonical, shareable alert detail page
+  alerts/rules/page.tsx            # Alert rule management page (admin actions gated)
   unauthorized/page.tsx            # Unauthorized org membership page
   sign-in/[[...sign-in]]/page.tsx  # Clerk sign-in page
   sign-up/[[...sign-up]]/page.tsx  # Clerk sign-up page
   api/
-    v2/                            # Production API routes (25 endpoints)
+    v2/                            # Production API routes (33 endpoints)
       devices/                     # Device CRUD + history
       readings/                    # Reading queries + ingest + latest
       analytics/                   # 5 analytics endpoints
       schedules/                   # Maintenance scheduling CRUD
+      alerts/                      # Alert list/get + acknowledge/resolve
+      alert-rules/                 # Alert rule CRUD (soft delete)
       reports/                     # PDF report generation
       audit/, metadata/, metrics/  # System endpoints
       cron/simulate/               # Synthetic data generator
@@ -340,6 +374,7 @@ proxy.ts                           # Clerk middleware for route protection (Next
 scripts/v2/                        # seed-v2, simulate, test-api, create-indexes, verify-indexes
 components/                        # React components (all use 'use client')
   dashboard/                       # Dashboard-specific widgets
+    ActiveAlertsWidget.tsx         # Open-alerts widget (built fresh, not lifted from AnomalyPanel)
     AnomalyDetectionChart.tsx      # Anomaly chart visualization
     CriticalIssuesPanel.tsx        # Critical issues panel
     MaintenanceWidget.tsx          # Maintenance summary widget
@@ -349,7 +384,15 @@ components/                        # React components (all use 'use client')
   devices/DeviceDetailView.tsx     # Shared device detail presentation (modal + page)
   devices/useDeviceDetail.ts       # Shared device detail data loading
   devices/TagInput.tsx             # Tag input component for device metadata
-  AlertsPanel.tsx                  # Anomaly alerts list (analytics page)
+  alerts/AlertDetailView.tsx       # Shared alert detail presentation (page)
+  alerts/AlertList.tsx             # Paginated alert list with filters (/alerts)
+  alerts/AlertRuleList.tsx         # Alert rule management list (/alerts/rules)
+  alerts/AlertSeverityBadge.tsx    # Severity badge (info/warning/critical)
+  alerts/AlertStatusBadge.tsx      # Status badge (firing/acknowledged/resolved)
+  alerts/AlertToaster.tsx          # Real-time toast notifications for fired/resolved alerts
+  alerts/CreateAlertRuleModal.tsx  # Alert rule creation form (admin only)
+  alerts/useAlertFilterParams.ts   # Alert list filter state, synced to the URL
+  AnomalyPanel.tsx                 # Anomaly alerts list (analytics page; renamed from AlertsPanel.tsx)
   AnomalyChart.tsx                 # Anomaly chart component
   AuditLogViewer.tsx               # Audit log viewer
   DeviceDetailModal.tsx            # Device detail modal (wraps DeviceDetailView)
@@ -482,6 +525,13 @@ function MyComponent() {
 | `/api/v2/schedules/:id` | PATCH/DELETE | `requireAdmin()` |
 | `/api/v2/reports/device-health` | GET | `requireAdmin()` |
 | `/api/v2/metadata` | GET | `requireOrgMembership()` |
+| `/api/v2/alerts` | GET | `requireOrgMembership()` |
+| `/api/v2/alerts/:id` | GET | `requireOrgMembership()` |
+| `/api/v2/alerts/:id` | PATCH | `requireAdmin()` |
+| `/api/v2/alert-rules` | GET | `requireOrgMembership()` |
+| `/api/v2/alert-rules` | POST | `requireAdmin()` |
+| `/api/v2/alert-rules/:id` | GET | `requireOrgMembership()` |
+| `/api/v2/alert-rules/:id` | PATCH/DELETE | `requireAdmin()` |
 
 ### Monitoring & Observability
 
@@ -690,6 +740,26 @@ await ScheduleV2.cancel(scheduleId, 'admin@example.com');
 
 **Service Types**: `firmware_update`, `calibration`, `emergency_fix`, `general_maintenance`
 
+**AlertRuleV2 / AlertV2 Methods:**
+
+```typescript
+// Find active (non-deleted) alert rules
+const activeRules = await AlertRuleV2.findActive({ enabled: true });
+
+// Soft delete an alert rule
+await AlertRuleV2.softDelete(ruleId, 'admin@example.com');
+
+// Atomically acknowledge a firing alert (validates status transition)
+await AlertV2.acknowledge(alertId, 'admin@example.com');
+
+// Atomically resolve a firing/acknowledged alert (validates status transition)
+await AlertV2.resolve(alertId, 'admin@example.com', 'manual');
+```
+
+**Alert Status Transitions**: `pending` (internal only, never returned by the API) -> `firing` -> `acknowledged` -> `resolved`. `resolved` is terminal. Invalid transitions throw `AlertTransitionError`.
+
+**Alert evaluation** (`lib/alerting/`) runs after both write paths (`readings/ingest`, `cron/simulate`) commit their inserts, via `safeEvaluateReadings()`/`safeSweepStaleAlerts()` — these never throw, so an alerting failure never affects the read/write contract of either route. Always call the `safe*` wrappers from `@/lib/alerting`, never `evaluateReadings()`/`sweepStaleAlerts()` directly from a route.
+
 ### Debugging Connection Issues
 
 - Check MongoDB connection: `lib/db.ts` has 5s timeout
@@ -720,7 +790,7 @@ await ScheduleV2.cancel(scheduleId, 'admin@example.com');
 
 ### Core Models & Data
 
-- V2 models: [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts), [models/v2/ScheduleV2.ts](models/v2/ScheduleV2.ts)
+- V2 models: [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts), [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts), [models/v2/ScheduleV2.ts](models/v2/ScheduleV2.ts), [models/v2/AlertRuleV2.ts](models/v2/AlertRuleV2.ts), [models/v2/AlertV2.ts](models/v2/AlertV2.ts)
 - Database connection: [lib/db.ts](lib/db.ts)
 
 ### Validation & Error Handling
@@ -735,6 +805,7 @@ await ScheduleV2.cancel(scheduleId, 'admin@example.com');
 - React Query hooks: [lib/query/hooks/](lib/query/hooks/)
 - Response helpers: [lib/api/response.ts](lib/api/response.ts), [lib/api/pagination.ts](lib/api/pagination.ts)
 - API routes: [app/api/v2/](app/api/v2/)
+- Alerting: [lib/alerting/](lib/alerting/) — rule evaluation (`evaluate.ts`), staleness sweep (`sweep.ts`), Pusher notify (`notify.ts`), rule cache (`rule-cache.ts`), selector matching (`selector.ts`), demo-mode redaction (`redact.ts`)
 
 ### Security & Performance
 
@@ -766,6 +837,7 @@ await ScheduleV2.cancel(scheduleId, 'admin@example.com');
 - Device creation: [components/devices/CreateDeviceModal.tsx](components/devices/CreateDeviceModal.tsx)
 - Schedule management: [components/ScheduleList.tsx](components/ScheduleList.tsx), [components/ScheduleServiceModal.tsx](components/ScheduleServiceModal.tsx)
 - Report generation: [components/GenerateReportModal.tsx](components/GenerateReportModal.tsx)
+- Alert management: [components/alerts/AlertList.tsx](components/alerts/AlertList.tsx), [components/alerts/AlertDetailView.tsx](components/alerts/AlertDetailView.tsx), [components/alerts/CreateAlertRuleModal.tsx](components/alerts/CreateAlertRuleModal.tsx), [components/alerts/AlertToaster.tsx](components/alerts/AlertToaster.tsx)
 
 ### Documentation
 
