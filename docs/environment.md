@@ -17,7 +17,6 @@ Complete guide for configuring environment variables and setting up the Infrasig
   - [Sentry Error Tracking](#sentry-error-tracking)
   - [Alerting](#alerting)
   - [Public Read-Only Demo](#public-read-only-demo)
-  - [API Authentication](#api-authentication)
   - [Development Options](#development-options)
 - [Environment-Specific Configuration](#environment-specific-configuration)
 - [Service Setup Guides](#service-setup-guides)
@@ -328,36 +327,6 @@ NEXT_PUBLIC_DEMO_MODE=true
 
 ---
 
-### API Authentication
-
-API key authentication is opt-in. Leave empty to disable (development mode).
-
-| Variable   | Description                         | Default         |
-| ---------- | ----------------------------------- | --------------- |
-| `API_KEYS` | Comma-separated API key definitions | None (disabled) |
-
-#### Format
-
-```
-name:key:role,name:key:role,...
-```
-
-#### Roles
-
-| Role       | Permissions                                     |
-| ---------- | ----------------------------------------------- |
-| `admin`    | Full access to all endpoints                    |
-| `operator` | Create, update, delete devices; ingest readings |
-| `viewer`   | Read-only access                                |
-
-#### Example Configuration
-
-```env
-API_KEYS=sensor-gateway:abc123xyz:operator,dashboard:xyz789abc:viewer,admin-cli:admin123:admin
-```
-
----
-
 ### Development Options
 
 | Variable              | Description                      | Default |
@@ -474,9 +443,6 @@ NEXT_PUBLIC_SENTRY_DSN=https://production@sentry.io/production
 SENTRY_ORG=my-org
 SENTRY_PROJECT=infrasight
 SENTRY_AUTH_TOKEN=sntrys_eyJ...
-
-# API Authentication
-API_KEYS=sensor-gateway-1:abc123:operator,sensor-gateway-2:def456:operator
 ```
 
 ---
@@ -746,7 +712,6 @@ Keep these values secret:
 - `PUSHER_PRIMARY_KEY`
 - `REDIS_URL` (contains password)
 - `SENTRY_AUTH_TOKEN`
-- `API_KEYS`
 
 ### Client-Side Exposure
 
@@ -845,11 +810,6 @@ NEXT_PUBLIC_SENTRY_DSN=
 SENTRY_ORG=
 SENTRY_PROJECT=
 SENTRY_AUTH_TOKEN=
-
-# -----------------------------------------------------------------------------
-# Optional: API Authentication
-# -----------------------------------------------------------------------------
-API_KEYS=
 
 # -----------------------------------------------------------------------------
 # Development Options

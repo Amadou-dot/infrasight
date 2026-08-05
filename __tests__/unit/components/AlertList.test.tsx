@@ -32,6 +32,13 @@ import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AlertList, formatRelativeTime } from '@/components/alerts/AlertList';
 import type { AlertV2Response } from '@/types/v2';
+// Namespace TYPE imports, used only to annotate the `jest.requireActual`
+// calls further down. `import type` is erased entirely at transpile, so
+// neither of these emits a runtime import — which matters here rather than
+// being a stylistic nicety: a VALUE import of '@/lib/query/hooks' would pull
+// the real module in and defeat the `jest.mock` these tests depend on.
+import type * as AlertQueryHooks from '@/lib/query/hooks';
+import type * as UseAlertFilterParamsModule from '@/components/alerts/useAlertFilterParams';
 
 const mockUseAlertsList = jest.fn();
 const mockAcknowledgeMutate = jest.fn();
@@ -77,11 +84,11 @@ jest.mock('react-toastify', () => ({
 // `v2Api.alerts.list` are mocked instead — the network boundary, not the
 // hooks under test — mirroring AlertDetailPage.test.tsx's established
 // `jest.requireActual(...)` partial-mock idiom.
-const actualAlertHooks = jest.requireActual(
-  '@/lib/query/hooks'
-) as typeof import('@/lib/query/hooks');
+const actualAlertHooks = jest.requireActual('@/lib/query/hooks') as typeof AlertQueryHooks;
 const actualUseAlertFilterParams = (
-  jest.requireActual('@/components/alerts/useAlertFilterParams') as typeof import('@/components/alerts/useAlertFilterParams')
+  jest.requireActual(
+    '@/components/alerts/useAlertFilterParams'
+  ) as typeof UseAlertFilterParamsModule
 ).useAlertFilterParams;
 
 const mockV2ApiAlertsList = jest.fn();
@@ -110,7 +117,14 @@ const mockNavState: { search: string; listeners: Set<() => void> } = {
   search: '',
   listeners: new Set(),
 };
-const mockRouterPush = jest.fn((url: string) => {
+// The second parameter mirrors next/navigation's real `push(href, options?)`
+// signature. It is declared but unused: the mock only needs `href` to drive
+// `useSearchParams`, while `jest.fn`'s recorded calls keep whatever the second
+// argument was for the assertions below. Typing it is not cosmetic — without
+// it the `push` wrapper at the useRouter mock spreads two arguments into a
+// one-argument function, which is a `tsc` error that ts-jest's transpile-only
+// mode does not surface.
+const mockRouterPush = jest.fn((url: string, _options?: unknown) => {
   const query = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
   mockNavState.search = query;
   mockNavState.listeners.forEach(listener => listener());

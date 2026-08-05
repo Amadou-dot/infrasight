@@ -48,7 +48,7 @@ const navItems = [
  * fetch just failed.
  */
 function AlertCountBadge({ count, degraded }: { count: number; degraded: boolean }) {
-  if (degraded) {
+  if (degraded)
     return (
       <span
         aria-label="Open alert count unavailable"
@@ -58,7 +58,6 @@ function AlertCountBadge({ count, degraded }: { count: number; degraded: boolean
         !
       </span>
     );
-  }
 
   if (count <= 0) return null;
 

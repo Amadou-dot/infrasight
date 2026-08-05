@@ -193,7 +193,31 @@ export async function evaluateReadings(
       if (!device) continue;
 
       const ts = toDate(reading.timestamp ?? new Date());
-      const rules = byType.get(type) ?? [];
+
+      // NOT `byType.get(type) ?? []`. Every legal reading type has a bucket
+      // (possibly empty), guaranteed at compile time by the exhaustiveness
+      // assertions on `READING_TYPES` in models/v2/AlertRuleV2.ts. So a MISS
+      // here does not mean "no rules for this type" — it means the reading's
+      // stored type is not a legal reading type at all: bad data, a stale
+      // cache entry, a hand-edited document. The `?? []` turned that into zero
+      // rules with no error, no log and no metric, so every rule that should
+      // have covered the reading silently did not run. Same dedup set as
+      // `skipRule`, keyed by the type rather than a rule id (rule ids are
+      // 24-hex, so the `type::` prefix cannot collide): a bad type on every
+      // reading of a 10,000-reading batch is one log line, not 10,000.
+      const rules = byType.get(type);
+      if (!rules) {
+        const skipKey = `type::${type}`;
+        if (!reportedSkips.has(skipKey)) {
+          reportedSkips.add(skipKey);
+          recordAlertRuleSkipped('unexpected_error');
+          logger.warn('Readings skipped: no alert rule bucket for reading type', {
+            type: String(type),
+            deviceId,
+          });
+        }
+        continue;
+      }
 
       for (const rule of rules) {
         const validation = validateRule(rule);

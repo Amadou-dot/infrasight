@@ -28,6 +28,20 @@ function reading(value: number, at: Date, overrides: Partial<EvaluableReading> =
   } as EvaluableReading;
 }
 
+/**
+ * A reading whose stored `metadata.type` is NOT a legal reading type.
+ *
+ * The cast is the whole point: `EvaluableReading` will not let this be written
+ * in TypeScript, which is exactly why the situation is a runtime-only one — it
+ * arrives from a seed script, a migration, or a cache entry written before a
+ * schema change, none of which type-check against `ReadingType`.
+ */
+function readingOfType(type: string, value: number, at: Date): EvaluableReading {
+  const r = reading(value, at);
+  (r.metadata as { type: string }).type = type;
+  return r;
+}
+
 /** A reading attributed to a device other than DEVICE. */
 function readingFor(deviceId: string, value: number, at: Date): EvaluableReading {
   const r = reading(value, at);
@@ -1061,6 +1075,69 @@ describe('evaluateReadings', () => {
 
       matchSpy.mockRestore();
       errorSpy.mockRestore();
+    });
+
+    // The RUNTIME half of the missing-reading-type finding. Its compile-time
+    // half already holds: `READING_TYPES` (models/v2/AlertRuleV2.ts) is
+    // exhaustiveness-asserted against `ReadingType`, so a type added to the
+    // union but not to that list is a `tsc` error and every LEGAL type is
+    // guaranteed a bucket. Nothing type-checks a stored document, though — a
+    // seed script, a migration, or a Redis entry written before a schema
+    // change can hand the evaluator a reading whose `metadata.type` is not a
+    // legal reading type at all. That lookup misses, and the old `?? []` made
+    // it mean "no rules apply" instead of "this reading was not evaluated".
+    it('should report a reading whose type has no rule bucket instead of dropping it silently', async () => {
+      await seedRule(); // 'High temp': would have covered a temperature reading
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+      const result = await evaluateReadings(
+        [readingOfType('plasma_flux', 35, new Date('2026-08-01T12:00:00.000Z'))],
+        [DEVICE]
+      );
+
+      // The reading really was dropped — that part is unavoidable, there is no
+      // bucket to evaluate it against. What must not happen is dropping it in
+      // silence.
+      expect(result.evaluatedPairs).toBe(0);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ type: 'plasma_flux', deviceId: 'device_001' })
+      );
+      expect(getPrometheusMetrics()).toContain(
+        'alert_rules_skipped_total{reason="unexpected_error"} 1'
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    // The dedup half: without it a bad type on every reading of a
+    // 10,000-reading ingest emits 10,000 identical log lines and inflates the
+    // counter by 10,000, which is how an observable failure becomes an ignored
+    // one. Counted once per call, exactly like the throwing-rule case above.
+    it('should report an unbucketed reading type once per call, not once per reading', async () => {
+      await seedRule();
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+      const result = await evaluateReadings(
+        [
+          readingOfType('plasma_flux', 35, new Date('2026-08-01T12:00:00.000Z')),
+          readingOfType('plasma_flux', 36, new Date('2026-08-01T12:01:00.000Z')),
+          readingOfType('plasma_flux', 37, new Date('2026-08-01T12:02:00.000Z')),
+          // A legal reading in the SAME batch still evaluates normally: the
+          // bad type costs only itself, and the skip does not abort the loop.
+          reading(38, new Date('2026-08-01T12:03:00.000Z')),
+        ],
+        [DEVICE]
+      );
+
+      expect(result.fired).toHaveLength(1);
+      expect(result.fired[0].rule_name).toBe('High temp');
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(getPrometheusMetrics()).toContain(
+        'alert_rules_skipped_total{reason="unexpected_error"} 1'
+      );
+
+      warnSpy.mockRestore();
     });
   });
 

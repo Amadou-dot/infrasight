@@ -121,9 +121,17 @@ const mockAlertDetailViewMode: { useReal: boolean } = { useReal: false };
 jest.mock('@/components/alerts/AlertDetailView', () => ({
   AlertDetailView: (props: ComponentProps<typeof AlertDetailViewType>) => {
     if (mockAlertDetailViewMode.useReal) {
+      // Typed off the `AlertDetailViewType` import already at the top of this
+      // file rather than a `typeof import(...)` annotation (banned by
+      // consistent-type-imports) or a second namespace import from the same
+      // module (banned by import/no-duplicates). Only the one binding this
+      // destructure actually takes needs describing. `AlertDetailViewType` is
+      // an `import type`, so it is erased at transpile — no runtime import of
+      // a module that `jest.mock` is intercepting, and no out-of-scope
+      // variable reference inside the factory.
       const { AlertDetailView: Real } = jest.requireActual(
         '@/components/alerts/AlertDetailView'
-      ) as typeof import('@/components/alerts/AlertDetailView');
+      ) as { AlertDetailView: typeof AlertDetailViewType };
       return <Real {...props} />;
     }
     return <div data-testid="alert-detail-view">{props.alert.rule_name}</div>;
