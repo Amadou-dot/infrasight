@@ -83,7 +83,12 @@ export function ActiveAlertsWidget() {
                 {alert.rule_name}
               </Link>
               <span className="text-muted-foreground">{alert.device_id}</span>
-              {/* fired_at is unset while an episode is pending; breached_since always exists. */}
+              {/* fired_at is typed optional, but every alert this widget ever
+                  receives has one set: the list route never returns
+                  `pending` episodes — they are deleted rather than resolved,
+                  so they never reach a client (app/api/v2/alerts/route.ts).
+                  This is defensive against the type, not a real pending-row
+                  case; breached_since always exists regardless. */}
               <span className="ml-auto text-xs text-muted-foreground">
                 {formatRelativeTime(alert.fired_at ?? alert.breached_since)}
               </span>

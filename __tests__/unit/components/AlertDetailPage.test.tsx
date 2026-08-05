@@ -39,8 +39,17 @@ import type { AlertV2Response } from '@/types/v2';
 import type { AlertDetailView as AlertDetailViewType } from '@/components/alerts/AlertDetailView';
 
 const mockUseAlertDetail = jest.fn();
+const mockAcknowledgeMutate = jest.fn();
+const mockResolveMutate = jest.fn();
 jest.mock('@/lib/query/hooks', () => ({
   useAlertDetail: (...args: unknown[]) => mockUseAlertDetail(...args),
+  // Needed once the "readings error must reach the screen" tests below (A3,
+  // fix round 2) render the REAL AlertDetailView instead of the stub —
+  // AlertDetailView calls these two directly (mirrors the mock in
+  // AlertDetailView.test.tsx). Unused by every other test in this file,
+  // which keeps AlertDetailView stubbed.
+  useAcknowledgeAlert: () => ({ mutate: mockAcknowledgeMutate, isPending: false }),
+  useResolveAlert: () => ({ mutate: mockResolveMutate, isPending: false }),
 }));
 
 const mockUseParams = jest.fn();
@@ -77,10 +86,48 @@ jest.mock('next/link', () => {
   return Link;
 });
 
+// AlertDetailView.tsx (rendered for REAL by the "readings error must reach
+// the screen" tests below) calls useAdminAction() -> useRbac() -> Clerk's
+// useAuth(). The global jsdom setup mock (jest.setup.jsdom.ts) provides
+// useUser/useOrganization but not useAuth, so it must be supplied locally —
+// the same override AlertDetailView.test.tsx / AlertList.test.tsx already
+// apply for the same reason.
+const mockUseAuth = jest.fn(() => ({
+  isLoaded: true,
+  isSignedIn: true,
+  orgRole: 'org:admin' as const,
+  orgSlug: 'users',
+}));
+jest.mock('@clerk/nextjs', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+jest.mock('react-toastify', () => ({
+  toast: { success: jest.fn(), error: jest.fn() },
+}));
+
+// The page's own loading/404/retry-banner orchestration (covered by the
+// tests below that don't touch this flag) only needs to know AlertDetailView
+// RECEIVED the right alert, so it stays a lightweight stub by default.
+//
+// Fix round 2 (A3): the "readings error must reach the screen" describe
+// block flips `useReal` to render the ACTUAL AlertDetailView instead. This
+// is deliberate, not incidental — a stub that only echoes props back would
+// keep passing even if the page stopped threading `readingsError` through in
+// a way that actually reaches the DOM, which is exactly the regression that
+// happened in round 1 (the prop existed but nothing rendered it). Reset to
+// false in the top-level beforeEach so it never leaks into other tests.
+const mockAlertDetailViewMode: { useReal: boolean } = { useReal: false };
 jest.mock('@/components/alerts/AlertDetailView', () => ({
-  AlertDetailView: (props: ComponentProps<typeof AlertDetailViewType>) => (
-    <div data-testid="alert-detail-view">{props.alert.rule_name}</div>
-  ),
+  AlertDetailView: (props: ComponentProps<typeof AlertDetailViewType>) => {
+    if (mockAlertDetailViewMode.useReal) {
+      const { AlertDetailView: Real } = jest.requireActual(
+        '@/components/alerts/AlertDetailView'
+      ) as typeof import('@/components/alerts/AlertDetailView');
+      return <Real {...props} />;
+    }
+    return <div data-testid="alert-detail-view">{props.alert.rule_name}</div>;
+  },
 }));
 
 function makeAlert(overrides: Partial<AlertV2Response> = {}): AlertV2Response {
@@ -125,6 +172,7 @@ function renderPage() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAlertDetailViewMode.useReal = false;
   mockUseParams.mockReturnValue({ id: 'alert_1' });
   mockReadingsList.mockResolvedValue({ success: true, data: [] });
 });
@@ -259,6 +307,55 @@ describe('AlertDetailPage', () => {
       renderPage();
 
       expect(mockReadingsList).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- A3, fix round 2: the readings error must reach the SCREEN, not just
+  // AlertDetailView's props. Round 1 added readingsError/onRetryReadings to
+  // AlertDetailView and proved (in AlertDetailView.test.tsx) that the prop
+  // renders a visually distinct state — but this page never threaded the
+  // query's `error`/`refetch` into that prop, so the fix was inert in
+  // production. A component-only test can't catch that: it would keep
+  // passing even if this page stopped passing the prop entirely. These
+  // tests render the REAL AlertDetailView (via mockAlertDetailViewMode)
+  // specifically so a regression in the page's own wiring shows up as
+  // missing/wrong text on screen, the same way a user would see it.
+  describe('readings error must reach the screen (A3, page-level)', () => {
+    beforeEach(() => {
+      mockAlertDetailViewMode.useReal = true;
+      mockUseAlertDetail.mockReturnValue({
+        data: makeAlert({ fired_at: '2026-08-01T12:05:00.000Z' }),
+        isLoading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+    });
+
+    it('should render a distinct error state (with a retry affordance), not the empty-state copy, when the readings query fails', async () => {
+      mockReadingsList.mockRejectedValue(new Error('network down'));
+
+      renderPage();
+
+      await waitFor(() =>
+        expect(screen.getByText(/failed to load readings/i)).toBeInTheDocument()
+      );
+      // Must not collide with the genuinely-empty-response copy.
+      expect(screen.queryByText(/no readings in this window/i)).not.toBeInTheDocument();
+      // onRetryReadings (the query's own refetch) must have arrived too —
+      // proven by the retry affordance actually being on screen.
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    });
+
+    it('should render "No readings in this window." (and NOT the error affordance) when the readings query succeeds but is genuinely empty', async () => {
+      mockReadingsList.mockResolvedValue({ success: true, data: [] });
+
+      renderPage();
+
+      await waitFor(() =>
+        expect(screen.getByText(/no readings in this window/i)).toBeInTheDocument()
+      );
+      expect(screen.queryByText(/failed to load readings/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
     });
   });
 });

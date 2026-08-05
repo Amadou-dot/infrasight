@@ -21,6 +21,7 @@ import { AlertSeverityBadge } from './AlertSeverityBadge';
 import { describeCondition } from './AlertList';
 import { useAlertRulesList, useUpdateAlertRule, useDeleteAlertRule } from '@/lib/query/hooks';
 import { useAdminAction } from '@/lib/auth/rbac-client';
+import { cn } from '@/lib/utils';
 import type { AlertRuleV2Response, AlertRuleSelector } from '@/types/v2';
 
 const PAGE_SIZE = 10;
@@ -60,7 +61,13 @@ export function AlertRuleList() {
   const [page, setPage] = useState(1);
   const [ruleToDelete, setRuleToDelete] = useState<AlertRuleV2Response | null>(null);
 
-  const { data: rules, isLoading, error, refetch } = useAlertRulesList({
+  const {
+    data: rules,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useAlertRulesList({
     page,
     limit: PAGE_SIZE,
   });
@@ -98,8 +105,8 @@ export function AlertRuleList() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle>Alert Rules</CardTitle>
-        <Button variant="ghost" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
+        <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
         </Button>
       </CardHeader>
 
@@ -118,7 +125,12 @@ export function AlertRuleList() {
           <p className="py-8 text-center text-sm text-muted-foreground">No alert rules.</p>
         )}
 
-        <ul className="divide-y divide-border">
+        <ul
+          className={cn(
+            'divide-y divide-border transition-opacity',
+            isFetching && !isLoading && 'opacity-60'
+          )}
+        >
           {rules?.map(rule => (
             <li key={rule._id} className="flex flex-wrap items-center gap-3 py-3">
               {toggleAction.visible && (
@@ -165,7 +177,7 @@ export function AlertRuleList() {
           <Button
             variant="outline"
             size="sm"
-            disabled={page === 1}
+            disabled={page === 1 || isFetching}
             onClick={() => setPage(page - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -175,7 +187,7 @@ export function AlertRuleList() {
           <Button
             variant="outline"
             size="sm"
-            disabled={(rules?.length ?? 0) < PAGE_SIZE}
+            disabled={(rules?.length ?? 0) < PAGE_SIZE || isFetching}
             onClick={() => setPage(page + 1)}
           >
             Next

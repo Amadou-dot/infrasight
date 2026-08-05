@@ -11,6 +11,7 @@ import { AlertStatusBadge } from './AlertStatusBadge';
 import { useAlertFilterParams } from './useAlertFilterParams';
 import { useAlertsList, useAcknowledgeAlert, useResolveAlert } from '@/lib/query/hooks';
 import { useAdminAction } from '@/lib/auth/rbac-client';
+import { cn } from '@/lib/utils';
 import type {
   AlertComparison,
   AlertSeverity,
@@ -113,7 +114,7 @@ export function AlertList({
     limit: PAGE_SIZE,
   };
 
-  const { data: alerts, isLoading, error, refetch } = useAlertsList(filters);
+  const { data: alerts, isLoading, error, refetch, isFetching } = useAlertsList(filters);
   const acknowledge = useAcknowledgeAlert();
   const resolve = useResolveAlert();
 
@@ -146,8 +147,8 @@ export function AlertList({
               options={SEVERITY_OPTIONS}
               size="sm"
             />
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
             </Button>
           </div>
         </CardHeader>
@@ -168,7 +169,12 @@ export function AlertList({
           <p className="py-8 text-center text-sm text-muted-foreground">No open alerts.</p>
         )}
 
-        <ul className="divide-y divide-border">
+        <ul
+          className={cn(
+            'divide-y divide-border transition-opacity',
+            isFetching && !isLoading && 'opacity-60'
+          )}
+        >
           {alerts?.map(alert => (
             <li key={alert._id} className="flex flex-wrap items-center gap-3 py-3">
               <AlertSeverityBadge severity={alert.severity} />
@@ -190,7 +196,12 @@ export function AlertList({
                 {describeCondition(alert)} — last {alert.last_value}
               </span>
 
-              {/* fired_at is unset while an episode is still pending; breached_since always exists. */}
+              {/* fired_at is typed optional, but every alert this list ever
+                  receives has one set: the list route never returns
+                  `pending` episodes — they are deleted rather than resolved,
+                  so they never reach a client (app/api/v2/alerts/route.ts).
+                  This is defensive against the type, not a real pending-row
+                  case; breached_since always exists regardless. */}
               <span className="text-sm text-muted-foreground">
                 {formatRelativeTime(alert.fired_at ?? alert.breached_since)}
               </span>
@@ -229,7 +240,7 @@ export function AlertList({
           <Button
             variant="outline"
             size="sm"
-            disabled={page === 1}
+            disabled={page === 1 || isFetching}
             onClick={() => setPage(page - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -239,7 +250,7 @@ export function AlertList({
           <Button
             variant="outline"
             size="sm"
-            disabled={(alerts?.length ?? 0) < PAGE_SIZE}
+            disabled={(alerts?.length ?? 0) < PAGE_SIZE || isFetching}
             onClick={() => setPage(page + 1)}
           >
             Next

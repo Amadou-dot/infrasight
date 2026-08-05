@@ -33,6 +33,20 @@ interface AlertDetailViewProps {
    * Optional; omitted entirely when unknown or zero.
    */
   forDurationSeconds?: number;
+  /**
+   * Set when the bracketing-readings fetch itself failed. Distinct from a
+   * genuinely empty `bracketingReadings` array: "No readings in this
+   * window." is the signature of a stale/device_inactive close (the sensor
+   * stopped reporting) and must never be what a fetch failure renders as —
+   * that would be the wrong diagnosis, mid-incident (review finding A3).
+   * Optional because a caller may not have wired a readings-error branch
+   * (the readings query can fail without this being populated, in which
+   * case the section falls back to the empty-state copy — see the task
+   * report for whether that wiring exists yet).
+   */
+  readingsError?: unknown;
+  /** Retry affordance for the readings-error state — typically the readings query's own refetch. */
+  onRetryReadings?: () => void;
 }
 
 function humanizeDuration(seconds: number): string {
@@ -81,6 +95,8 @@ export function AlertDetailView({
   bracketingReadings,
   loading,
   forDurationSeconds,
+  readingsError,
+  onRetryReadings,
 }: AlertDetailViewProps) {
   // Same useAdminAction() contract as AlertList's row actions and
   // app/analytics/page.tsx's report button: enabled for admins;
@@ -220,6 +236,15 @@ export function AlertDetailView({
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          </div>
+        ) : readingsError ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            <p>Failed to load readings for this window.</p>
+            {onRetryReadings && (
+              <Button variant="outline" size="sm" className="mt-2" onClick={onRetryReadings}>
+                Retry
+              </Button>
+            )}
           </div>
         ) : bracketingReadings.length === 0 ? (
           <p className="text-sm text-muted-foreground">No readings in this window.</p>

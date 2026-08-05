@@ -49,7 +49,17 @@ export default function AlertDetailPage() {
   // that shows the breach developing. limit: 100 is the endpoint's max and
   // comfortably covers 30 minutes at any realistic reporting cadence;
   // ascending puts the bracketing table in chronological order.
-  const { data: bracketingReadings = [], isLoading: readingsLoading } = useQuery({
+  const {
+    data: bracketingReadings = [],
+    isLoading: readingsLoading,
+    // Sibling to the alert query's own `error`/`refetch` above — prefixed
+    // the same way `readingsLoading` already is, so the two queries' state
+    // never collides. Threaded into AlertDetailView below so a failed fetch
+    // renders its own distinct error state instead of silently reading as
+    // "No readings in this window." (review finding A3).
+    error: readingsError,
+    refetch: refetchReadings,
+  } = useQuery({
     queryKey: queryKeys.readings.list({
       device_id: alert?.device_id,
       ...range,
@@ -119,6 +129,8 @@ export default function AlertDetailPage() {
             alert={alert}
             bracketingReadings={bracketingReadings}
             loading={readingsLoading}
+            readingsError={readingsError}
+            onRetryReadings={refetchReadings}
           />
         </div>
       )}

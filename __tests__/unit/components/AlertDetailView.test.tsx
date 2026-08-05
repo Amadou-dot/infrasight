@@ -147,10 +147,15 @@ describe('AlertDetailView', () => {
     );
 
     expect(screen.getByText(/acknowledged/i)).toBeInTheDocument();
-    // The status badge is the sole "Resolved" text; the timeline's own closing
-    // step deliberately avoids repeating the word (see "resolution wording"
-    // tests below) so this stays a single, unambiguous match.
-    expect(screen.getByText(/resolved/i)).toBeInTheDocument();
+    // D4 fix: this used to assert /resolved/i, which is satisfied by the
+    // status badge alone (AlertStatusBadge renders the literal text
+    // "Resolved") and says nothing about the timeline's own closing step —
+    // RESOLUTION_LABELS deliberately avoids the word "resolved" so the two
+    // don't collide. Asserting the real label text ("closed manually", from
+    // RESOLUTION_LABELS.manual) is the only way this test can actually fail
+    // if the resolved timeline block is deleted; see the task report for the
+    // deletion-check evidence.
+    expect(screen.getByText(/closed manually/i)).toBeInTheDocument();
   });
 
   it('should link to the device', () => {
@@ -312,6 +317,75 @@ describe('AlertDetailView', () => {
 
       expect(container.querySelector('.animate-spin')).not.toBeInTheDocument();
       expect(screen.getByText(/no readings in this window/i)).toBeInTheDocument();
+      // Distinct from the error branch (A3) — not a shared fallback.
+      expect(screen.queryByText(/failed to load readings/i)).not.toBeInTheDocument();
+    });
+  });
+
+  // --- A3: a failed readings fetch must render a state visually distinct
+  // from "No readings in this window." (the signature of a genuinely empty,
+  // successful response) — the two must never collapse into the same output.
+  describe('bracketing readings error state (A3)', () => {
+    it('should render a distinct error state instead of the empty-state copy when the readings query fails', () => {
+      render(
+        <AlertDetailView
+          alert={alert()}
+          bracketingReadings={[]}
+          loading={false}
+          readingsError={new Error('network down')}
+        />
+      );
+
+      expect(screen.getByText(/failed to load readings/i)).toBeInTheDocument();
+      // The empty-state copy reads as "stale/device_inactive" (see the
+      // component's own RESOLUTION_LABELS doc comment) — the wrong
+      // diagnosis for a fetch that never actually completed.
+      expect(screen.queryByText(/no readings in this window/i)).not.toBeInTheDocument();
+    });
+
+    it('should offer a retry affordance in the error state, and call it when clicked', () => {
+      const onRetryReadings = jest.fn();
+
+      render(
+        <AlertDetailView
+          alert={alert()}
+          bracketingReadings={[]}
+          loading={false}
+          readingsError={new Error('network down')}
+          onRetryReadings={onRetryReadings}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+
+      expect(onRetryReadings).toHaveBeenCalledTimes(1);
+    });
+
+    it('should prioritize the loading spinner over the error state while still loading', () => {
+      const { container } = render(
+        <AlertDetailView
+          alert={alert()}
+          bracketingReadings={[]}
+          loading
+          readingsError={new Error('network down')}
+        />
+      );
+
+      expect(container.querySelector('.animate-spin')).toBeInTheDocument();
+      expect(screen.queryByText(/failed to load readings/i)).not.toBeInTheDocument();
+    });
+
+    it('should not render a retry button when no retry callback is provided', () => {
+      render(
+        <AlertDetailView
+          alert={alert()}
+          bracketingReadings={[]}
+          loading={false}
+          readingsError={new Error('network down')}
+        />
+      );
+
+      expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
     });
   });
 
