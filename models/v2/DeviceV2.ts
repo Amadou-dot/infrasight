@@ -360,7 +360,17 @@ DeviceV2Schema.index({ status: 1, type: 1 });
  * Mongoose 9+ uses async middleware without next callback
  */
 DeviceV2Schema.pre('save', function () {
-  if (!this.isNew) this.audit.updated_at = new Date();
+  if (!this.isNew) {
+    this.audit.updated_at = new Date();
+    return;
+  }
+
+  // created_at and updated_at default to two separate `new Date()` calls, so under load
+  // they can land in different milliseconds. Consumers (the device history and audit
+  // endpoints) read any difference as a real edit, which invents an "updated" entry for
+  // a device nobody has touched. A device that has never been modified must report a
+  // single instant. Only collapse the defaults — an explicit updated_at is intentional.
+  if (this.$isDefault('audit.updated_at')) this.audit.updated_at = this.audit.created_at;
 });
 
 /**

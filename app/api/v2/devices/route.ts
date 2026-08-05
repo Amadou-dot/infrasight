@@ -281,7 +281,9 @@ async function handleCreateDevice(request: NextRequest) {
         { field: '_id', value: deviceData._id }
       );
 
-    // Create device with audit metadata
+    // Create device with audit metadata. created_at and updated_at share one clock read
+    // so a brand-new device never looks like it was already edited (see DeviceV2 pre-save).
+    const now = new Date();
     const deviceDoc: Partial<IDeviceV2> = {
       ...deviceData,
       configuration: deviceData.configuration
@@ -291,13 +293,13 @@ async function handleCreateDevice(request: NextRequest) {
           }
         : undefined,
       audit: {
-        created_at: new Date(),
+        created_at: now,
         created_by: auditUser,
-        updated_at: new Date(),
+        updated_at: now,
         updated_by: auditUser,
       },
       health: {
-        last_seen: new Date(),
+        last_seen: now,
         uptime_percentage: 100,
         error_count: 0,
         ...deviceData.health,
