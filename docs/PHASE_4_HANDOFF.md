@@ -1,167 +1,63 @@
-# Phase 4 Alerting — Handoff (INCOMPLETE)
+# Phase 4 Alerting — Handoff & Retrospective
 
-> **This branch is not finished and must not be merged.** 11 of 20 planned tasks are done.
-> The backend is complete and tested; **there is no user interface at all**, so the feature
-> is invisible to anyone using the app. See "What is left" below.
+**Status: complete.** All 20 planned tasks are done. This document is a
+completion summary plus the retrospective notes accumulated during
+implementation — the retrospective is the part worth reading even after the
+phase itself is history, and is the main reason to keep this file at all.
 
 **Branch:** `feat/phase-4-alerting`, cut from `main` at `539181d`.
 **Design:** `docs/superpowers/specs/2026-08-01-alerting-subsystem-design.md` (on `docs/phase-4-alerting-design`)
-**Plan:** `docs/superpowers/plans/2026-08-01-alerting-subsystem.md` (same branch — **read this before continuing**; it has the complete code for every remaining task)
+**Plan:** `docs/superpowers/plans/2026-08-01-alerting-subsystem.md` (same branch)
 
 ---
 
-## What works right now
+## What shipped
 
-The alerting subsystem is live end-to-end on the server. Alerts are being created by real
-ingest and cron traffic, and all eight new endpoints respond.
+The alerting subsystem is live end-to-end: server-side evaluation, real-time
+delivery, and a full UI, all backed by real ingest and cron traffic.
 
 | Area | State |
 | --- | --- |
-| `AlertRuleV2` + `AlertV2` models, 8 indexes | done |
+| `AlertRuleV2` + `AlertV2` models, 8 indexes across the two collections | done |
 | Zod validation + client-safe wire types | done |
-| Rule cache (60s, global key) + 4 Prometheus series | done |
+| Rule cache (60s, global key) + Prometheus series | done |
 | Selector matching, metric accessors | done |
 | Evaluator (breach-aware, index-enforced dedup) | done |
 | Staleness sweep + failure-isolating wrappers | done |
-| Wired into **both** write paths | done |
-| `/api/v2/alerts` + `/api/v2/alerts/[id]` | done |
-| `/api/v2/alert-rules` + `/api/v2/alert-rules/[id]` | done |
-| **Any UI** | **not started** |
-| **Pusher delivery** | **not started** |
-| **Seeded rules** | **not started** |
+| Wired into both write paths (ingest, cron/simulate) | done |
+| `GET /api/v2/alerts` + `GET`/`PATCH /api/v2/alerts/[id]` | done |
+| `GET`/`POST /api/v2/alert-rules` + `GET`/`PATCH`/`DELETE /api/v2/alert-rules/[id]` | done |
+| Pusher real-time delivery (`lib/alerting/notify.ts`, `usePusherAlerts`, `AlertToaster`) | done |
+| `/alerts`, `/alerts/[id]`, `/alerts/rules` pages + nav badge | done |
+| Seeded alert rules (`scripts/v2/alert-rule-seeds.ts`) | done |
 
-v2 API is now 33 endpoints (was 25). Test suite: **2362 passing** (was 2173 at branch point).
+v2 API is now **33 endpoints** (was 25 at the branch point — the alerting
+subsystem added 8: `alerts` list/get/patch, `alert-rules` list/create/get/
+patch/delete).
 
-## What is left — Tasks 12–20
+Test suite: **2598 passing / 115 suites**.
 
-Work them in order; each has complete code in the plan. Dependencies:
-
-```
-Task 12 (API client + React Query hooks)  ─┐
-Task 13 (Pusher notify, bounded payload)  ─┴─→ Task 14 (usePusherAlerts + toasts)
-                                                      │
-                        Task 15 (badges, AlertList, /alerts) ←┘
-                                │
-                                ├── Task 16 (/alerts/[id] detail page)
-                                ├── Task 17 (/alerts/rules management UI)
-                                └── Task 18 (AnomalyPanel rename, dashboard widget, TopNav)
-                                             │
-                                 Task 19 (seed rules) → Task 20 (E2E)
-```
-
-Task 20 must be last — it needs a seeded database and every route in place.
-
-### Two things in the remaining work that are easy to get wrong
-
-- **Task 18 renames `components/AlertsPanel.tsx`, it does not delete it.** Issue #99 and the
-  parent design both call it orphaned. **That is stale.** It is imported at
-  `app/analytics/page.tsx:5` and rendered at `:84`. Deleting it breaks the build. Re-grep
-  before touching it.
-- **Task 14 deviates from the plan's "copy the existing hook shape verbatim" instruction, by
-  human ruling.** Both `usePusherAlerts` *and* the existing `usePusherReadings` must move their
-  ref assignment into a commit-phase effect. The existing shape is one of the baseline lint
-  errors (`lib/pusher-context.tsx | react-hooks/refs`); copying it would add a second instance.
-  Expect `lintcheck` to report **310** after Task 14, not 311.
+Gates are strict and clean: `npx tsc --noEmit` 0 errors, `pnpm lint` 0
+problems, `pnpm build` clean.
 
 ---
 
-## Environment notes for whoever picks this up
+## Environment notes
 
-### The two verification gates are NOT the raw commands
+Tests need no external database — `__tests__/setup/globalSetup.ts` starts
+`mongodb-memory-server` and injects mock Pusher credentials, so `pnpm test`
+runs standalone.
 
-`npx tsc --noEmit` and `pnpm lint` have **never** been clean on this repo. The branch starts
-with **39 pre-existing type errors** (all inside `__tests__/`, invisible to ts-jest because it
-runs `isolatedModules` and does not typecheck) and **311 pre-existing lint problems**.
-
-Use these instead — they diff against a recorded baseline and fail only on *additions*:
+For manual verification against a real database (`pnpm seed`, Playwright), a
+local MongoDB container works well:
 
 ```bash
-./.superpowers/sdd/2026-08-01-alerting-subsystem/tscheck
-./.superpowers/sdd/2026-08-01-alerting-subsystem/lintcheck
+docker run -d --name infrasight-mongo -p 27018:27017 mongo:7 --replSet rs0
 ```
 
-`tscheck` normalizes away line:column so the baseline does not drift when you shift lines in a
-file that already carries baseline errors. **Never edit the baseline files** — that is how a
-real regression gets hidden.
-
-If the `.superpowers/` directory is gone (it is git-ignored scratch, and `git clean -fdx`
-destroys it), regenerate:
-
-```bash
-npx tsc --noEmit 2>&1 | grep "error TS" | sed -E 's/\(([0-9]+),([0-9]+)\)//' | sort > tsc-baseline-sorted.txt
-```
-
-`pnpm build` and `pnpm test` **are** clean at baseline and stay strict — a failure there is
-genuinely yours.
-
-### Local database for Tasks 19–20
-
-Tasks 19 and 20 need a real database (`pnpm seed`, Playwright). A Docker container is running:
-
-```
-docker start infrasight-phase4-mongo     # mongo:7, replica set rs0, port 27018
-```
-
-The worktree's `.env.local` already points at it. `scripts/v2/seed-v2.ts` refuses to wipe a
-non-local target without `--force`, which is why the local container matters.
-
-Jest itself needs **no** external database — `__tests__/setup/globalSetup.ts` starts
-mongodb-memory-server and injects mock Pusher credentials.
-
----
-
-## Open decision for a human
-
-**Ingest path evaluates readings that may not have persisted.** *(Task 9, Important,
-plan-mandated — parked, not fixed.)*
-
-`app/api/v2/readings/ingest/route.ts` builds `validReadings` **before** the batch-insert loop
-and never prunes it to the successfully-inserted subset. Evaluation is gated on
-`results.inserted > 0` — "at least one insert succeeded" — not "these specific readings
-succeeded". So on a partial batch failure, a reading that was never written can still fire an
-alert, and an operator investigating it would find no corresponding row in `readings_v2`.
-
-The plan's Task 9 code mandates exactly this, which is why it was parked rather than fixed.
-
-*Assessment:* real, but low severity. Zod validates upstream so partial `insertMany` failure is
-rare; timeseries collections have no unique constraints to collide on; and the consequence is a
-spurious alert that auto-resolves on the next in-bounds reading. The fix means zipping
-`validReadings` against `insertMany`'s acknowledged docs and `bulkError.insertedIds` across two
-existing failure branches — real complexity in a loop that already has two failure paths.
-
-**Recommendation: leave it.** But it is a judgment call, and it is recorded here so it is not
-silently lost.
-
----
-
-## Deferred minor findings
-
-None block merge; the final whole-branch review should triage them.
-
-- `AlertRuleV2`: `pre('save')` branch untested; no negative test for an invalid `selector.types`.
-- `AlertV2`: `acknowledge()` redundantly `$set`s `is_open: true`; no `pre('findOneAndUpdate')`
-  hook, so a future direct update bypassing the statics would not bump `audit.updated_at`.
-- Validation: selector tag rules hand-duplicated rather than sharing an un-defaulted helper;
-  `typesRequiredForValueMetric` untested via the update path; atomic-group error always anchors
-  to `path: ['metric']`.
-- Cache/metrics: `clearAllCaches()` does not `del(alertRulesKey())` despite its docstring;
-  redundant `beforeEach`; the nested `alerts` metrics group lacks a JSDoc.
-- Selector: `compare()` uses `default: return false` rather than a `never` exhaustiveness guard.
-- Rule cache: no test asserts `ruleCount === rules.length` for a non-empty set.
-- Evaluator: `recordAlert('fired'/'resolved')` is incremented **before** `bulkWrite`, so it is
-  not reconciled against `failedIndices` — under a concurrent E11000 race both callers count a
-  fire though only one document is created. Persisted state and Pusher notifications *are*
-  correctly guarded; only counter precision is affected. Also, the readings/devices-empty early
-  return skips `recordAlertEvaluationDuration`.
-- Sweep: `STALE_AFTER_SECONDS` `parseInt` has no `NaN` guard — a malformed
-  `ALERT_STALE_AFTER_SECONDS` silently disables the staleness check (device-inactive detection
-  still works).
-- Task 9: `CronDevice` declares `metadata.department` required though the projection returns
-  only `tags`; ingest uses a double-`unknown` cast; no failure-injection test on the cron path.
-- Task 10: `if (note)` discards an explicit `note: ''` so a caller cannot clear a note;
-  `audit.updated_at` bumped twice when a note is supplied.
-- Task 11: PATCH sets `audit.updated_at` explicitly though the model hook already does;
-  atomic-group 400 test only covers `{ threshold }` alone.
+Point `.env.local`'s `MONGODB_URI` at it. `scripts/v2/seed-v2.ts` refuses to
+wipe a non-local target without `--force`, which is why a local container
+matters for iterating on seed data.
 
 ---
 
@@ -199,6 +95,14 @@ one dropped to compiled JS to prove a `jest.spyOn` on a re-exported symbol was g
 **Keep doing this.** When adding a negative test, assert on the specific error `code`, not the
 status; a 403 that is really a 400 is indistinguishable otherwise.
 
+> **Update from the final whole-branch review (2026-08-04):** the same failure mode kept
+> showing up at cross-cutting scale, not just per-task — nine tests across the phase shipped
+> green while asserting nothing real, adding a fifth pattern to the four above: assertions
+> reading stdout when the code under test wrote to stderr, and a test mocking the very hook it
+> claimed to exercise. The check that catches all five is the same one: delete the line the test
+> names, confirm the test goes red, then restore. If it doesn't go red, the test was never
+> testing that line.
+
 **Model tiering that worked.** Tasks whose plan text carries complete code are transcription:
 haiku did Tasks 5, 6 and 8 at roughly 50k tokens each versus sonnet's ~120k, and reviewers
 specifically asked to look for sloppiness found none. Anything with integration surface,
@@ -220,3 +124,29 @@ needed.
 **Full detail** lives in `.superpowers/sdd/2026-08-01-alerting-subsystem/progress.md` (git-ignored,
 present in the worktree at `/home/yzel/github/infrasight-phase4`), including per-task commit
 ranges, every controller ruling, and the reasoning behind each parked finding.
+
+---
+
+## Known deferred items
+
+A final whole-branch cross-cutting review (2026-08-04) covered every task in this phase together
+rather than in isolation, and fixed one Critical, six Important, and four Minor issues it found
+in the process — see that review's own report (in the same directory as this file) for detail,
+including which of the fixes needed a database migration or a seed-script change. It also
+explicitly triaged the following as fine to carry rather than fix:
+
+- The dead `forDurationSeconds` prop on `AlertDetailView`.
+- `clearAllCaches()` not clearing the alert-rules cache key.
+- The severity aggregation's lack of a supporting index.
+- The `rows.length < PAGE_SIZE` pagination heuristic.
+- 33 same-named wire/Zod type pairs with no conformance test — a separate, mechanical PR; a
+  conformance test would also surface pre-existing drift in `ListDevicesQuery`, expanding scope
+  unpredictably.
+- A known pre-existing intermittent flake in
+  `__tests__/integration/api/device-history.integration.test.ts` under heavy parallel load,
+  unrelated to this branch.
+
+Earlier per-task deferral notes written during individual task reviews are superseded by this
+list — several had already been fixed, reprioritized, or found to be inaccurate by the time the
+final review ran, so they are not reproduced here. Carrying a stale "known issues" list forward
+is the exact failure mode that made this file need rewriting in the first place.
