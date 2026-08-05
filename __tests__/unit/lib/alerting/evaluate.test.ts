@@ -529,6 +529,71 @@ describe('evaluateReadings', () => {
     bulkWriteSpy.mockRestore();
   });
 
+  it('should not confirm a promotion via audit.updated_at alone when a concurrent write shares only that stamp', async () => {
+    await seedRule({ for_duration_seconds: 60 });
+    const t0 = new Date('2026-08-01T12:00:00.000Z');
+    const t1 = new Date('2026-08-01T12:02:00.000Z');
+
+    await evaluateReadings([reading(35, t0)], [DEVICE]);
+    const pending = await AlertV2.findOne({}).lean();
+
+    // Freeze the clock so THIS run's internal `now` (used for both its own
+    // $set write and the Step 8 reconciliation query) is a value the test
+    // knows in advance — without that, a same-millisecond collision cannot
+    // be expressed deterministically, since `new Date()` would otherwise
+    // return real wall-clock time that the test cannot predict. Only `Date`
+    // is faked (see doNotFake) so the real mongodb-memory-server connection's
+    // own timers are untouched.
+    const now = new Date('2026-08-01T12:02:00.500Z');
+    jest.useFakeTimers({
+      doNotFake: [
+        'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+        'setImmediate', 'clearImmediate', 'nextTick', 'hrtime', 'performance',
+        'queueMicrotask',
+      ],
+    });
+    jest.setSystemTime(now);
+
+    try {
+      // A concurrent writer promotes the SAME episode with ITS OWN fired_at
+      // timestamp (raceStamp, deliberately different from `now`), but its
+      // write also happens to stamp audit.updated_at to exactly `now` — as a
+      // genuinely concurrent evaluator's own `now` landing in the same
+      // millisecond would. Under the OLD predicate (`audit.updated_at: now`
+      // alone), that alone was enough to confirm THIS run's promotion
+      // notification, even though this run's own guarded updateOne (below,
+      // via the real bulkWrite) never matches anything — status is no
+      // longer 'pending' by the time it runs.
+      const raceStamp = new Date('2026-08-01T12:01:45.000Z');
+      const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+      const bulkWriteSpy = jest
+        .spyOn(AlertV2, 'bulkWrite')
+        .mockImplementationOnce(async (writes, options) => {
+          await AlertV2.updateOne(
+            { _id: pending!._id },
+            { $set: { status: 'firing', fired_at: raceStamp, 'audit.updated_at': now } }
+          );
+          return realBulkWrite(writes, options);
+        });
+
+      const result = await evaluateReadings([reading(36, t1)], [DEVICE]);
+
+      // This run's own guarded update matched nothing — the document's
+      // audit.updated_at equals this run's `now` only because the RACER set
+      // it, not because this run's promotion landed. fired_at was never
+      // touched by this run, so the fixed predicate must not confirm it.
+      expect(result.fired).toHaveLength(0);
+      expect(getPrometheusMetrics()).not.toContain('alerts_fired_total{severity="critical"}');
+
+      const stored = await AlertV2.findOne({}).lean();
+      expect(stored!.fired_at!.toISOString()).toBe(raceStamp.toISOString());
+
+      bulkWriteSpy.mockRestore();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('should count pending clears from the deletes that actually landed', async () => {
     await seedRule({ for_duration_seconds: 600 });
     const t0 = new Date('2026-08-01T12:00:00.000Z');
