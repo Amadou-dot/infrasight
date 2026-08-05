@@ -19,6 +19,35 @@ import {
   VALID_DEVICE_STATUSES,
 } from '../../setup/factories';
 
+/**
+ * Runs `fn` with a clock that advances a millisecond on every `new Date()`.
+ *
+ * `audit.created_at` and `audit.updated_at` are populated by two independent clock
+ * reads, so on a loaded machine they can land in different milliseconds. This forces
+ * that interleaving deterministically instead of waiting for it to happen by chance.
+ */
+async function withDivergentClock<T>(fn: () => Promise<T>): Promise<T> {
+  const RealDate = global.Date;
+  let tick = 0;
+
+  class DivergentDate extends RealDate {
+    constructor(...args: unknown[]) {
+      if (args.length === 0) {
+        super(RealDate.now() + tick);
+        tick += 1;
+        // Spread forwards every argument at runtime; the cast just picks an overload.
+      } else super(...(args as [number]));
+    }
+  }
+
+  global.Date = DivergentDate as DateConstructor;
+  try {
+    return await fn();
+  } finally {
+    global.Date = RealDate;
+  }
+}
+
 describe('DeviceV2 Model', () => {
   beforeEach(() => {
     resetCounters();
@@ -408,6 +437,29 @@ describe('DeviceV2 Model', () => {
           -2
         );
         expect(device.audit.created_at.getTime()).toBeGreaterThanOrEqual(beforeCreate.getTime());
+      });
+
+      it('should keep updated_at exactly equal to created_at when the clock advances mid-create', async () => {
+        const device = await withDivergentClock(() =>
+          DeviceV2.create(createDeviceInput({ _id: 'device_divergent_clock' }))
+        );
+
+        // Exact equality matters: the history and audit endpoints treat any difference
+        // between these two as a real edit, so a millisecond of drift invents an
+        // "updated" entry for a device nobody has touched.
+        expect(device.audit.updated_at.getTime()).toBe(device.audit.created_at.getTime());
+      });
+
+      it('should preserve an explicitly supplied updated_at', async () => {
+        const created_at = new Date('2020-01-01T00:00:00.000Z');
+        const updated_at = new Date('2021-06-06T00:00:00.000Z');
+
+        const device = await DeviceV2.create({
+          ...createDeviceInput({ _id: 'device_explicit_audit' }),
+          audit: { created_at, created_by: 'seed', updated_at, updated_by: 'seed' },
+        });
+
+        expect(device.audit.updated_at.getTime()).toBe(updated_at.getTime());
       });
     });
 
