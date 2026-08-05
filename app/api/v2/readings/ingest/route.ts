@@ -28,7 +28,13 @@ import { safeEvaluateReadings } from '@/lib/alerting';
 // Phase 5 imports
 import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
-import { logger, recordIngestion, recordRequest, createRequestTimer } from '@/lib/monitoring';
+import {
+  captureException,
+  createRequestTimer,
+  logger,
+  recordIngestion,
+  recordRequest,
+} from '@/lib/monitoring';
 import { invalidateReadings } from '@/lib/cache';
 
 // Auth
@@ -321,13 +327,41 @@ async function handleIngest(request: NextRequest) {
     recordIngestion(results.inserted, results.rejected);
     recordRequest('POST', '/api/v2/readings/ingest', 201, duration);
 
-    logger.info('Readings ingested', {
+    // Rejection is reported in the response body and counted by
+    // recordIngestion above, but it used to be LOGGED at info alongside a plain
+    // success — a fully-rejected batch read identically to a healthy one in the
+    // log stream, and nothing escalated. That matters here more than anywhere:
+    // a reading that never persisted is never evaluated, so `last_observed_at`
+    // stops advancing on every open alert and the staleness sweep eventually
+    // auto-resolves all of them as `stale` — a green dashboard produced BY the
+    // outage. Split by severity, and separate the two kinds of rejection: a
+    // caller naming devices that do not exist is a client mistake, while the
+    // datastore refusing writes it was asked to make is an outage.
+    const rejectedAtInsert = validReadings.length - results.inserted;
+    const summary = {
       inserted: results.inserted,
       rejected: results.rejected,
+      rejectedUnknownDevice: results.rejected - rejectedAtInsert,
+      rejectedAtInsert,
       duration,
       deviceCount: existingDeviceIds.size,
       submittedBy: auditUser,
-    });
+    };
+
+    if (results.rejected === 0) logger.info('Readings ingested', summary);
+    else if (results.inserted === 0) {
+      logger.error('Readings ingest rejected every reading', summary);
+      // Only the datastore-side failure pages anyone. A payload made entirely
+      // of unknown device ids is a 4xx-shaped caller error already itemized in
+      // the response's `errors[]`, not an ingest outage.
+      if (rejectedAtInsert > 0)
+        captureException(
+          new Error(
+            `Readings ingest persisted none of ${validReadings.length} valid readings; alert staleness will begin auto-resolving open alerts`
+          ),
+          summary
+        );
+    } else logger.warn('Readings ingested with rejections', summary);
 
     return jsonSuccess(
       {

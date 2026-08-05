@@ -336,6 +336,15 @@ export async function evaluateReadings(
           const firesImmediately = elapsedMs >= (rule.for_duration_seconds ?? 0) * 1000;
           const _id = new Types.ObjectId();
 
+          // NO `as unknown as IAlertV2` on this document. It used to carry one,
+          // which meant the single place that CREATES an alert episode was also
+          // the one place where nothing checked the fields it wrote — including
+          // `status`/`is_open`, whose agreement is what keeps the partial unique
+          // dedup index correct. The two narrow `as` casts below
+          // (`triggerValue`, `breachedSince`) are the real, local ones: both are
+          // `T | undefined` on PairState and both are provably set inside this
+          // `state.breaching` branch. Keeping the document itself unasserted is
+          // what makes those two casts readable as the exceptions they are.
           push(
             {
               insertOne: {
@@ -361,7 +370,7 @@ export async function evaluateReadings(
                     updated_at: now,
                     updated_by: 'system',
                   },
-                } as unknown as IAlertV2,
+                },
               },
             },
             firesImmediately
@@ -513,21 +522,39 @@ export async function evaluateReadings(
     // A guarded updateOne matching ZERO documents is a driver success, and
     // BulkWriteResult reports aggregate counts, not per-op match status.
     //
-    // House rule: a write-confirmation predicate must key on a field that
-    // ONLY the confirming operation sets. `audit.updated_at` fails that rule
-    // here — every op in this run stamps it, including the silent
-    // observation-refresh updates above (still-breaching-but-not-due-yet,
-    // and firing/acknowledged refresh) — and so does a CONCURRENT evaluator
-    // whose own `now` lands in the same millisecond. Two requests can read
-    // the same pending episode; the loser's guarded update then matches zero
-    // rows, but if its `now` happens to equal the winner's, confirming on
-    // `audit.updated_at` alone would still match and emit a second
-    // notification for one transition. A promotion writes `fired_at`; an
-    // auto-resolve writes `audit.resolved_at` — nothing else touches either
-    // field, so confirming each candidate kind against its own field proves
-    // ITS op landed rather than merely that SOME write touched the document
-    // at this instant. Mirrors sweep.ts's resolve reconciliation, which
-    // already confirms on `audit.resolved_at` alone for exactly this reason.
+    // House rule: a write-confirmation predicate must match a value-set that
+    // ONLY the confirming operation could have produced. `audit.updated_at`
+    // fails that rule here — every op in this run stamps it, including the
+    // silent observation-refresh updates above (still-breaching-but-not-due-
+    // yet, and firing/acknowledged refresh) — and so does a CONCURRENT
+    // evaluator whose own `now` lands in the same millisecond. Two requests
+    // can read the same pending episode; the loser's guarded update then
+    // matches zero rows, but if its `now` happens to equal the winner's,
+    // confirming on `audit.updated_at` alone would still match and emit a
+    // second notification for one transition.
+    //
+    // The two candidate kinds are NOT symmetric, and the predicates differ
+    // accordingly:
+    //
+    //  - A promotion writes `fired_at`, and this branch (evaluate.ts) is the
+    //    only writer of that field anywhere in the codebase. `fired_at: now`
+    //    is therefore already exclusive on its own.
+    //
+    //  - An auto-resolve writes `audit.resolved_at` — but so does the
+    //    staleness sweep (`lib/alerting/sweep.ts`) and so does
+    //    `AlertV2.resolve()`, which the manual PATCH /alerts/[id] path calls.
+    //    Those are genuinely concurrent request paths (ingest vs cron, and a
+    //    human clicking Resolve as a fresh reading lands), so a same-
+    //    millisecond collision would let this run confirm a transition it did
+    //    not cause and broadcast it as `resolution: 'auto'` while the stored
+    //    document says `manual` / `stale` / `device_inactive`. Matching
+    //    `audit.resolution: 'auto'` as well closes that: 'auto' is written by
+    //    the resolve op below and nowhere else — the sweep writes 'stale' or
+    //    'device_inactive', and the manual path passes 'manual'.
+    //
+    // Confirming each candidate kind against its own predicate proves ITS op
+    // landed rather than merely that SOME write touched the document at this
+    // instant.
     const promotedIds: Types.ObjectId[] = [];
     const resolvedIds: Types.ObjectId[] = [];
     for (const candidate of notificationCandidates) {
@@ -541,7 +568,11 @@ export async function evaluateReadings(
       const confirmOr: Record<string, unknown>[] = [];
       if (promotedIds.length > 0) confirmOr.push({ _id: { $in: promotedIds }, fired_at: now });
       if (resolvedIds.length > 0)
-        confirmOr.push({ _id: { $in: resolvedIds }, 'audit.resolved_at': now });
+        confirmOr.push({
+          _id: { $in: resolvedIds },
+          'audit.resolved_at': now,
+          'audit.resolution': 'auto',
+        });
 
       const confirmed = await AlertV2.find({ $or: confirmOr })
         .select({ _id: 1 })
