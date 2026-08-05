@@ -81,6 +81,18 @@ export function useUpdateAlertRule(
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.alertRules.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.alertRules.all });
+      // Alerts too, not just rules. Editing a rule's metric/comparison/
+      // threshold closes every open episode carrying the now-false snapshot
+      // (see closeEpisodesOrphanedByConditionChange in
+      // app/api/v2/alert-rules/[id]/route.ts). Nothing patches alert rows into
+      // this cache, so without this the alerts list and the nav badge keep
+      // rendering those episodes as firing until something else invalidates
+      // them. The route also broadcasts, but that path is best-effort by
+      // design — notify.ts swallows a Pusher trigger failure so a committed
+      // write is never lost to a broadcast fault, and the socket may simply be
+      // down. This invalidation is the one refresh the acting admin's own
+      // client does not have to take on faith.
+      queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
     },
     ...config,
   });

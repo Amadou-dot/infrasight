@@ -39,10 +39,10 @@ interface AlertDetailViewProps {
    * window." is the signature of a stale/device_inactive close (the sensor
    * stopped reporting) and must never be what a fetch failure renders as —
    * that would be the wrong diagnosis, mid-incident (review finding A3).
-   * Optional because a caller may not have wired a readings-error branch
-   * (the readings query can fail without this being populated, in which
-   * case the section falls back to the empty-state copy — see the task
-   * report for whether that wiring exists yet).
+   * Optional because a caller may not have wired a readings-error branch,
+   * in which case the readings query can fail without this being populated
+   * and the section falls back to the empty-state copy. The only caller
+   * today, `app/alerts/[id]/page.tsx`, does wire it.
    */
   readingsError?: unknown;
   /** Retry affordance for the readings-error state — typically the readings query's own refetch. */

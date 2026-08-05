@@ -32,6 +32,7 @@ import {
   useUpdateAlertRule,
   useDeleteAlertRule,
 } from '@/lib/query/hooks/useAlertRules';
+import { useAlertsList } from '@/lib/query/hooks/useAlerts';
 import { v2Api } from '@/lib/api/v2-client';
 import type { CreateAlertRuleBody } from '@/types/v2';
 
@@ -44,7 +45,27 @@ jest.mock('@/lib/api/v2-client', () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    alerts: {
+      list: jest.fn(),
+      getById: jest.fn(),
+    },
   },
+}));
+
+/**
+ * Connected => `useRealtimeFallbackInterval()` returns false, so `useAlertsList`
+ * resolves `refetchInterval: false`. Any alert-list refetch the block at the
+ * bottom of this file observes can only have come from an invalidation, never
+ * from the poll fallback.
+ */
+jest.mock('@/lib/pusher-context', () => ({
+  useRealtimeConnection: () => ({
+    connected: true,
+    state: 'connected',
+    degraded: false,
+    message: null,
+    terminal: false,
+  }),
 }));
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -363,5 +384,143 @@ describe('mutations refresh the mounted rule surfaces', () => {
 
     await waitFor(() => expect(result.current.detail.isError).toBe(true));
     expect(detailCalls()).toBeGreaterThan(before);
+  });
+});
+
+// ============================================================================
+// Editing a rule's condition closes alerts, so the ALERT surfaces must refresh
+// ============================================================================
+//
+// `PATCH /api/v2/alert-rules/[id]` does not only edit the rule. When
+// metric/comparison/threshold change, every open episode carrying the now-false
+// snapshot is closed in the database
+// (`closeEpisodesOrphanedByConditionChange`). Nothing patches alert rows into
+// this cache, `refetchOnWindowFocus` is off, and `useAlertsList` has no
+// unconditional `refetchInterval` — so an admin who raises a threshold and
+// closes twelve episodes keeps watching all twelve render as firing until
+// something else invalidates them. Hence `queryKeys.alerts.all` in
+// `useUpdateAlertRule`.
+//
+// Built to the same bar as the block above and for the same reason: asserting
+// `invalidateQueries` was called with `queryKeys.alerts.all` would be
+// tautological, since the hook and the test would be reading the same constant
+// and the assertion would pass even if invalidating that key refetched nothing.
+// So a real QueryClient holds a real, mounted, observed ALERTS list; the fake
+// alerts API is backed by mutable server state that the rule update mutates the
+// way the route does; and the assertion is that the rendered alerts changed.
+
+type FakeAlert = { _id: string; rule_id: string; status: 'firing' | 'resolved' };
+
+/**
+ * A stand-in alerts API over mutable state. `list` serves only OPEN episodes,
+ * which is what `GET /api/v2/alerts` defaults to — so an episode the rule edit
+ * closed disappears from the list exactly as it would in the app.
+ */
+function seedAlertServer(initial: FakeAlert[]) {
+  const server = { alerts: initial };
+
+  (v2Api.alerts.list as jest.Mock).mockImplementation(async () => {
+    const open = server.alerts.filter(alert => alert.status !== 'resolved');
+    return { data: open, pagination: { total: open.length } };
+  });
+
+  return server;
+}
+
+/**
+ * The rule edit as the server actually performs it: the rule changes AND every
+ * open episode of that rule closes. Wiring only the rule half would make the
+ * alerts list unable to change, and the test would prove nothing.
+ */
+function seedConditionChangingUpdate(ruleServer: { rules: FakeRule[] }, alertServer: { alerts: FakeAlert[] }) {
+  (v2Api.alertRules.update as jest.Mock).mockImplementation(
+    async (id: string, data: Record<string, unknown>) => {
+      ruleServer.rules = ruleServer.rules.map(rule =>
+        rule._id === id ? { ...rule, ...data } : rule
+      );
+      alertServer.alerts = alertServer.alerts.map(alert =>
+        alert.rule_id === id && alert.status !== 'resolved'
+          ? { ...alert, status: 'resolved' as const }
+          : alert
+      );
+      return { data: ruleServer.rules.find(rule => rule._id === id) };
+    }
+  );
+}
+
+function useAlertAndRuleSurfaces() {
+  return {
+    alerts: useAlertsList(),
+    rules: useAlertRulesList(),
+    update: useUpdateAlertRule(),
+  };
+}
+
+function alertListCalls() {
+  return (v2Api.alerts.list as jest.Mock).mock.calls.length;
+}
+
+describe('updating a rule refreshes the mounted alert surfaces', () => {
+  const OPEN_EPISODES: FakeAlert[] = [
+    { _id: 'a1', rule_id: 'r1', status: 'firing' },
+    { _id: 'a2', rule_id: 'r1', status: 'firing' },
+  ];
+
+  async function mountSettled() {
+    const { wrapper: sharedWrapper } = makeSharedWrapper();
+    const { result } = renderHook(() => useAlertAndRuleSurfaces(), { wrapper: sharedWrapper });
+
+    await waitFor(() => {
+      expect(result.current.rules.isSuccess).toBe(true);
+      expect(result.current.alerts.isSuccess).toBe(true);
+    });
+
+    return result;
+  }
+
+  /**
+   * The control. `useAlertsList` has a 30s staleTime and, with the socket
+   * mocked as connected, no `refetchInterval` — so without this an increased
+   * call count below could just be React Query refetching on its own.
+   */
+  it('should not refetch the alerts list on its own while nothing invalidates it', async () => {
+    seedRuleServer([{ ...RULE_ONE }]);
+    seedAlertServer(OPEN_EPISODES.map(alert => ({ ...alert })));
+
+    const result = await mountSettled();
+    const before = alertListCalls();
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    expect(alertListCalls()).toBe(before);
+    expect(result.current.alerts.data).toHaveLength(2);
+  });
+
+  it('should refetch the alerts list after a rule update, dropping the episodes it closed', async () => {
+    const ruleServer = seedRuleServer([{ ...RULE_ONE }]);
+    const alertServer = seedAlertServer(OPEN_EPISODES.map(alert => ({ ...alert })));
+    seedConditionChangingUpdate(ruleServer, alertServer);
+
+    const result = await mountSettled();
+    const before = alertListCalls();
+    expect(result.current.alerts.data).toHaveLength(2);
+
+    await act(async () => {
+      result.current.update.mutate({
+        id: 'r1',
+        data: {
+          metric: 'value',
+          comparison: 'gt',
+          threshold: 99,
+          selector: { types: ['temperature'] },
+        },
+      });
+    });
+    await waitFor(() => expect(result.current.update.isSuccess).toBe(true));
+
+    await waitFor(() => expect(result.current.alerts.data).toEqual([]));
+    expect(alertListCalls()).toBeGreaterThan(before);
   });
 });

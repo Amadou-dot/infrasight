@@ -176,6 +176,62 @@ channel.bind('new-reading', (data: PusherReading) => {
 - **Data shape**: `PusherReading` has `metadata.device_id`, `value`, `timestamp`
 - **Event names**: No convention yet; common: `'new-reading'`, `'device-status'`
 
+### The Realtime Boundary (channels + authorization)
+
+There are **two** Pusher channels and they are not equivalent. Both names live in
+[lib/pusher-channels.ts](lib/pusher-channels.ts) — a dependency-free module of string constants, on
+purpose: importing them from `lib/alerting/notify.ts` would drag `lib/pusher` (which throws without
+the server-only `PUSHER_SECRET`) into browser code, and importing from `lib/pusher-context.tsx`
+would drag `pusher-js` into a route handler. **Import channel names from `lib/pusher-channels.ts`,
+never re-declare them.**
+
+| Constant | Name | Auth | Carries |
+| --- | --- | --- | --- |
+| `READINGS_CHANNEL` | `InfraSight` | none (public) | Sensor readings, published by `app/api/v2/cron/simulate/route.ts` |
+| `ALERT_CHANNEL` | `private-alerts` | `POST /api/pusher/auth` | Alert envelopes (`publishAlertEvents`, [lib/alerting/notify.ts](lib/alerting/notify.ts)) |
+
+The `private-` prefix on `ALERT_CHANNEL` is load-bearing, not cosmetic: it is what makes pusher-js
+call `channelAuthorization.endpoint` before subscribing. On a public channel anyone holding
+`NEXT_PUBLIC_PUSHER_KEY` — readable in the JS bundle by design — could stream the whole fleet's
+alert feed. Renaming it without the prefix silently removes the authorization step. Readings stay
+public because they were public before alerting existed and the simulate producer depends on it.
+
+**`POST /api/pusher/auth`** ([app/api/pusher/auth/route.ts](app/api/pusher/auth/route.ts)) is the
+authorization endpoint pusher-js calls. Three things about it are easy to break:
+
+- It is **not** in `proxy.ts`'s `isPublicRoute` list and must not be added — the middleware's
+  `/(api|trpc)(.*)` matcher is what turns a signed-out caller away. (The "Public Routes" line under
+  Authentication & RBAC below is still accurate: `/api/v2/cron/simulate` remains the only public
+  API route.)
+- It answers with the **bare** `{ auth: "<key>:<signature>" }` object from
+  `pusherServer.authorizeChannel()`, **not** `jsonSuccess()`. pusher-js parses the body itself, and
+  the `{ success, data, timestamp }` envelope reads as malformed — the subscription then fails
+  silently. This is the one documented exception to the response convention; errors still use the
+  normal envelope.
+- It signs an **allow-list** of channels (`AUTHORIZABLE_CHANNELS`), not any `private-*` name, so it
+  cannot be used as a generic signing oracle. A new private channel must be added to that set
+  deliberately.
+
+Demo mode has no alert stream: the handler rejects a demo caller explicitly, because
+`requireOrgMembership()` alone would succeed for one (`getAuthContext()` hands an anonymous visitor
+a synthetic `org:member` context). That is intended — Pusher envelopes do **not** pass through
+[lib/alerting/redact.ts](lib/alerting/redact.ts), which only covers alert/alert-rule GET responses,
+and `private-alerts` carries rule names, device ids, trigger values and resolver identities.
+
+Alert envelopes all arrive on **one** event name, `alert-event`, tagged in the payload
+(`kind: 'fired' | 'resolved' | 'storm'`), because `PusherContext` binds one callback set to one
+event name. Payloads are bounded twice — more than `ALERT_EVENT_MAX` (20) alerts, or a serialized
+body over `ALERT_EVENT_MAX_BYTES` (8 KB), degrades to a `storm` summary rather than being split or
+running into Pusher's 10 KB per-event cap.
+
+`notify.ts` swallows a Pusher trigger failure by design, so **the socket is never the only path** by
+which a surface refreshes: nothing patches alert rows into the React Query cache, so every mutation
+that can change alerts must also invalidate `queryKeys.alerts.*` (see `lib/query/hooks/useAlerts.ts`,
+and `useUpdateAlertRule` in `lib/query/hooks/useAlertRules.ts` — editing a rule's condition closes
+open episodes server-side). `useAlertsList` and `useOpenAlertCount` additionally carry a 30s
+`refetchInterval` (`REALTIME_FALLBACK_POLL_MS`) that engages **only** while the socket is
+disconnected — a fallback for a dead socket, not a substitute for the invalidations.
+
 ### V2 API Client Pattern
 
 Dashboard uses typed client wrapper ([lib/api/v2-client.ts](lib/api/v2-client.ts)):
@@ -323,6 +379,7 @@ lib/
     v2-client.ts                   # Typed client for v2 endpoints
     response.ts, pagination.ts     # Response helpers and pagination utilities
   pusher.ts                        # Server-side Pusher configuration
+  pusher-channels.ts               # Channel name constants (READINGS_CHANNEL, ALERT_CHANNEL) — no deps
   pusher-context.tsx               # Pusher React context provider (usePusherAlerts, usePusherReadings)
   alerting/                        # Alert rule evaluation, staleness sweep, Pusher notify, demo redaction
     evaluate.ts                    # Breach-aware evaluator, called by both write paths post-commit
@@ -378,6 +435,7 @@ app/
       audit/, metadata/, metrics/  # System endpoints
       cron/simulate/               # Synthetic data generator
     _v1-deprecated/                # Archived v1 routes (ignored by Next.js)
+    pusher/auth/                   # Private-channel authorization (bare Pusher payload, NOT jsonSuccess)
 proxy.ts                           # Clerk middleware for route protection (Next.js 16 renamed middleware.ts to proxy.ts)
 scripts/v2/                        # seed-v2, simulate, test-api, create-indexes, verify-indexes
 components/                        # React components (all use 'use client')
@@ -870,6 +928,7 @@ Both wrappers never throw, so an alerting failure never affects the read/write c
 - Response helpers: [lib/api/response.ts](lib/api/response.ts), [lib/api/pagination.ts](lib/api/pagination.ts)
 - API routes: [app/api/v2/](app/api/v2/)
 - Alerting: [lib/alerting/](lib/alerting/) — rule evaluation (`evaluate.ts`), staleness sweep (`sweep.ts`), Pusher notify (`notify.ts`), rule cache (`rule-cache.ts`), selector matching (`selector.ts`), demo-mode redaction (`redact.ts`)
+- Realtime boundary: [lib/pusher-channels.ts](lib/pusher-channels.ts) (channel names), [app/api/pusher/auth/route.ts](app/api/pusher/auth/route.ts) (`private-alerts` authorization) — see "The Realtime Boundary" above
 
 ### Security & Performance
 

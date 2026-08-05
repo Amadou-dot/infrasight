@@ -25,9 +25,16 @@ import { jsonSuccess } from '@/lib/api/response';
 import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { invalidateAlertRules } from '@/lib/cache';
-import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
+import {
+  logger,
+  recordRequest,
+  createRequestTimer,
+  recordAlert,
+  captureException,
+} from '@/lib/monitoring';
 import { requireAdmin, requireOrgMembership, getAuditUser, isDemoCaller } from '@/lib/auth';
-import { redactAuditForDemo, jsonRedacted } from '@/lib/alerting';
+import { redactAuditForDemo, jsonRedacted, publishAlertEvents } from '@/lib/alerting';
+import type { ResolvedAlert } from '@/types/v2/alert.types';
 
 function assertValidId(id: string): void {
   const paramValidation = validateInput({ id }, alertRuleIdParamSchema);
@@ -112,13 +119,40 @@ function describeCondition(rule: Pick<IAlertRuleV2, 'metric' | 'comparison' | 't
  *   - pending -> DELETED, matching how the evaluator and sweep retire pending
  *     episodes (`deleteOne`/`deleteMany` guarded on `status: 'pending'`).
  *     Resolving one would break the documented invariant that every visible
- *     alert has `fired_at`.
+ *     alert has `fired_at`. Nothing is broadcast or counted for these: a
+ *     pending episode was never visible to a client and never counted as
+ *     fired, so announcing its resolution would invent an alert.
+ *
+ * Closing them in the database is only half the job. Nothing patches alert rows
+ * into the React Query cache (see useAlertsList's header comment) and
+ * `refetchOnWindowFocus` is off, so a close that is neither broadcast nor
+ * counted leaves the alerts list and the nav badge showing every one of these
+ * episodes as still firing until something else happens to invalidate them —
+ * indefinitely on a wall display — and leaves `alerts_resolved` short by the
+ * same number. So each closed episode is also published on the alert channel
+ * and recorded, exactly as a manual resolve through `PATCH /api/v2/alerts/[id]`
+ * is.
+ *
+ * IDENTIFYING what was closed: `updateMany` reports a count, not documents, so
+ * the episodes are read back afterwards, keyed on the `now` this function
+ * minted. Reading the ids BEFORE the update would race the other way — the
+ * evaluator can promote a pending episode to firing in between, and that
+ * episode would then be closed in the database but absent from the broadcast
+ * and the count, which is the exact defect being fixed. The read-back cannot
+ * miss one: `resolved` is terminal (`AlertV2.resolve` matches only
+ * firing/acknowledged, and the evaluator and sweep both act on `is_open: true`
+ * documents), so nothing can move a document out of the matched set after the
+ * update commits. The accepted residual is the reverse and it is benign: a
+ * concurrent PATCH on the SAME rule landing in the same millisecond would have
+ * its episodes read back here too, over-publishing an already-resolved episode
+ * and over-counting by that many.
  */
 async function closeEpisodesOrphanedByConditionChange(
   ruleId: string,
   before: Pick<IAlertRuleV2, 'metric' | 'comparison' | 'threshold'>,
   after: Pick<IAlertRuleV2, 'metric' | 'comparison' | 'threshold'>,
-  auditUser: string
+  auditUser: string,
+  actor: string
 ): Promise<{ resolved: number; deleted: number }> {
   const rule_id = new Types.ObjectId(ruleId);
   const now = new Date();
@@ -145,7 +179,83 @@ async function closeEpisodesOrphanedByConditionChange(
     AlertV2.deleteMany({ rule_id, status: 'pending' }),
   ]);
 
+  if (resolved.modifiedCount > 0)
+    await announceClosedEpisodes(rule_id, now, actor, resolved.modifiedCount);
+
   return { resolved: resolved.modifiedCount, deleted: deleted.deletedCount };
+}
+
+/**
+ * Read the episodes just closed above back out, count them and broadcast them.
+ *
+ * `actor` is the acting admin's opaque Clerk USER ID, never `auditUser`. Same
+ * reasoning as the ACTOR IDENTITY note in `app/api/v2/alerts/[id]/route.ts`:
+ * `audit.*_by` takes getAuditUser()'s value, which is an EMAIL whenever one is
+ * on file, while this payload reaches every client subscribed to the alert
+ * channel. The two must not be swapped.
+ *
+ * Neither the read-back, the metric nor the broadcast may fail the PATCH: the
+ * rule update and the episode closes are already committed, so a fault here has
+ * nothing left to roll back and a 500 would tell the admin their edit failed
+ * when it did not. It is escalated rather than merely logged, for the reason
+ * spelled out at the matching call site in `app/api/v2/alerts/[id]/route.ts`:
+ * logger.error only reaches a console line, so without this a permanently
+ * broken broadcast path is invisible while every PATCH keeps returning 200.
+ */
+async function announceClosedEpisodes(
+  rule_id: Types.ObjectId,
+  resolvedAt: Date,
+  actor: string,
+  expected: number
+): Promise<void> {
+  try {
+    const closed = await AlertV2.find({
+      rule_id,
+      status: 'resolved',
+      'audit.resolution': 'manual',
+      'audit.resolved_at': resolvedAt,
+    })
+      .select('_id rule_id device_id severity')
+      .lean();
+
+    // Only ever a symptom of the millisecond collision described above, but
+    // worth seeing if it is ever anything else.
+    if (closed.length !== expected)
+      logger.warn('Closed-episode read-back disagrees with the update count', {
+        ruleId: String(rule_id),
+        expected,
+        readBack: closed.length,
+      });
+
+    const events: ResolvedAlert[] = closed.map(alert => ({
+      _id: String(alert._id),
+      rule_id: String(alert.rule_id),
+      device_id: alert.device_id,
+      severity: alert.severity,
+      resolution: 'manual',
+      resolved_at: resolvedAt.toISOString(),
+      actor,
+    }));
+
+    // One per closed episode, not one per PATCH: `alerts_resolved` counts
+    // episodes, and the sweep and the evaluator both record it that way.
+    events.forEach(() => recordAlert('resolved', { resolution: 'manual' }));
+
+    await publishAlertEvents([], events);
+  } catch (error) {
+    logger.error('Closed-episode broadcast failed after a committed write', {
+      ruleId: String(rule_id),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    try {
+      captureException(error instanceof Error ? error : new Error(String(error)), undefined, {
+        subsystem: 'alerting',
+      });
+    } catch {
+      // Deliberately swallowed — a misbehaving Sentry SDK must not turn an
+      // already-handled fault into an unhandled one.
+    }
+  }
 }
 
 // ============================================================================
@@ -214,8 +324,16 @@ async function handleUpdateAlertRule(
     // is still cached, every episode the evaluator can create carries the OLD
     // snapshot, so closing them all is correct. Invalidating first would open a
     // window in which a genuinely new-condition episode gets closed as orphaned.
+    // `authContext.userId`, not `auditUser`: the second argument is broadcast
+    // to every subscriber, the first is persisted. See announceClosedEpisodes.
     const closed = conditionChanged
-      ? await closeEpisodesOrphanedByConditionChange(id, before, updated, auditUser)
+      ? await closeEpisodesOrphanedByConditionChange(
+          id,
+          before,
+          updated,
+          auditUser,
+          authContext.userId
+        )
       : null;
 
     await invalidateAlertRules();
