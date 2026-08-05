@@ -101,7 +101,7 @@ describe('buildAlertRuleSeeds', () => {
     const rehydrated = await AlertRuleV2.findOne({ metric: 'battery_level' });
 
     expect(rehydrated).not.toBeNull();
-    expect(rehydrated!.selector.types).toBeUndefined();
-    expect(Array.isArray(rehydrated!.selector.types)).toBe(false);
+    expect(rehydrated!.selector?.types).toBeUndefined();
+    expect(Array.isArray(rehydrated!.selector?.types)).toBe(false);
   });
 });

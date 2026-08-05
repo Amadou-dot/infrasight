@@ -26,7 +26,7 @@ describe('AlertRuleV2 Model', () => {
       expect(rule.enabled).toBe(true);
       expect(rule.for_duration_seconds).toBe(0);
       expect(rule.cooldown_seconds).toBe(300);
-      expect(rule.selector.types).toEqual(['temperature']);
+      expect(rule.selector?.types).toEqual(['temperature']);
       expect(rule.audit.created_at).toBeInstanceOf(Date);
       expect(rule.audit.deleted_at).toBeUndefined();
     });
@@ -36,7 +36,7 @@ describe('AlertRuleV2 Model', () => {
         createAlertRuleInput({ metric: 'battery_level', comparison: 'lt', threshold: 20, selector: {} })
       );
 
-      expect(rule.selector.types).toBeUndefined();
+      expect(rule.selector?.types).toBeUndefined();
     });
 
     it('should reject an unknown metric', async () => {
