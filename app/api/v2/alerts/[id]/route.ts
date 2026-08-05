@@ -226,10 +226,22 @@ const TRANSITION_PRECONDITION: Record<
  * transition is about to apply. The note write used to run after
  * acknowledge()/resolve() had already committed, so a throw returned 500 and
  * told the operator the acknowledge had FAILED when it had not; the natural
- * retry then returned 422 "already acknowledged". Failing here commits
- * nothing, so the retry is clean and returns 200. The precondition is what
+ * retry then returned 422 "already acknowledged". Failing HERE commits nothing,
+ * so that particular retry is clean and returns 200. The precondition is what
  * keeps the reordering honest: it matches exactly when the transition would
  * match, so a note cannot land on an alert whose transition is about to 422.
+ *
+ * The residual, stated plainly: these are still two writes, so the inversion is
+ * not eliminated, only turned around. A concurrent resolve landing BETWEEN them
+ * leaves the note committed and the transition throwing 404/422 — an operator
+ * note on an alert that was never acknowledged. That is strictly less harmful
+ * than the original (a note is additive; the old failure mode misreported a
+ * committed transition as a 500), and the shared precondition narrows the
+ * window to the gap between the two round trips, but it is a real residual. The
+ * fix that removes it entirely is one `findOneAndUpdate` carrying both the note
+ * and the transition; it was left alone here because it would mean reworking
+ * `AlertV2.acknowledge`/`resolve`, whose atomicity and error mapping this route
+ * depends on.
  *
  * Presence check, not truthiness: `if (note)` discarded an explicit
  * `note: ''`, so a caller could never clear a note. `$unset` removes the field
@@ -313,7 +325,9 @@ async function handleUpdateAlert(
     const { status, note } = bodyValidation.data;
 
     // Ordered deliberately: see writeNote's doc comment. A failure here
-    // commits nothing, so it can never misreport a transition that succeeded.
+    // commits nothing, so it can never misreport a transition that succeeded —
+    // at the cost of the reverse residual documented there (a note committed
+    // against a transition that then 404/422s on a concurrent resolve).
     if (note !== undefined) await writeNote(id, status, note);
 
     const updated = await applyTransition(id, status, auditUser);

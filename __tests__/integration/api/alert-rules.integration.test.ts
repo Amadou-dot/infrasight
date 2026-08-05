@@ -11,12 +11,25 @@ import AlertV2 from '@/models/v2/AlertV2';
 import { createAlertInput, createAlertRuleInput, resetCounters } from '../../setup/factories';
 import { mockAuthAsAdmin, mockAuthAsMember, mockAuthAsUnauthenticated } from '../../setup/auth-helpers';
 import * as cache from '@/lib/cache';
+import * as alerting from '@/lib/alerting';
+import * as monitoring from '@/lib/monitoring';
 import { getOrSet } from '@/lib/cache/cache';
 import { alertRulesKey } from '@/lib/cache/keys';
 import * as redisModule from '@/lib/redis/client';
 
 import { GET as listRules, POST } from '@/app/api/v2/alert-rules/route';
 import { GET as getRule, PATCH, DELETE } from '@/app/api/v2/alert-rules/[id]/route';
+
+// A condition change closes open episodes, and closing them now broadcasts
+// (see closeEpisodesOrphanedByConditionChange). Mocking the underlying
+// pusherServer.trigger rather than publishAlertEvents keeps this composable
+// with the tests below that spy on publishAlertEvents itself: when the spy is
+// installed this mock is simply never reached.
+jest.mock('@/lib/pusher', () => ({
+  pusherServer: {
+    trigger: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 function get(path: string, searchParams: Record<string, string> = {}): NextRequest {
   const url = new URL(`http://localhost:3000${path}`);
@@ -631,6 +644,166 @@ describe('Alert Rules API Integration Tests', () => {
         const stored = await AlertV2.findById(alert._id).lean();
         expect(stored!.status).toBe('firing');
         expect(stored!.is_open).toBe(true);
+      });
+
+      // ======================================================================
+      // THE CLOSE HAS TO BE VISIBLE
+      // ======================================================================
+      //
+      // Closing N episodes in the database and telling nobody is the defect
+      // this block guards. Nothing patches alert rows into the React Query
+      // cache (see useAlertsList's header comment) and refetchOnWindowFocus is
+      // off, so an unbroadcast close leaves the alerts list and the nav badge
+      // rendering every one of those episodes as firing until something else
+      // invalidates them — indefinitely on a wall display. An uncounted one
+      // leaves `alerts_resolved` short by N, which is the metric the evaluator
+      // and sweep are judged on.
+      describe('announcing the close', () => {
+        async function seedRuleWithOpenEpisodes(count: number) {
+          const rule = await AlertRuleV2.create(
+            createAlertRuleInput({
+              metric: 'value',
+              comparison: 'gt',
+              threshold: 30,
+              selector: { types: ['temperature'] },
+            })
+          );
+
+          const alerts = [];
+          for (let index = 0; index < count; index += 1)
+            alerts.push(
+              await AlertV2.create(
+                createAlertInput({
+                  status: 'firing',
+                  rule_id: rule._id,
+                  device_id: `device_open_${index}`,
+                  metric: 'value',
+                  comparison: 'gt',
+                  threshold: 30,
+                })
+              )
+            );
+
+          return { rule, alerts };
+        }
+
+        function changeCondition(ruleId: string) {
+          return PATCH(withBody(`/api/v2/alert-rules/${ruleId}`, 'PATCH', NEW_CONDITION), {
+            params: params(ruleId),
+          });
+        }
+
+        it('should broadcast every closed episode, so connected clients see them resolve', async () => {
+          const publishSpy = jest.spyOn(alerting, 'publishAlertEvents').mockResolvedValue(undefined);
+          const { rule, alerts } = await seedRuleWithOpenEpisodes(3);
+
+          const response = await changeCondition(String(rule._id));
+          expect(response.status).toBe(200);
+
+          expect(publishSpy).toHaveBeenCalledTimes(1);
+          const [fired, resolved] = publishSpy.mock.calls[0];
+
+          // Nothing FIRED here — these episodes closed.
+          expect(fired).toEqual([]);
+          expect(resolved.map(event => event._id).sort()).toEqual(
+            alerts.map(alert => String(alert._id)).sort()
+          );
+
+          for (const event of resolved) {
+            expect(event.rule_id).toBe(String(rule._id));
+            expect(event.resolution).toBe('manual');
+            expect(event.severity).toBe('warning');
+            expect(event.resolved_at).toBeTruthy();
+          }
+        });
+
+        // The same contract the manual-resolve route is held to: audit.*_by
+        // keeps the email, the broadcast carries only the opaque Clerk id.
+        // Both strings are in scope in the same handler.
+        it('should broadcast the admin user id while persisting their email', async () => {
+          const publishSpy = jest.spyOn(alerting, 'publishAlertEvents').mockResolvedValue(undefined);
+          const { rule, alerts } = await seedRuleWithOpenEpisodes(1);
+
+          await changeCondition(String(rule._id));
+
+          const [, resolved] = publishSpy.mock.calls[0];
+          const stored = await AlertV2.findById(alerts[0]._id).lean();
+
+          expect(resolved[0].actor).toBe('user_test_admin');
+          expect(resolved[0].actor).not.toContain('@');
+          expect(stored!.audit.resolved_by).toBe('admin@example.com');
+          expect(resolved[0].actor).not.toBe(stored!.audit.resolved_by);
+        });
+
+        it('should count one resolution per closed episode', async () => {
+          const recordSpy = jest.spyOn(monitoring, 'recordAlert');
+          const { rule } = await seedRuleWithOpenEpisodes(3);
+
+          await changeCondition(String(rule._id));
+
+          const resolvedCalls = recordSpy.mock.calls.filter(([event]) => event === 'resolved');
+          expect(resolvedCalls).toHaveLength(3);
+          for (const [, labels] of resolvedCalls)
+            expect(labels).toEqual({ resolution: 'manual' });
+        });
+
+        // A pending episode was never visible to a client and never counted as
+        // fired, so announcing its resolution would invent an alert.
+        it('should neither broadcast nor count a deleted pending episode', async () => {
+          const publishSpy = jest.spyOn(alerting, 'publishAlertEvents').mockResolvedValue(undefined);
+          const recordSpy = jest.spyOn(monitoring, 'recordAlert');
+          const { rule } = await seedRuleWithOpenEpisode('pending');
+
+          await changeCondition(String(rule._id));
+
+          expect(publishSpy).not.toHaveBeenCalled();
+          expect(recordSpy.mock.calls.filter(([event]) => event === 'resolved')).toHaveLength(0);
+        });
+
+        it('should say nothing at all for a PATCH that does not touch the condition', async () => {
+          const publishSpy = jest.spyOn(alerting, 'publishAlertEvents').mockResolvedValue(undefined);
+          const recordSpy = jest.spyOn(monitoring, 'recordAlert');
+          const { rule } = await seedRuleWithOpenEpisodes(2);
+
+          await PATCH(withBody(`/api/v2/alert-rules/${rule._id}`, 'PATCH', { enabled: false }), {
+            params: params(String(rule._id)),
+          });
+
+          expect(publishSpy).not.toHaveBeenCalled();
+          expect(recordSpy.mock.calls.filter(([event]) => event === 'resolved')).toHaveLength(0);
+        });
+
+        // The rule update and the episode closes are already committed by the
+        // time the broadcast runs, so a broadcast fault has nothing left to
+        // roll back and must never become a 500 — but it must not vanish
+        // either. logger.error only reaches a console line, so the Sentry
+        // escalation is what makes a permanently broken broadcast path visible
+        // while every PATCH keeps returning 200. Mirrors the same guarantee on
+        // PATCH /api/v2/alerts/[id].
+        it('should still return 200 with the episodes closed, and escalate a broadcast failure', async () => {
+          const publishSpy = jest
+            .spyOn(alerting, 'publishAlertEvents')
+            .mockRejectedValue(new Error('envelope construction exploded'));
+          const captureSpy = jest.spyOn(monitoring, 'captureException').mockReturnValue(undefined);
+
+          const { rule, alerts } = await seedRuleWithOpenEpisodes(2);
+
+          const response = await changeCondition(String(rule._id));
+          expect(response.status).toBe(200);
+
+          for (const alert of alerts) {
+            const stored = await AlertV2.findById(alert._id).lean();
+            expect(stored!.status).toBe('resolved');
+            expect(stored!.is_open).toBe(false);
+          }
+
+          expect(publishSpy).toHaveBeenCalledTimes(1);
+          expect(captureSpy).toHaveBeenCalledTimes(1);
+          expect((captureSpy.mock.calls[0][0] as Error).message).toBe(
+            'envelope construction exploded'
+          );
+          expect(captureSpy.mock.calls[0][2]).toEqual({ subsystem: 'alerting' });
+        });
       });
     });
   });
