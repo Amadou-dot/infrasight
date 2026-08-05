@@ -159,6 +159,29 @@ describe('AlertRuleList', () => {
 
       expect(screen.getByText(/no alert rules/i)).toBeInTheDocument();
     });
+
+    // Regression test for a real crash caught by e2e/alerts.spec.ts against
+    // live seeded data: a rule with no constraints at all (the seeded "Low
+    // battery" and "High anomaly score" rules both persist `selector: {}`)
+    // has its `selector` field stripped entirely by Mongoose's default
+    // `minimize` behavior before it ever reaches Mongo, so every API read is
+    // genuinely missing the key -- `AlertRuleV2Response.selector` is typed
+    // optional for exactly this reason (types/v2/alert.types.ts). Before the
+    // fix, `selectorChips` did `selector.types` unguarded and threw
+    // "Cannot read properties of undefined (reading 'types')" the moment this
+    // row rendered, taking down the whole page.
+    it('should render a rule whose selector is entirely absent, without crashing', () => {
+      mockUseAlertRulesList.mockReturnValue({
+        data: [makeRule({ name: 'Low battery', metric: 'battery_level', selector: undefined })],
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+      });
+
+      render(<AlertRuleList />);
+
+      expect(screen.getByText('Low battery')).toBeInTheDocument();
+    });
   });
 
   // --- The three useAdminAction() branches --------------------------------
