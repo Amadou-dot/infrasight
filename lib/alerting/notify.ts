@@ -13,9 +13,20 @@
 
 import { pusherServer } from '@/lib/pusher';
 import { logger } from '@/lib/monitoring';
+import { ALERT_CHANNEL } from '@/lib/pusher-channels';
 import type { AlertEvent, AlertSeverity, FiredAlert, ResolvedAlert } from '@/types/v2/alert.types';
 
-export const ALERT_CHANNEL = 'InfraSight';
+/**
+ * Re-exported so existing importers keep working. The name itself is defined in
+ * `lib/pusher-channels.ts` because the browser subscriber needs it too and
+ * cannot import this module (it reaches `lib/pusher`, which requires
+ * PUSHER_SECRET).
+ *
+ * Alerts do NOT share the readings channel. They are private: an alert payload
+ * names a rule, a device and the value that tripped it, which is exactly the
+ * operational detail an unauthenticated visitor must not receive.
+ */
+export { ALERT_CHANNEL };
 export const ALERT_EVENT_NAME = 'alert-event';
 
 /** Above this many alerts in one evaluation, degrade to an aggregate summary. */

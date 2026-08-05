@@ -6,6 +6,7 @@ import {
   buildFiredEnvelope,
   buildResolvedEnvelope,
   publishAlertEvents,
+  ALERT_CHANNEL,
   ALERT_EVENT_NAME,
   ALERT_EVENT_MAX,
 } from '@/lib/alerting/notify';
@@ -114,9 +115,18 @@ describe('publishAlertEvents', () => {
 
     expect(pusherServer.trigger).toHaveBeenCalledTimes(2);
     for (const call of (pusherServer.trigger as jest.Mock).mock.calls) {
-      expect(call[0]).toBe('InfraSight');
+      expect(call[0]).toBe(ALERT_CHANNEL);
       expect(call[1]).toBe(ALERT_EVENT_NAME);
     }
+  });
+
+  // Alerts do not share the public readings channel. The `private-` prefix is
+  // what makes pusher-js authorize through /api/pusher/auth before it will
+  // deliver anything; publishing to a public name would put rule names, device
+  // ids and trigger values in reach of anyone holding NEXT_PUBLIC_PUSHER_KEY.
+  it('should publish alerts on a private channel', () => {
+    expect(ALERT_CHANNEL.startsWith('private-')).toBe(true);
+    expect(ALERT_CHANNEL).not.toBe('InfraSight');
   });
 
   it('should send nothing when both lists are empty', async () => {

@@ -1,7 +1,16 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useCallback } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 import { getPusherClient } from '@/lib/pusher-client';
+import { ALERT_CHANNEL, READINGS_CHANNEL } from '@/lib/pusher-channels';
 import type { AlertEvent } from '@/types/v2/alert.types';
 
 /**
@@ -21,6 +30,162 @@ export interface PusherReading {
 type ReadingsCallback = (readings: PusherReading[]) => void;
 export type AlertsCallback = (event: AlertEvent) => void;
 
+// ============================================================================
+// CONNECTION HEALTH
+// ============================================================================
+
+/**
+ * What the realtime layer is currently doing, from the app's point of view.
+ *
+ * Not a straight copy of pusher-js's own connection states: `no-provider` and
+ * `not-configured` are conditions pusher-js never reports (there is no client
+ * to report them), and `unauthorized` is a channel-level failure that leaves
+ * the socket itself perfectly healthy.
+ */
+export type RealtimeState =
+  | 'connecting'
+  | 'connected'
+  /** Socket dropped; pusher-js is retrying on its own. */
+  | 'reconnecting'
+  /** Socket closed and pusher-js will NOT retry (4000-4099 close codes). */
+  | 'failed'
+  /** NEXT_PUBLIC_PUSHER_* not set — the client was never constructed. */
+  | 'not-configured'
+  /** Socket is up but the private alert channel refused us. */
+  | 'unauthorized'
+  /** No PusherProvider above this component. */
+  | 'no-provider';
+
+export interface RealtimeConnection {
+  /** True only when alerts are genuinely arriving live. Drives the poll fallback. */
+  connected: boolean;
+  state: RealtimeState;
+  /**
+   * True when the user should be told. Distinct from `!connected` so the first
+   * second of every page load — a perfectly normal `connecting` — does not
+   * flash a scary banner at everyone.
+   */
+  degraded: boolean;
+  /** Operator-facing explanation. Null while healthy. */
+  message: string | null;
+  /** True when nothing will recover this without a reload. */
+  terminal: boolean;
+}
+
+/** Internal state the provider tracks; `RealtimeConnection` is derived from it. */
+interface RealtimeStatus {
+  /** Raw pusher-js connection state, or null before the client exists. */
+  socket: string | null;
+  /** Whether the private alert channel subscription succeeded. */
+  alerts: 'pending' | 'subscribed' | 'rejected';
+  configured: boolean;
+  /** Set when Pusher reports a close code it will not retry. */
+  fatal: string | null;
+}
+
+const INITIAL_STATUS: RealtimeStatus = {
+  socket: null,
+  alerts: 'pending',
+  configured: true,
+  fatal: null,
+};
+
+/**
+ * Pusher close codes 4000-4099 are terminal by protocol: the client is told not
+ * to retry. 4004 (quota exceeded) and 4001 (unknown app key) both land here, and
+ * both otherwise present as a socket that simply stops delivering forever.
+ */
+function isTerminalCloseCode(code: number | undefined): boolean {
+  return typeof code === 'number' && code >= 4000 && code <= 4099;
+}
+
+function deriveConnection(status: RealtimeStatus): RealtimeConnection {
+  if (!status.configured)
+    return {
+      connected: false,
+      state: 'not-configured',
+      degraded: true,
+      message:
+        'Real-time updates are not configured on this deployment. Data refreshes on a timer instead.',
+      terminal: true,
+    };
+
+  if (status.fatal)
+    return {
+      connected: false,
+      state: 'failed',
+      degraded: true,
+      message: `${status.fatal} Reload the page to try again. Data refreshes on a timer meanwhile.`,
+      terminal: true,
+    };
+
+  if (status.socket === 'failed' || status.socket === 'disconnected')
+    return {
+      connected: false,
+      state: 'failed',
+      degraded: true,
+      message:
+        'The real-time connection closed and will not reopen on its own. Reload the page to restore live updates.',
+      terminal: true,
+    };
+
+  if (status.socket === 'unavailable')
+    return {
+      connected: false,
+      state: 'reconnecting',
+      degraded: true,
+      message:
+        'Lost the real-time connection — retrying. Data refreshes on a timer until it is back.',
+      terminal: false,
+    };
+
+  if (status.socket !== 'connected')
+    return {
+      connected: false,
+      state: 'connecting',
+      degraded: false,
+      message: null,
+      terminal: false,
+    };
+
+  // Socket is up. The alert channel can still have been refused on its own —
+  // an expired session, or a member removed from the org — and that leaves
+  // readings flowing while alerts silently stop.
+  if (status.alerts === 'rejected')
+    return {
+      connected: false,
+      state: 'unauthorized',
+      degraded: true,
+      message:
+        'Not authorized for live alerts. Your session may have expired — sign in again. Alerts refresh on a timer meanwhile.',
+      terminal: true,
+    };
+
+  if (status.alerts === 'pending')
+    return {
+      connected: false,
+      state: 'connecting',
+      degraded: false,
+      message: null,
+      terminal: false,
+    };
+
+  return { connected: true, state: 'connected', degraded: false, message: null, terminal: false };
+}
+
+/**
+ * What a consumer sees with no provider above it. A frozen module constant
+ * rather than a fresh object per call so it is referentially stable — hooks
+ * feed it straight into React Query options.
+ */
+const NO_PROVIDER_CONNECTION: RealtimeConnection = Object.freeze({
+  connected: false,
+  state: 'no-provider' as const,
+  degraded: false,
+  message: null,
+  terminal: false,
+});
+
 interface PusherContextValue {
   /** Register a callback that fires every time new readings arrive. */
   subscribe: (cb: ReadingsCallback) => void;
@@ -30,22 +195,35 @@ interface PusherContextValue {
   subscribeAlerts: (cb: AlertsCallback) => void;
   /** Remove a previously registered alert callback. */
   unsubscribeAlerts: (cb: AlertsCallback) => void;
+  /** Live health of the realtime layer. */
+  connection: RealtimeConnection;
 }
 
 const PusherContext = createContext<PusherContextValue | null>(null);
 
 /**
- * Provides a single Pusher subscription to the `InfraSight` channel and its
- * `new-readings` and `alert-event` events. All consuming components share
- * this one subscription instead of each creating their own, which prevents
- * duplicate event processing and the associated extra re-renders.
+ * Provides the app's Pusher subscriptions and reports their health.
+ *
+ * TWO channels, deliberately:
+ *   - `InfraSight` (public) carries `new-readings`. It predates alerting and
+ *     `app/api/v2/cron/simulate/route.ts` publishes to it by that name.
+ *   - `private-alerts` carries `alert-event`. Alert payloads name a rule, a
+ *     device and the value that tripped it, so they are gated behind
+ *     `/api/pusher/auth`.
+ *
+ * All consuming components share these subscriptions instead of each creating
+ * their own, which prevents duplicate event processing and the associated extra
+ * re-renders.
  */
 export function PusherProvider({ children }: { children: React.ReactNode }) {
   const callbacksRef = useRef<Set<ReadingsCallback>>(new Set());
   const alertCallbacksRef = useRef<Set<AlertsCallback>>(new Set());
+  const [status, setStatus] = useState<RealtimeStatus>(INITIAL_STATUS);
 
   useEffect(() => {
-    // Gracefully degrade when Pusher env vars are not configured.
+    // Gracefully degrade when Pusher env vars are not configured. This used to
+    // be a console.warn and nothing else, which meant a misconfigured
+    // deployment looked identical to a quiet one: "No open alerts." forever.
     let pusher: ReturnType<typeof getPusherClient>;
     try {
       pusher = getPusherClient();
@@ -53,10 +231,13 @@ export function PusherProvider({ children }: { children: React.ReactNode }) {
       console.warn(
         'PusherProvider: Pusher environment variables are not set. Real-time updates are disabled.'
       );
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reflecting the state of an external system (the Pusher client) into React at subscribe time; it cannot be read during render because getPusherClient() must not run on the server.
+      setStatus(prev => ({ ...prev, configured: false }));
       return;
     }
 
-    const channel = pusher.subscribe('InfraSight');
+    const readingsChannel = pusher.subscribe(READINGS_CHANNEL);
+    const alertChannel = pusher.subscribe(ALERT_CHANNEL);
 
     const handler = (newReadings: PusherReading[]) => {
       callbacksRef.current.forEach(cb => {
@@ -78,13 +259,68 @@ export function PusherProvider({ children }: { children: React.ReactNode }) {
       });
     };
 
-    channel.bind('new-readings', handler);
-    channel.bind('alert-event', alertHandler);
+    const stateChangeHandler = ({ current }: { current: string }) => {
+      setStatus(prev => ({
+        ...prev,
+        socket: current,
+        // A fresh connection clears a previous fatal and gives a previously
+        // refused alert channel another chance — pusher-js re-authorizes every
+        // channel on reconnect, so a rejection from an expired session should
+        // not outlive the session it was about.
+        ...(current === 'connected'
+          ? { fatal: null, alerts: prev.alerts === 'rejected' ? ('pending' as const) : prev.alerts }
+          : {}),
+      }));
+    };
+
+    // pusher-js reports transport failures here. The payload for a protocol
+    // close carries the code under error.data.code.
+    const errorHandler = (err: unknown) => {
+      const data = (err as { error?: { data?: { code?: number; message?: string } } })?.error?.data;
+      console.error('PusherProvider: connection error', err);
+
+      if (isTerminalCloseCode(data?.code))
+        setStatus(prev => ({
+          ...prev,
+          fatal: `Real-time updates stopped (Pusher error ${data?.code}${
+            data?.message ? `: ${data.message}` : ''
+          }).`,
+        }));
+    };
+
+    const subscriptionSucceeded = () => setStatus(prev => ({ ...prev, alerts: 'subscribed' }));
+
+    const subscriptionError = (err: unknown) => {
+      console.error('PusherProvider: alert channel subscription failed', err);
+      setStatus(prev => ({ ...prev, alerts: 'rejected' }));
+    };
+
+    readingsChannel.bind('new-readings', handler);
+    alertChannel.bind('alert-event', alertHandler);
+    alertChannel.bind('pusher:subscription_succeeded', subscriptionSucceeded);
+    alertChannel.bind('pusher:subscription_error', subscriptionError);
+    pusher.connection.bind('state_change', stateChangeHandler);
+    pusher.connection.bind('error', errorHandler);
+
+    // Seed from the live socket. getPusherClient() is a singleton, so on a
+    // remount it may already be connected and already subscribed — in which
+    // case neither state_change nor subscription_succeeded is coming, and
+    // waiting for them would leave the app polling forever.
+    setStatus(prev => ({
+      ...prev,
+      socket: pusher.connection.state ?? prev.socket,
+      alerts: alertChannel.subscribed ? 'subscribed' : prev.alerts,
+    }));
 
     return () => {
-      channel.unbind('new-readings', handler);
-      channel.unbind('alert-event', alertHandler);
-      pusher.unsubscribe('InfraSight');
+      readingsChannel.unbind('new-readings', handler);
+      alertChannel.unbind('alert-event', alertHandler);
+      alertChannel.unbind('pusher:subscription_succeeded', subscriptionSucceeded);
+      alertChannel.unbind('pusher:subscription_error', subscriptionError);
+      pusher.connection.unbind('state_change', stateChangeHandler);
+      pusher.connection.unbind('error', errorHandler);
+      pusher.unsubscribe(READINGS_CHANNEL);
+      pusher.unsubscribe(ALERT_CHANNEL);
     };
   }, []);
 
@@ -104,13 +340,29 @@ export function PusherProvider({ children }: { children: React.ReactNode }) {
     alertCallbacksRef.current.delete(cb);
   }, []);
 
-  return (
-    <PusherContext.Provider
-      value={{ subscribe, unsubscribe, subscribeAlerts, unsubscribeAlerts }}
-    >
-      {children}
-    </PusherContext.Provider>
+  const connection = useMemo(() => deriveConnection(status), [status]);
+
+  const value = useMemo(
+    () => ({ subscribe, unsubscribe, subscribeAlerts, unsubscribeAlerts, connection }),
+    [subscribe, unsubscribe, subscribeAlerts, unsubscribeAlerts, connection]
   );
+
+  return <PusherContext.Provider value={value}>{children}</PusherContext.Provider>;
+}
+
+/**
+ * Health of the realtime layer, for anything that needs to behave differently
+ * when live updates are not arriving — the degraded banner, and the poll
+ * fallback in `lib/query/hooks/useAlerts.ts`.
+ *
+ * Returns a "not connected" reading rather than throwing when there is no
+ * provider: a component rendered outside the provider genuinely is not
+ * receiving live updates, and the honest answer makes callers fall back to
+ * polling instead of trusting a socket that isn't there.
+ */
+export function useRealtimeConnection(): RealtimeConnection {
+  const ctx = useContext(PusherContext);
+  return ctx?.connection ?? NO_PROVIDER_CONNECTION;
 }
 
 /**
