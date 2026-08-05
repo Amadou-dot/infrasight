@@ -22,10 +22,15 @@ import type { CachedAlertRule } from './types';
 export const ALERT_RULE_CACHE_TTL_SECONDS = 60;
 
 export interface RuleBuckets {
-  /** Every one of the 15 reading types is present, possibly with an empty array. */
+  /**
+   * Every one of the 15 reading types is present, possibly with an empty array.
+   *
+   * "Every one" is guaranteed by the exhaustiveness assertions on
+   * `READING_TYPES` (models/v2/AlertRuleV2.ts): a reading type added to
+   * `ReadingType` but not to that list is a `tsc` error, because a missing
+   * bucket here is invisible at runtime — see `bucketFor` below.
+   */
   byType: Map<ReadingType, CachedAlertRule[]>;
-  /** The longest cooldown across all active rules — bounds the cooldown lookback. */
-  maxCooldownSeconds: number;
   ruleCount: number;
 }
 
@@ -157,19 +162,34 @@ export function buildRuleBuckets(rules: CachedAlertRule[]): RuleBuckets {
   const byType = new Map<ReadingType, CachedAlertRule[]>();
   for (const type of READING_TYPES) byType.set(type as ReadingType, []);
 
-  let maxCooldownSeconds = 0;
-
   for (const rule of rules) {
     const targets = rule.selector?.types?.length
       ? rule.selector.types
       : (READING_TYPES as unknown as ReadingType[]);
 
-    for (const type of targets) byType.get(type as ReadingType)?.push(rule);
-
-    maxCooldownSeconds = Math.max(maxCooldownSeconds, rule.cooldown_seconds ?? 0);
+    for (const type of targets) {
+      // NOT `byType.get(type)?.push(rule)`. That optional chain dropped the
+      // rule for that type with no error, no metric and no log — the rule
+      // stayed Enabled in the UI and simply never fired. Reaching this branch
+      // means `selector.types` named a type that `READING_TYPES` has no bucket
+      // for, which `alertRuleSelectorSchema` (applied in `normalizeRule`)
+      // should already have rejected; if it ever happens the cause is a
+      // divergence between the two, and the operator needs to hear about it.
+      const bucket = byType.get(type as ReadingType);
+      if (!bucket) {
+        recordAlertRuleSkipped('unexpected_error');
+        logger.warn('Alert rule not bucketed: unknown reading type in selector.types', {
+          ruleId: rule._id,
+          ruleName: rule.name,
+          type: String(type),
+        });
+        continue;
+      }
+      bucket.push(rule);
+    }
   }
 
-  return { byType, maxCooldownSeconds, ruleCount: rules.length };
+  return { byType, ruleCount: rules.length };
 }
 
 export async function getRuleBuckets(): Promise<RuleBuckets> {

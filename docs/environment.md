@@ -15,6 +15,8 @@ Complete guide for configuring environment variables and setting up the Infrasig
   - [Caching](#caching)
   - [Monitoring & Logging](#monitoring--logging)
   - [Sentry Error Tracking](#sentry-error-tracking)
+  - [Alerting](#alerting)
+  - [Public Read-Only Demo](#public-read-only-demo)
   - [API Authentication](#api-authentication)
   - [Development Options](#development-options)
 - [Environment-Specific Configuration](#environment-specific-configuration)
@@ -277,6 +279,51 @@ NEXT_PUBLIC_SENTRY_DSN=https://abc123@o123456.ingest.sentry.io/1234567
 SENTRY_ORG=my-org
 SENTRY_PROJECT=infrasight
 SENTRY_AUTH_TOKEN=sntrys_eyJ...
+```
+
+---
+
+### Alerting
+
+Threshold alerting (`alert_rules_v2` / `alerts_v2`) needs no configuration to run. One variable tunes the staleness sweep.
+
+| Variable                    | Description                                                            | Default |
+| --------------------------- | ---------------------------------------------------------------------- | ------- |
+| `ALERT_STALE_AFTER_SECONDS` | Seconds of silence after which an open alert is closed as `stale`      | `1800`  |
+
+An alert normally auto-resolves when a new reading shows the metric back within bounds — so a device that simply **stops reporting** would otherwise stay firing forever. The staleness sweep (`lib/alerting/sweep.ts`) closes those: any open episode whose `last_observed_at` is older than this cutoff is resolved with `resolution: 'stale'`, and any open episode for a device that did not report at all in the run is resolved with `resolution: 'device_inactive'`. Both are recorded distinctly from `'auto'` so history never claims a problem was fixed when the sensor merely went quiet.
+
+Three things to know:
+
+- **It runs on the cron path only.** `GET /api/v2/cron/simulate` calls the sweep; `POST /api/v2/readings/ingest` does not. On an ingest-only deployment nothing is ever closed as stale.
+- **Must be a positive integer.** A malformed or non-positive value logs a warning and falls back to `1800`. It is not ignored silently: a `NaN` would make the cutoff an Invalid Date and disable staleness detection entirely, which is the failure this guard exists to prevent.
+- **Read once at module load.** Changing it requires a restart, not just a new request.
+
+#### Example Configuration
+
+```env
+# 30 minutes (the default)
+ALERT_STALE_AFTER_SECONDS=1800
+```
+
+---
+
+### Public Read-Only Demo
+
+Lets anonymous visitors browse the app and read the GET APIs without signing in. **Both** variables must be `"true"` — leave them unset for a normal private deployment.
+
+| Variable                 | Description                                     | Default |
+| ------------------------ | ----------------------------------------------- | ------- |
+| `DEMO_MODE`              | Server-side switch for anonymous read access    | `false` |
+| `NEXT_PUBLIC_DEMO_MODE`  | Client-side switch (must have the public prefix) | `false` |
+
+Writes stay blocked: the synthetic demo context carries the `org:member` role and every mutation goes through `requireAdmin()`. Alert and alert-rule responses additionally have their audit actor fields replaced with "an administrator" for a demo reader (`lib/alerting/redact.ts`), because `audit.created_by` and friends hold a real administrator's email address.
+
+#### Example Configuration
+
+```env
+DEMO_MODE=true
+NEXT_PUBLIC_DEMO_MODE=true
 ```
 
 ---

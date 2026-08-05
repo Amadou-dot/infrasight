@@ -8,6 +8,9 @@ import type { ReadingType } from './ReadingV2';
 /**
  * All 15 reading types. Exported so the validation schema and the rule
  * bucketer share one source of truth with the schema enum below.
+ *
+ * If you add a reading type, see "Adding a New Device / Reading Type" in
+ * CLAUDE.md — this is one of several hand-maintained copies of the list.
  */
 export const READING_TYPES = [
   'temperature',
@@ -26,6 +29,41 @@ export const READING_TYPES = [
   'current',
   'energy',
 ] as const satisfies readonly ReadingType[];
+
+/** The element type of `READING_TYPES`, for the exhaustiveness guard below. */
+export type ReadingTypeInList = (typeof READING_TYPES)[number];
+
+/**
+ * `T` must be `never`, or this alias is a compile error naming the offender.
+ *
+ * `tsc` reports it as
+ * `Type '"<the offending type>"' does not satisfy the constraint 'never'`,
+ * which is why the two aliases below are worth more than a boolean assertion:
+ * the error text names the reading type that was forgotten.
+ */
+type AssertNever<T extends never> = T;
+
+/**
+ * EXHAUSTIVENESS, IN BOTH DIRECTIONS. Do not delete these two aliases.
+ *
+ * `as const satisfies readonly ReadingType[]` above only checks that each
+ * element IS a ReadingType. It does NOT check that every ReadingType appears.
+ * Without the guard below, adding a 16th type to `ReadingType`
+ * (models/v2/ReadingV2.ts) and forgetting this list compiles clean — and then:
+ *
+ *   1. `buildRuleBuckets` (lib/alerting/rule-cache.ts) seeds no bucket for it;
+ *   2. `evaluateReadings` (lib/alerting/evaluate.ts) looks the type up with
+ *      `byType.get(type) ?? []` and evaluates the reading against zero rules;
+ *   3. a FLEET-WIDE rule — one with no `selector.types` at all, such as the
+ *      seeded "Low battery" rule — is expanded across exactly this list, so it
+ *      too silently stops applying to devices of the new type.
+ *
+ * No error, no metric, no log, and every affected rule still shows as Enabled
+ * in the UI. Making the omission a `tsc` failure is the only cheap way to catch
+ * it, because the failure mode is silence.
+ */
+export type ReadingTypesMissingFromList = AssertNever<Exclude<ReadingType, ReadingTypeInList>>;
+export type ReadingTypesNotAReadingType = AssertNever<Exclude<ReadingTypeInList, ReadingType>>;
 
 // ============================================================================
 // TYPESCRIPT INTERFACES

@@ -104,6 +104,14 @@ All checked at import time—app fails loudly if missing:
 - `CACHE_ENABLED`, `CACHE_METADATA_TTL`, `CACHE_HEALTH_TTL`: Cache configuration
 - `SEED_SECRET`: Secret token used by your external scheduler (for example, n8n) to authenticate the `/api/v2/cron/simulate` endpoint
 
+**Optional (Alerting):**
+
+- `ALERT_STALE_AFTER_SECONDS`: Seconds of silence after which the cron-path staleness sweep closes an open alert with `resolution: 'stale'` (default `1800` = 30 minutes; see [lib/alerting/sweep.ts](lib/alerting/sweep.ts)). Must be a positive integer — a malformed or non-positive value logs a warning and falls back to the default rather than silently disabling staleness detection. Read **once at module load**, so a change needs a restart.
+
+**Optional (Public read-only demo):**
+
+- `DEMO_MODE`, `NEXT_PUBLIC_DEMO_MODE`: When both are `"true"`, anonymous visitors may browse the app and read GET APIs without signing in. Writes stay blocked (the synthetic demo context carries `org:member`, and every mutation goes through `requireAdmin()`), and alert/alert-rule audit trails are redacted for demo readers by `redactAuditForDemo` ([lib/alerting/redact.ts](lib/alerting/redact.ts)). Leave unset for a normal private deployment.
+
 **Testing:**
 
 - `E2E_TESTING`: Set to `true` to bypass auth for E2E tests
@@ -659,18 +667,50 @@ All schemas are in `lib/validations/v2/` with TypeScript type inference via `z.i
 3. Add method to `v2Api` client in `lib/api/v2-client.ts`
 4. Update types in `types/v2/api.types.ts`
 
-### Adding a New Device Type
+### Adding a New Device / Reading Type
 
 Currently supports **15 device types**: temperature, humidity, occupancy, power, co2, pressure, light, motion, air_quality, water_flow, gas, vibration, voltage, current, energy
 
-To add a new type:
+Device types and reading types are **one list**: a device of type X emits readings of type X, and `metric: 'value'` alert rules select devices by reading type. The list is copied by hand into a dozen places. Some copies fail loudly if you miss them; several **fail silently**, so work through the whole checklist. Verify with `grep -rn "water_flow" --include='*.ts' --include='*.tsx'` before you finish.
 
-1. Update `deviceTypeSchema` in both:
-   - [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts) (enum array)
-   - [lib/validations/v2/device.validation.ts](lib/validations/v2/device.validation.ts) (Zod enum)
-2. Update `ReadingType` in [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts) to match
-3. Add appropriate `ReadingUnit` enum values (currently 35 units supported)
-4. Update unit mapping in `/api/v2/readings/ingest/route.ts` if auto-mapping is needed
+**1. Type and schema definitions — miss one and `tsc` or Mongoose tells you.**
+
+| File | What to change | If missed |
+| ---- | -------------- | --------- |
+| [models/v2/ReadingV2.ts](models/v2/ReadingV2.ts) | `ReadingType` union **and** the `metadata.type` enum array in `MetadataSchema` | Union: `tsc` error. Enum: every insert of that type is rejected at write time |
+| [models/v2/DeviceV2.ts](models/v2/DeviceV2.ts) | `DeviceType` union **and** the `type` enum array in the schema | Same as above, for devices |
+| [models/v2/AlertRuleV2.ts](models/v2/AlertRuleV2.ts) | `READING_TYPES` | **`tsc` error** — the two `AssertNever` aliases beside it exist for exactly this. See "if missed" below for why they were added |
+| [lib/validations/v2/reading.validation.ts](lib/validations/v2/reading.validation.ts) | `readingTypeSchema` (Zod enum) | Ingest 400s the new type |
+| [lib/validations/v2/device.validation.ts](lib/validations/v2/device.validation.ts) | `deviceTypeSchema` (Zod enum) | Device create/update 400s the new type |
+| [types/v2/reading.types.ts](types/v2/reading.types.ts) | `ReadingType` (client-safe copy) | `tsc` error, via the conformance assertions |
+| [types/v2/device.types.ts](types/v2/device.types.ts) | `DeviceType` (client-safe copy) | `tsc` error, via the conformance assertions |
+| [lib/simulation/readings.ts](lib/simulation/readings.ts) | `TYPE_SENSITIVITY` **and** a `case` in `generateReading`'s switch | `tsc` error both times (`Record<ReadingType, …>`; definite assignment on `value`/`unit`) |
+
+`ReadingTypeName` in [types/v2/alert.types.ts](types/v2/alert.types.ts) is now an **alias** of `ReadingType`, not a copy — nothing to change there.
+
+**2. Units.** Add any new `ReadingUnit` values (35 today) to *all three* copies: `models/v2/ReadingV2.ts` (union + schema enum), `lib/validations/v2/reading.validation.ts` (`readingUnitSchema`), `types/v2/reading.types.ts`.
+
+**3. Silent fallbacks — nothing fails, the behaviour is just wrong.**
+
+| File | What to change | If missed |
+| ---- | -------------- | --------- |
+| [app/api/v2/readings/ingest/route.ts](app/api/v2/readings/ingest/route.ts) | `getDefaultUnit`'s unit map | Readings are stored with unit `'raw'` |
+| [scripts/v2/seed-v2.ts](scripts/v2/seed-v2.ts) | `deviceTypes`, `unitsByType`, `generateReading`'s switch | Seeded data never contains the type, and any that does gets unit `'raw'` and a nonsense value range |
+
+**4. UI lists — the type exists but is invisible.**
+
+| File | What to change | If missed |
+| ---- | -------------- | --------- |
+| [app/devices/_components/DeviceFilterModal.tsx](app/devices/_components/DeviceFilterModal.tsx) | `DEVICE_TYPES` | `tsc` error, via the conformance assertions |
+| [components/devices/CreateDeviceModal.tsx](components/devices/CreateDeviceModal.tsx) | `DEVICE_TYPES` options | **Silent** — the type cannot be chosen when creating a device |
+| [components/alerts/CreateAlertRuleModal.tsx](components/alerts/CreateAlertRuleModal.tsx) | `READING_TYPE_OPTIONS` | **Silent** — no alert rule can be scoped to the type from the UI |
+| [components/DeviceInventoryCard.tsx](components/DeviceInventoryCard.tsx) | `getDeviceIcon` / `getIconBgColor` switches | **Silent** — falls through to the generic icon |
+
+**5. Docs.** Update the type lists in [docs/models-v2.md](docs/models-v2.md), [docs/api-v2.md](docs/api-v2.md), and the "15 Device/Reading Types" line near the top of this file.
+
+**6. Re-run the guards.** `npx tsc --noEmit` covers the type-level copies; `pnpm test __tests__/unit/models/AlertRuleV2.test.ts` compares `READING_TYPES` against the Mongoose and Zod enums as sets (`tsc` cannot see inside a `new Schema({ enum: [...] })`).
+
+**Why `READING_TYPES` gets a compile-time guard and the others get a table.** `as const satisfies readonly ReadingType[]` only checks that each element *is* a `ReadingType`; it does not check that every `ReadingType` is present. An omission there used to compile clean, and then: `buildRuleBuckets` ([lib/alerting/rule-cache.ts](lib/alerting/rule-cache.ts)) seeds no bucket for the type, `evaluateReadings` looks it up with `byType.get(type) ?? []` and evaluates against zero rules, and a **fleet-wide rule** — one with no `selector.types` at all, such as the seeded "Low battery" rule — is expanded across that same list, so it stops applying to the new type too. No error, no metric, no log, and every affected rule still reads as Enabled in the UI. The `AssertNever` aliases in `models/v2/AlertRuleV2.ts` turn that into a `tsc` error naming the missing type.
 
 ### Using Model Static Methods
 
@@ -756,9 +796,33 @@ await AlertV2.acknowledge(alertId, 'admin@example.com');
 await AlertV2.resolve(alertId, 'admin@example.com', 'manual');
 ```
 
-**Alert Status Transitions**: `pending` (internal only, never returned by the API) -> `firing` -> `acknowledged` -> `resolved`. `resolved` is terminal. Invalid transitions throw `AlertTransitionError`.
+**Alert Status Transitions**:
 
-**Alert evaluation** (`lib/alerting/`) runs after both write paths (`readings/ingest`, `cron/simulate`) commit their inserts, via `safeEvaluateReadings()`/`safeSweepStaleAlerts()` — these never throw, so an alerting failure never affects the read/write contract of either route. Always call the `safe*` wrappers from `@/lib/alerting`, never `evaluateReadings()`/`sweepStaleAlerts()` directly from a route.
+```
+pending  -> firing            (breach held for for_duration_seconds)
+pending  -> DELETED           (condition cleared, or the rule's condition changed)
+firing   -> acknowledged      (an operator picked it up)
+firing   -> resolved          (legal, and the common path)
+acknowledged -> resolved
+resolved -> (terminal)
+```
+
+`acknowledged` is **not** a required step: `AlertV2.resolve()` matches `status: { $in: ['firing', 'acknowledged'] }`, and the evaluator's own auto-resolve goes straight from `firing`. Acknowledging is an operator convenience, not a gate.
+
+`pending` is internal — it is never returned by the API, raises no notification, and is **deleted rather than resolved** when it stops breaching (`deleteOne`/`deleteMany` guarded on `status: 'pending'`, in `evaluate.ts`, `sweep.ts` and `PATCH /alert-rules/[id]`). An episode that never fired is not history, and deleting it is what keeps the invariant "every visible alert has `fired_at`" true. So `pending` never reaches `resolved`.
+
+`is_open` is a denormalization of `status` (`is_open === (status !== 'resolved')`), enforced at every write path in [models/v2/AlertV2.ts](models/v2/AlertV2.ts) — a document where the two disagree stays in the partial unique dedup index forever and that (rule, device) pair can never fire again. Invalid lifecycle transitions throw `AlertTransitionError`; a status/`is_open` mismatch throws `AlertInvariantError`.
+
+**Where evaluation runs** — the two write paths are **not** symmetric:
+
+| | `POST /api/v2/readings/ingest` | `GET /api/v2/cron/simulate` |
+| --- | --- | --- |
+| `safeEvaluateReadings()` | yes, after the insert commits | yes, after the insert commits |
+| `safeSweepStaleAlerts()` | **no** | yes |
+
+The staleness sweep is one query per cron invocation, not per ingest, and it needs the set of devices that just reported — which only the cron path has. Consequence worth knowing: on an ingest-only deployment, an alert for a device that stops reporting is never closed as stale.
+
+Both wrappers never throw, so an alerting failure never affects the read/write contract of either route. Always call the `safe*` wrappers from `@/lib/alerting`, never `evaluateReadings()`/`sweepStaleAlerts()` directly from a route.
 
 ### Debugging Connection Issues
 

@@ -2,8 +2,34 @@
  * AlertRuleV2 Model Unit Tests
  */
 
+import type { Schema } from 'mongoose';
 import AlertRuleV2, { READING_TYPES } from '@/models/v2/AlertRuleV2';
+import ReadingV2 from '@/models/v2/ReadingV2';
+import DeviceV2 from '@/models/v2/DeviceV2';
+import { readingTypeSchema } from '@/lib/validations/v2/reading.validation';
+import { deviceTypeSchema } from '@/lib/validations/v2/device.validation';
 import { createAlertRuleInput, resetCounters } from '../../setup/factories';
+
+/**
+ * Read an `enum` off a compiled Mongoose path. Deliberately goes through the
+ * live schema rather than re-importing a constant: the enum literal in
+ * ReadingV2.ts / DeviceV2.ts is a SEPARATE hand-maintained copy of the reading
+ * type list, and reading it back out of the schema is the only way to compare
+ * against it without simply restating it here.
+ */
+function schemaEnum(schema: Schema, path: string): string[] {
+  const options = schema.path(path)?.options as { enum?: string[] } | undefined;
+  const values = options?.enum;
+  if (!values) throw new Error(`No enum on schema path "${path}"`);
+  return values;
+}
+
+/** The `metadata` sub-schema of the readings timeseries collection. */
+function readingMetadataSchema(): Schema {
+  return (ReadingV2.schema.path('metadata') as unknown as { schema: Schema }).schema;
+}
+
+const sorted = (values: readonly string[]) => [...values].sort();
 
 describe('AlertRuleV2 Model', () => {
   beforeEach(() => {
@@ -45,10 +71,45 @@ describe('AlertRuleV2 Model', () => {
       ).rejects.toThrow();
     });
 
-    it('should expose all 15 reading types', () => {
-      expect(READING_TYPES).toHaveLength(15);
-      expect(READING_TYPES).toContain('temperature');
-      expect(READING_TYPES).toContain('energy');
+  });
+
+  /**
+   * READING_TYPES is one of several hand-maintained copies of the reading type
+   * list (see "Adding a New Device / Reading Type" in CLAUDE.md). A count
+   * assertion — which is what used to live here — passes as soon as somebody
+   * adds a 16th type to one copy and a 16th type to this one, even if they are
+   * different types. These compare the actual SETS.
+   *
+   * The compile-time guard in models/v2/AlertRuleV2.ts covers the copies that
+   * are TypeScript unions; `tsc` cannot see a Mongoose `enum` array or a Zod
+   * `z.enum`, so those are covered here at runtime. Between the two, every copy
+   * outside the UI layer is checked.
+   *
+   * Why it matters that this is not a count: an omitted type gets NO rule
+   * bucket in lib/alerting/rule-cache.ts, `evaluateReadings` then evaluates
+   * every reading of that type against zero rules, and fleet-wide rules (no
+   * `selector.types` at all) stop applying to it too. Nothing throws, nothing
+   * is counted, and every affected rule still reads as Enabled.
+   */
+  describe('READING_TYPES conformance', () => {
+    it('should match the ReadingV2 timeseries metadata.type enum', () => {
+      expect(sorted(READING_TYPES)).toEqual(sorted(schemaEnum(readingMetadataSchema(), 'type')));
+    });
+
+    it('should match the DeviceV2 type enum', () => {
+      expect(sorted(READING_TYPES)).toEqual(sorted(schemaEnum(DeviceV2.schema, 'type')));
+    });
+
+    it('should match the reading validation Zod enum', () => {
+      expect(sorted(READING_TYPES)).toEqual(sorted(readingTypeSchema.options));
+    });
+
+    it('should match the device validation Zod enum', () => {
+      expect(sorted(READING_TYPES)).toEqual(sorted(deviceTypeSchema.options));
+    });
+
+    it('should have no duplicate entries', () => {
+      expect(new Set(READING_TYPES).size).toBe(READING_TYPES.length);
     });
   });
 

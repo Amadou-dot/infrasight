@@ -15,6 +15,41 @@
  * alert / alert-rule audit shape (see IAlertAudit / IAlertRuleAudit).
  */
 
+import { jsonSuccess, jsonPaginated, type PaginationInfo } from '@/lib/api/response';
+
+// ============================================================================
+// THE MARKER — why redaction is a TYPE and not just a call
+// ============================================================================
+
+/**
+ * `redactAuditForDemo` used to be identity-typed: input type === output type,
+ * so a route that simply never called it looked exactly like a route that did.
+ * That is not hypothetical — within this PR `POST /alert-rules` and
+ * `PATCH /alert-rules` shipped without it while their siblings had it, and
+ * nothing but review caught the asymmetry.
+ *
+ * `Redacted<T>` is a phantom brand: it exists only in the type system (no
+ * runtime property is ever written, so serialization is untouched) and it is
+ * REQUIRED, not optional — an optional brand would make every `T` assignable
+ * to `Redacted<T>` and buy nothing. `Redacted<T>` stays assignable TO `T`, so
+ * downstream code that reads fields off a redacted record is unaffected.
+ *
+ * The enforcement point is `jsonRedacted` / `jsonRedactedPaginated` below: the
+ * four alert / alert-rule routes return through those instead of
+ * `jsonSuccess` / `jsonPaginated`, so skipping the redaction call is a compile
+ * error rather than a silent leak of an administrator's email address.
+ *
+ * Caveat worth knowing before you trust it blindly: `Redacted<any>` collapses
+ * to `any`. Both list endpoints have an `AlertV2.aggregate(...)` branch that is
+ * typed `any[]`, so on that one path the marker is inert. It still holds for
+ * every `.lean()` / `.toObject()` result, which is every single-record
+ * response and every mutation response.
+ */
+declare const RedactedBrand: unique symbol;
+
+/** A value that has been through `redactAuditForDemo`. See the note above. */
+export type Redacted<T> = T & { readonly [RedactedBrand]: true };
+
 const AUDIT_ACTOR_FIELDS = [
   'created_by',
   'updated_by',
@@ -62,15 +97,77 @@ function redactAuditRecord<T extends WithAudit>(record: T): T {
  * Redact every actor field on one alert/alert-rule record — or every record
  * in a list — whenever `isDemoCaller` is true. A no-op for a genuinely
  * authenticated caller, returning the exact input reference unchanged.
+ *
+ * Returns `Redacted<…>`, which is a compile-time marker only: the runtime
+ * value is byte-identical to what this function returned before the marker
+ * existed, reference equality included.
  */
-export function redactAuditForDemo<T extends WithAudit>(record: T, isDemoCaller: boolean): T;
-export function redactAuditForDemo<T extends WithAudit>(records: T[], isDemoCaller: boolean): T[];
+export function redactAuditForDemo<T extends WithAudit>(
+  record: T,
+  isDemoCaller: boolean
+): Redacted<T>;
+export function redactAuditForDemo<T extends WithAudit>(
+  records: T[],
+  isDemoCaller: boolean
+): Redacted<T[]>;
 export function redactAuditForDemo<T extends WithAudit>(
   recordOrRecords: T | T[],
   isDemoCaller: boolean
-): T | T[] {
-  if (!isDemoCaller) return recordOrRecords;
-  return Array.isArray(recordOrRecords)
-    ? recordOrRecords.map(redactAuditRecord)
-    : redactAuditRecord(recordOrRecords);
+): Redacted<T> | Redacted<T[]> {
+  if (!isDemoCaller) return recordOrRecords as Redacted<T> | Redacted<T[]>;
+  return (
+    Array.isArray(recordOrRecords)
+      ? recordOrRecords.map(redactAuditRecord)
+      : redactAuditRecord(recordOrRecords)
+  ) as Redacted<T> | Redacted<T[]>;
+}
+
+// ============================================================================
+// RESPONSE HELPERS THAT DEMAND THE MARKER
+// ============================================================================
+
+/**
+ * `jsonSuccess`, but it will only accept a record that went through
+ * `redactAuditForDemo`.
+ *
+ * Deliberately non-generic. `jsonRedacted<T>(data: Redacted<T>)` would ask
+ * TypeScript to infer `T` out of an intersection, which is exactly the kind of
+ * inference that quietly degrades to `unknown` and stops rejecting anything.
+ * The parameter type here is just "carries the brand", which is the whole
+ * property being enforced — the body is serialized, so nothing downstream
+ * needs the element type.
+ */
+export function jsonRedacted(data: Redacted<unknown>, message?: string, status = 200): Response {
+  return jsonSuccess(data, message, status);
+}
+
+/** `jsonPaginated`, but it will only accept a list that went through `redactAuditForDemo`. */
+export function jsonRedactedPaginated(
+  data: Redacted<unknown[]>,
+  pagination: PaginationInfo,
+  status = 200
+): Response {
+  return jsonPaginated(data, pagination, status);
+}
+
+/**
+ * Attach extra, non-audit fields to an already-redacted record, keeping the
+ * marker.
+ *
+ * Needed by `GET /api/v2/alerts/[id]?include_device=true`, which returns the
+ * alert plus a device projection. A bare `{ ...alert, device }` would be
+ * correct at runtime but the annotation the old code used
+ * (`Record<string, unknown>`) erased the marker, so `jsonRedacted` could not
+ * tell the difference between "redacted, then extended" and "never redacted".
+ *
+ * The `extra` object must not contain audit actor fields — this function does
+ * not redact, it only carries the marker forward. Today's one caller adds a
+ * device projection (`_id`, `serial_number`, `type`, `location`), none of
+ * which names a person.
+ */
+export function extendRedacted<T extends Redacted<unknown>, E extends object>(
+  record: T,
+  extra: E
+): Redacted<T & E> {
+  return { ...record, ...extra } as Redacted<T & E>;
 }
