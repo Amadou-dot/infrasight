@@ -10,6 +10,8 @@
  * - Zod schemas: /lib/validations/v2/alert-rule.validation.ts, alert.validation.ts
  */
 
+import type { ReadingType } from './reading.types';
+
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -19,10 +21,21 @@ export type AlertComparison = 'gt' | 'gte' | 'lt' | 'lte';
 export type AlertSeverity = 'info' | 'warning' | 'critical';
 export type AlertStatus = 'pending' | 'firing' | 'acknowledged' | 'resolved';
 export type AlertResolution = 'manual' | 'auto' | 'stale' | 'device_inactive';
-export type ReadingTypeName =
-  | 'temperature' | 'humidity' | 'occupancy' | 'power' | 'co2'
-  | 'pressure' | 'light' | 'motion' | 'air_quality' | 'water_flow'
-  | 'gas' | 'vibration' | 'voltage' | 'current' | 'energy';
+
+/**
+ * ALIAS, not a copy. This used to be a hand-written 15-member union — the
+ * fourth such copy in the repo — which meant a reading type added everywhere
+ * else but here silently became unselectable in the alert-rule UI while the
+ * API happily accepted it.
+ *
+ * `types/v2/reading.types.ts` is the client-safe list (it imports nothing, so
+ * this file stays free of mongoose), and the compile-time guard in
+ * models/v2/AlertRuleV2.ts ties that list to the server-side `ReadingType` and
+ * to `READING_TYPES`. The name is kept because `ReadingType` is already
+ * exported from `types/v2` and re-exporting it under one name from two modules
+ * would be ambiguous.
+ */
+export type ReadingTypeName = ReadingType;
 
 // ============================================================================
 // RULE

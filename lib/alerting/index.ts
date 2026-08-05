@@ -38,7 +38,13 @@ export { sweepStaleAlerts, STALE_AFTER_SECONDS, type SweepResult } from './sweep
 export { matchesSelector, compare, METRIC_ACCESSORS } from './selector';
 export { getRuleBuckets, loadActiveRules, buildRuleBuckets } from './rule-cache';
 export { publishAlertEvents, ALERT_EVENT_NAME, ALERT_EVENT_MAX, ALERT_EVENT_MAX_BYTES } from './notify';
-export { redactAuditForDemo } from './redact';
+export {
+  redactAuditForDemo,
+  jsonRedacted,
+  jsonRedactedPaginated,
+  extendRedacted,
+  type Redacted,
+} from './redact';
 export type { EvaluableDevice, EvaluableReading, EvaluationResult, CachedAlertRule } from './types';
 
 /**

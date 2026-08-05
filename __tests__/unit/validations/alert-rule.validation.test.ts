@@ -111,6 +111,64 @@ describe('createAlertRuleSchema', () => {
     );
     expect(result.success).toBe(true);
   });
+
+  /**
+   * `createAlertRuleSchema` is a discriminated union on `metric`, not a flat
+   * object with cross-field refinements — see the comment on the schema for
+   * why. These pin the behaviour that must NOT have changed with that rewrite:
+   * the same bodies are accepted, the same bodies are rejected, and every arm
+   * still applies the same defaults.
+   */
+  describe('metric arms', () => {
+    it("should reject a 'value' rule with no selector key at all", () => {
+      const { selector: _selector, ...noSelector } = validRule();
+      expect(createAlertRuleSchema.safeParse(noSelector).success).toBe(false);
+    });
+
+    it('should reject an unknown metric', () => {
+      expect(createAlertRuleSchema.safeParse(validRule({ metric: 'humidity_delta' })).success).toBe(
+        false
+      );
+    });
+
+    it('should reject a missing metric', () => {
+      const { metric: _metric, ...noMetric } = validRule();
+      expect(createAlertRuleSchema.safeParse(noMetric).success).toBe(false);
+    });
+
+    it.each([
+      ['value', { metric: 'value', threshold: 30, selector: { types: ['temperature'] } }],
+      ['anomaly_score', { metric: 'anomaly_score', threshold: 0.8, selector: {} }],
+      ['battery_level', { metric: 'battery_level', comparison: 'lt', threshold: 20, selector: {} }],
+    ])('should apply the same defaults on the %s arm', (_name, overrides) => {
+      const result = createAlertRuleSchema.safeParse(validRule(overrides));
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.enabled).toBe(true);
+        expect(result.data.for_duration_seconds).toBe(0);
+        expect(result.data.cooldown_seconds).toBe(300);
+      }
+    });
+
+    it('should default selector to {} when a unit-free metric omits it', () => {
+      const { selector: _selector, ...noSelector } = validRule({
+        metric: 'anomaly_score',
+        threshold: 0.8,
+      });
+      const result = createAlertRuleSchema.safeParse(noSelector);
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.selector).toEqual({});
+    });
+
+    it('should still coerce the enabled flag from a string', () => {
+      const result = createAlertRuleSchema.safeParse(validRule({ enabled: 'false' }));
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.enabled).toBe(false);
+    });
+  });
 });
 
 describe('updateAlertRuleSchema', () => {

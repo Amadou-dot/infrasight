@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { READING_TYPES } from '@/models/v2/AlertRuleV2';
+import type { UpdateAlertRuleBody } from '@/types/v2/alert.types';
 import {
   buildingIdSchema,
   floorSchema,
@@ -81,37 +82,85 @@ const THRESHOLD_BOUNDS_MESSAGE =
 // CREATE
 // ============================================================================
 
-export const createAlertRuleSchema = z
-  .object({
-    name: z.string().min(1, 'Name is required').max(200, 'Name must be 200 characters or less'),
-    description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
-    enabled: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(true),
-    selector: alertRuleSelectorSchema.default({}),
-    metric: alertMetricSchema,
-    comparison: alertComparisonSchema,
+/**
+ * The fields every metric arm shares, including their defaults. Spread into
+ * each arm below so the three arms cannot drift on `cooldown_seconds`'s
+ * default or `name`'s length cap.
+ */
+const alertRuleBaseShape = {
+  name: z.string().min(1, 'Name is required').max(200, 'Name must be 200 characters or less'),
+  description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
+  enabled: z.union([z.boolean(), z.string().transform(v => v === 'true')]).default(true),
+  comparison: alertComparisonSchema,
+  for_duration_seconds: z
+    .number()
+    .int('for_duration_seconds must be an integer')
+    .min(0)
+    .max(86400, 'for_duration_seconds cannot exceed 24 hours')
+    .default(0),
+  severity: alertSeveritySchema,
+  cooldown_seconds: z
+    .number()
+    .int('cooldown_seconds must be an integer')
+    .min(0)
+    .max(86400, 'cooldown_seconds cannot exceed 24 hours')
+    .default(300),
+};
+
+/**
+ * `metric: 'value'` requires at least one reading type — see
+ * `typesRequiredForValueMetric` for why. Expressed as a required, non-empty
+ * `types` on this arm's selector rather than as a cross-field refinement, so
+ * the constraint survives into `z.input<typeof createAlertRuleSchema>`.
+ */
+const valueMetricSelectorSchema = alertRuleSelectorSchema.extend({
+  types: z.array(readingTypeSchema).min(1, TYPES_REQUIRED_MESSAGE).max(15),
+});
+
+/**
+ * A DISCRIMINATED UNION, not a flat object with refinements.
+ *
+ * The flat version accepted `{ metric: 'value', … }` with no `selector` and
+ * `{ metric: 'anomaly_score', threshold: 30 }` at the TYPE level and rejected
+ * both at runtime, which is why `z.infer` of it was a trap: it described a
+ * request shape the API always 400s. Discriminating on `metric` moves both
+ * constraints into the type, so `z.input<typeof createAlertRuleSchema>` and the
+ * hand-written `CreateAlertRuleBody` (types/v2/alert.types.ts) finally describe
+ * the same request. The conformance assertions in
+ * __tests__/unit/types/alerting-type-contracts.test.ts keep them that way.
+ *
+ * Runtime behaviour is unchanged in what it accepts and rejects. The two
+ * refinement helpers above are still the single statement of each rule and are
+ * still used by `updateAlertRuleSchema`; here their messages are attached to
+ * the arm-level constraints that now enforce them.
+ */
+export const createAlertRuleSchema = z.discriminatedUnion('metric', [
+  z.object({
+    ...alertRuleBaseShape,
+    metric: z.literal('value'),
+    /** Unbounded: a value threshold is in the sensor's own unit. */
     threshold: z.number(),
-    for_duration_seconds: z
+    selector: valueMetricSelectorSchema,
+  }),
+  z.object({
+    ...alertRuleBaseShape,
+    metric: z.literal('anomaly_score'),
+    threshold: z
       .number()
-      .int('for_duration_seconds must be an integer')
-      .min(0)
-      .max(86400, 'for_duration_seconds cannot exceed 24 hours')
-      .default(0),
-    severity: alertSeveritySchema,
-    cooldown_seconds: z
+      .min(0, THRESHOLD_BOUNDS_MESSAGE)
+      .max(1, THRESHOLD_BOUNDS_MESSAGE),
+    selector: alertRuleSelectorSchema.default({}),
+  }),
+  z.object({
+    ...alertRuleBaseShape,
+    metric: z.literal('battery_level'),
+    threshold: z
       .number()
-      .int('cooldown_seconds must be an integer')
-      .min(0)
-      .max(86400, 'cooldown_seconds cannot exceed 24 hours')
-      .default(300),
-  })
-  .refine(thresholdWithinMetricBounds, {
-    message: THRESHOLD_BOUNDS_MESSAGE,
-    path: ['threshold'],
-  })
-  .refine(typesRequiredForValueMetric, {
-    message: TYPES_REQUIRED_MESSAGE,
-    path: ['selector', 'types'],
-  });
+      .min(0, THRESHOLD_BOUNDS_MESSAGE)
+      .max(100, THRESHOLD_BOUNDS_MESSAGE),
+    selector: alertRuleSelectorSchema.default({}),
+  }),
+]);
 
 // ============================================================================
 // UPDATE
@@ -187,7 +236,43 @@ export const alertRuleIdParamSchema = z.object({
 // TYPE EXPORTS
 // ============================================================================
 
-export type CreateAlertRuleInput = z.infer<typeof createAlertRuleSchema>;
-export type UpdateAlertRuleInput = z.infer<typeof updateAlertRuleSchema>;
+/**
+ * The request body a client SENDS (`z.input`), not the parsed output
+ * (`z.infer`/`z.output`) — the old export used `z.infer`, which describes the
+ * post-parse document, with every default already applied. It typed
+ * `cooldown_seconds` as required, so it was useless as a request type, and it
+ * was flat, so it accepted condition shapes the API always 400s.
+ *
+ * Now that `createAlertRuleSchema` is a discriminated union, `z.input` of it is
+ * the honest request type and is checked against the hand-written
+ * `CreateAlertRuleBody` by a conformance assertion (see
+ * __tests__/unit/types/alerting-type-contracts.test.ts).
+ */
+export type CreateAlertRuleInput = z.input<typeof createAlertRuleSchema>;
+
+/**
+ * Deliberately the hand-written union from `types/v2/alert.types.ts`, NOT
+ * `z.infer<typeof updateAlertRuleSchema>`.
+ *
+ * The inferred type is flat and all-optional, so `{ threshold: 5 }` satisfies
+ * it and the API always 400s it — precisely the trap this alias removes.
+ * `updateAlertRuleSchema` cannot be rewritten as a union to fix that at the
+ * source the way `createAlertRuleSchema` was: its contract is "every field
+ * optional, at least one present, and the four condition fields all-or-none",
+ * whose only Zod encoding is a `z.union` of a no-condition arm plus one arm per
+ * metric. Zod reports a union failure as a nested `invalid_union` issue whose
+ * own `message` is the literal string "Invalid input" — measured, not assumed —
+ * and PATCH /api/v2/alert-rules/[id] joins `errors.map(e => e.message)` straight
+ * into its 400 body, which `CreateAlertRuleModal` renders. Today a partial
+ * condition update answers with one actionable sentence ("metric, comparison,
+ * threshold and selector must be updated together — send all four or none");
+ * under a union it would answer "Invalid input".
+ *
+ * So the runtime keeps the refinements and the exported TYPE is the union that
+ * already encodes the same rule. A conformance assertion checks that every
+ * shape this type permits is a shape the schema accepts.
+ */
+export type UpdateAlertRuleInput = UpdateAlertRuleBody;
+
 export type ListAlertRulesQuery = z.infer<typeof listAlertRulesQuerySchema>;
 export type AlertRuleSelectorInput = z.infer<typeof alertRuleSelectorSchema>;

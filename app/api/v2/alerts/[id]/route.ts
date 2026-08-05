@@ -31,7 +31,6 @@ import {
 import type { ResolvedAlert } from '@/types/v2/alert.types';
 import { validateInput, validateQuery, validateBody } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
-import { jsonSuccess } from '@/lib/api/response';
 import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { requireAdmin, requireOrgMembership, getAuditUser, isDemoCaller } from '@/lib/auth';
@@ -42,7 +41,12 @@ import {
   recordAlert,
   captureException,
 } from '@/lib/monitoring';
-import { publishAlertEvents, redactAuditForDemo } from '@/lib/alerting';
+import {
+  publishAlertEvents,
+  redactAuditForDemo,
+  jsonRedacted,
+  extendRedacted,
+} from '@/lib/alerting';
 
 // ============================================================================
 // GET /api/v2/alerts/[id]
@@ -89,33 +93,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // real administrator's email off audit.acknowledged_by/resolved_by/etc.
     const alert = redactAuditForDemo(found, isDemoCaller(authContext));
 
-    const response: Record<string, unknown> = { ...alert };
+    const device = query.include_device
+      ? await DeviceV2.findById(alert.device_id).select('_id serial_number type location').lean()
+      : null;
 
-    if (query.include_device) {
-      const device = await DeviceV2.findById(alert.device_id)
-        .select('_id serial_number type location')
-        .lean();
-
-      response.device = device
-        ? {
-            _id: device._id,
-            serial_number: device.serial_number,
-            type: device.type,
-            location: {
-              building_id: device.location?.building_id,
-              floor: device.location?.floor,
-              room_name: device.location?.room_name,
-            },
-          }
-        : null;
-
-      if (!device)
-        logger.warn('Device not found for alert', { alertId: id, deviceId: alert.device_id });
-    }
+    if (query.include_device && !device)
+      logger.warn('Device not found for alert', { alertId: id, deviceId: alert.device_id });
 
     recordRequest('GET', '/api/v2/alerts/[id]', 200, timer.elapsed());
 
-    return jsonSuccess(response);
+    // `extendRedacted`, not a bare spread into `Record<string, unknown>`: the
+    // old annotation erased the Redacted<> marker, which is what lets
+    // jsonRedacted below prove the redaction actually happened. The device
+    // projection carries no actor field, so it needs no redaction of its own.
+    return jsonRedacted(
+      query.include_device
+        ? extendRedacted(alert, {
+            device: device
+              ? {
+                  _id: device._id,
+                  serial_number: device.serial_number,
+                  type: device.type,
+                  location: {
+                    building_id: device.location?.building_id,
+                    floor: device.location?.floor,
+                    room_name: device.location?.room_name,
+                  },
+                }
+              : null,
+          })
+        : alert
+    );
   })();
 }
 
@@ -350,7 +358,8 @@ async function handleUpdateAlert(
     // member for GET, but PATCH is requireAdmin()-only, so isDemoCaller here
     // is always false in practice — applied anyway for defense in depth and
     // to keep every response from these endpoints going through one contract.
-    return jsonSuccess(
+    // jsonRedacted is what makes "one contract" checkable rather than a habit.
+    return jsonRedacted(
       redactAuditForDemo(updated.toObject({ versionKey: false }), isDemoCaller(authContext)),
       status === 'acknowledged' ? 'Alert acknowledged' : 'Alert resolved'
     );

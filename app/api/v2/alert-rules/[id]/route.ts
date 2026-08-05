@@ -27,7 +27,7 @@ import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { invalidateAlertRules } from '@/lib/cache';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 import { requireAdmin, requireOrgMembership, getAuditUser, isDemoCaller } from '@/lib/auth';
-import { redactAuditForDemo } from '@/lib/alerting';
+import { redactAuditForDemo, jsonRedacted } from '@/lib/alerting';
 
 function assertValidId(id: string): void {
   const paramValidation = validateInput({ id }, alertRuleIdParamSchema);
@@ -69,7 +69,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Demo mode grants an anonymous visitor the same read access as a real org
     // member (see requireOrgMembership()) — never let that also hand them a
     // real administrator's email off audit.created_by/updated_by/deleted_by.
-    return jsonSuccess(redactAuditForDemo(rule, isDemoCaller(authContext)));
+    // jsonRedacted (not jsonSuccess) will not compile without the redaction
+    // call — see the Redacted<> note in lib/alerting/redact.ts.
+    return jsonRedacted(redactAuditForDemo(rule, isDemoCaller(authContext)));
   })();
 }
 
@@ -231,7 +233,9 @@ async function handleUpdateAlertRule(
     // Wrapped for the same reason as the POST on the sibling route: inert
     // behind requireAdmin() today, but its `alerts/[id]` counterpart already
     // redacts and a future RBAC change must not silently open this one.
-    return jsonSuccess(
+    // jsonRedacted refuses an unredacted record, so the asymmetry this PR
+    // shipped with (POST/PATCH redacting, their siblings not) cannot recur.
+    return jsonRedacted(
       redactAuditForDemo(updated, isDemoCaller(authContext)),
       'Alert rule updated successfully'
     );

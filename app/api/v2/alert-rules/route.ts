@@ -18,14 +18,13 @@ import {
 } from '@/lib/validations/v2/alert-rule.validation';
 import { validateQuery, validateBody } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
-import { jsonSuccess, jsonPaginated } from '@/lib/api/response';
 import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
 import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { invalidateAlertRules } from '@/lib/cache';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 import { requireAdmin, requireOrgMembership, getAuditUser, isDemoCaller } from '@/lib/auth';
-import { redactAuditForDemo } from '@/lib/alerting';
+import { redactAuditForDemo, jsonRedacted, jsonRedactedPaginated } from '@/lib/alerting';
 
 const SORT_FIELD_MAP: Record<string, string> = {
   name: 'name',
@@ -108,7 +107,7 @@ export async function GET(request: NextRequest) {
     // Demo mode grants an anonymous visitor the same read access as a real org
     // member (see requireOrgMembership()) — never let that also hand them a
     // real administrator's email off audit.created_by/updated_by/deleted_by.
-    return jsonPaginated(
+    return jsonRedactedPaginated(
       redactAuditForDemo(rules, isDemoCaller(authContext)),
       calculateOffsetPagination(total, pagination.page, pagination.limit)
     );
@@ -161,8 +160,10 @@ async function handleCreateAlertRule(request: NextRequest) {
     // is here so a future RBAC change cannot quietly start returning
     // audit.created_by/updated_by (a real administrator's email, via
     // getAuditUser) to an anonymous demo visitor. Every response from the
-    // alert endpoints goes through one contract; this was the last hole in it.
-    return jsonSuccess(
+    // alert endpoints goes through one contract; this was the last hole in it,
+    // and jsonRedacted is what now keeps it from reopening: it does not accept
+    // an unredacted record, so deleting the call below is a compile error.
+    return jsonRedacted(
       redactAuditForDemo(created.toObject({ versionKey: false }), isDemoCaller(authContext)),
       'Alert rule created successfully',
       201

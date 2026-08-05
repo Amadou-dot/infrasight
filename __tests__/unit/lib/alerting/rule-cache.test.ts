@@ -261,25 +261,41 @@ describe('buildRuleBuckets', () => {
     expect(byType.get('power')).toHaveLength(1);
   });
 
-  it('should report the longest cooldown across all rules', () => {
-    const buckets = buildRuleBuckets([
-      cachedRule({ cooldown_seconds: 300 }),
-      cachedRule({ cooldown_seconds: 900 }),
-      cachedRule({ cooldown_seconds: 0 }),
-    ]);
-
-    expect(buckets.maxCooldownSeconds).toBe(900);
-  });
-
-  it('should report zero max cooldown when no rule has one', () => {
-    expect(buildRuleBuckets([cachedRule({ cooldown_seconds: 0 })]).maxCooldownSeconds).toBe(0);
-  });
+  // Two tests covering `RuleBuckets.maxCooldownSeconds` used to sit here. That
+  // field has been removed: it had no production consumer, and its doc comment
+  // claimed it "bounds the cooldown lookback" when the lookback is computed
+  // independently — and more narrowly — inside evaluateReadings()
+  // (lib/alerting/evaluate.ts), over only the rules that actually matched a
+  // reading in the batch. Nothing observable was lost with it.
 
   it('should produce empty buckets for an empty rule set', () => {
-    const { byType, ruleCount, maxCooldownSeconds } = buildRuleBuckets([]);
+    const { byType, ruleCount } = buildRuleBuckets([]);
 
     expect(ruleCount).toBe(0);
-    expect(maxCooldownSeconds).toBe(0);
     for (const rules of byType.values()) expect(rules).toHaveLength(0);
+  });
+
+  it('should count and log a rule whose selector names a type with no bucket', () => {
+    resetMetrics();
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    // Reaching this branch requires a rule that got past normalizeRule's
+    // selector validation carrying a type READING_TYPES has no bucket for — a
+    // divergence the compile-time guard on READING_TYPES exists to prevent.
+    // Constructed by hand here precisely because it must not be SILENT if that
+    // guard is ever removed or bypassed: `byType.get(type)?.push(rule)` used to
+    // drop the rule with no error, no metric and no log.
+    const rogue = cachedRule({ selector: { types: ['plasma' as unknown as 'temperature'] } });
+
+    const { byType } = buildRuleBuckets([rogue]);
+
+    for (const rules of byType.values()) expect(rules).toHaveLength(0);
+
+    const skipped = (getMetricsSnapshot().alerts as Record<string, unknown>)
+      .rulesSkipped as Record<string, number>;
+    expect(skipped.unexpected_error).toBe(1);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    warnSpy.mockRestore();
   });
 });

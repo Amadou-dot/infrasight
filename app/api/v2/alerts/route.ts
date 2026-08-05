@@ -30,11 +30,10 @@ import {
 } from '@/lib/validations/v2/alert.validation';
 import { validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
-import { jsonPaginated } from '@/lib/api/response';
 import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
 import { requireOrgMembership, isDemoCaller } from '@/lib/auth';
-import { redactAuditForDemo } from '@/lib/alerting';
+import { redactAuditForDemo, jsonRedactedPaginated } from '@/lib/alerting';
 
 /** Statuses a client may ever see. `pending` is internal and always excluded. */
 const VISIBLE_STATUSES = ['firing', 'acknowledged', 'resolved'] as const;
@@ -155,6 +154,11 @@ export async function GET(request: NextRequest) {
     // Demo mode grants an anonymous visitor the same read access as a real org
     // member (see requireOrgMembership()) — never let that also hand them a
     // real administrator's email off audit.acknowledged_by/resolved_by/etc.
-    return jsonPaginated(redactAuditForDemo(alerts, isDemoCaller(authContext)), paginationInfo);
+    // jsonRedactedPaginated (not jsonPaginated) will not compile without the
+    // redaction call — see the Redacted<> note in lib/alerting/redact.ts.
+    return jsonRedactedPaginated(
+      redactAuditForDemo(alerts, isDemoCaller(authContext)),
+      paginationInfo
+    );
   })();
 }
