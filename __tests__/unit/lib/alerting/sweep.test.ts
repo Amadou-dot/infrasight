@@ -346,6 +346,219 @@ describe('sweepStaleAlerts', () => {
 
     bulkWriteSpy.mockRestore();
   });
+
+  // The test above deliberately avoids the same-millisecond case (see its
+  // comment about `minutesAgo(5)`), which left exactly one hole: a foreign
+  // resolution whose `audit.resolved_at` happens to EQUAL this sweep's `now`.
+  // `audit.resolved_at` is written by three other paths — the evaluator's
+  // auto-resolve on the ingest path, PATCH /alerts/[id] via AlertV2.resolve(),
+  // and PATCH /alert-rules/[id]'s condition-change close — and ingest vs cron,
+  // or a human clicking Resolve as a sweep runs, is ordinary concurrency.
+  // Confirming on the timestamp alone would relabel any of them as the sweep's
+  // own 'stale'/'device_inactive'. The predicate now also matches the
+  // resolution the candidate's own op wrote.
+  //
+  // This is the resolve-side mirror of the fix applied to evaluateReadings'
+  // Step 8 confirmation, and it is what keeps the two from confirming each
+  // other: the sweep writes only 'stale'/'device_inactive', the evaluator only
+  // 'auto', the manual paths only 'manual'.
+  describe('resolve confirmation is exact, not merely same-instant', () => {
+    /**
+     * Seed one open episode, freeze the clock so the sweep's internal `now` is
+     * knowable, and land a foreign resolution stamped with that exact `now`
+     * between the sweep's snapshot read and its bulk write.
+     *
+     * `reportingDeviceIds` decides which branch the sweep takes:
+     * a device absent from it resolves as 'device_inactive', a present one with
+     * a stale observation resolves as 'stale'. Both are exercised below.
+     */
+    async function raceForeignResolution(
+      deviceId: string,
+      reporting: string[],
+      resolveRacer: (id: string, now: Date) => Promise<unknown>
+    ) {
+      const alert = await AlertV2.create(
+        createAlertInput({
+          device_id: deviceId,
+          status: 'firing',
+          last_observed_at: minutesAgo(60),
+        })
+      );
+
+      // Only Date is faked, so the real mongodb-memory-server connection's own
+      // timers are untouched. Same technique as evaluate.test.ts's collision
+      // tests — a same-millisecond collision cannot be expressed
+      // deterministically while `new Date()` returns unpredictable wall clock.
+      jest.useFakeTimers({
+        doNotFake: [
+          'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+          'setImmediate', 'clearImmediate', 'nextTick', 'hrtime', 'performance',
+          'queueMicrotask',
+        ],
+      });
+      // Deliberately AFTER the seed, so `last_observed_at: minutesAgo(60)` is a
+      // real 60 minutes before the frozen `now` and the staleness cutoff bites.
+      const now = new Date();
+      jest.setSystemTime(now);
+
+      try {
+        const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+        const bulkWriteSpy = jest
+          .spyOn(AlertV2, 'bulkWrite')
+          .mockImplementationOnce(async (writes, options) => {
+            await resolveRacer(String(alert._id), now);
+            return realBulkWrite(writes, options);
+          });
+
+        const result = await sweepStaleAlerts(new Set(reporting));
+        bulkWriteSpy.mockRestore();
+        return { result, alert, now };
+      } finally {
+        jest.useRealTimers();
+      }
+    }
+
+    it("should not claim the evaluator's auto-resolve landing in the same millisecond", async () => {
+      monitoring.resetMetrics();
+
+      // Exactly what evaluateReadings' auto-resolve op writes, stamped with the
+      // same `now` this sweep will use.
+      const { result, alert } = await raceForeignResolution(
+        'device_gone',
+        ['device_001'],
+        async (id, now) => {
+          await AlertV2.updateOne(
+            { _id: id, is_open: true },
+            {
+              $set: {
+                status: 'resolved',
+                is_open: false,
+                'audit.updated_at': now,
+                'audit.updated_by': 'system',
+                'audit.resolved_at': now,
+                'audit.resolved_by': 'system',
+                'audit.resolution': 'auto',
+              },
+            }
+          );
+        }
+      );
+
+      // The sweep's own guarded updateOne matched nothing — is_open was already
+      // false. audit.resolved_at equals its `now` only because the EVALUATOR
+      // set it.
+      expect(result.resolved).toHaveLength(0);
+      expect(monitoring.getPrometheusMetrics()).not.toContain(
+        'alerts_resolved_total{resolution="device_inactive"}'
+      );
+
+      // History is not relabelled: the problem really did clear, and the
+      // timeline must not say the sensor merely went quiet.
+      const stored = await AlertV2.findOne({ _id: alert._id }).lean();
+      expect(stored!.audit.resolution).toBe('auto');
+    });
+
+    it('should not claim a manual resolution landing in the same millisecond', async () => {
+      monitoring.resetMetrics();
+
+      // The real static PATCH /api/v2/alerts/[id] calls. It stamps its own
+      // `new Date()`, which under the frozen clock IS the sweep's `now` — the
+      // collision arises naturally rather than being hand-constructed.
+      const { result, alert } = await raceForeignResolution(
+        'device_gone',
+        ['device_001'],
+        id => AlertV2.resolve(id, 'human@example.com', 'manual')
+      );
+
+      expect(result.resolved).toHaveLength(0);
+      expect(monitoring.getPrometheusMetrics()).not.toContain(
+        'alerts_resolved_total{resolution="device_inactive"}'
+      );
+
+      const stored = await AlertV2.findOne({ _id: alert._id }).lean();
+      expect(stored!.audit.resolution).toBe('manual');
+      expect(stored!.audit.resolved_by).toBe('human@example.com');
+    });
+
+    // The 'stale' branch takes a different filter from 'device_inactive' (it
+    // carries the last_observed_at cutoff), so it needs its own collision case
+    // rather than being assumed equivalent.
+    it("should not claim a foreign resolution on the 'stale' branch either", async () => {
+      monitoring.resetMetrics();
+
+      // device_001 IS reporting, but its observation is an hour old — the only
+      // way to reach the 'stale' branch.
+      const { result, alert } = await raceForeignResolution(
+        'device_001',
+        ['device_001'],
+        id => AlertV2.resolve(id, 'human@example.com', 'manual')
+      );
+
+      expect(result.resolved).toHaveLength(0);
+      expect(monitoring.getPrometheusMetrics()).not.toContain(
+        'alerts_resolved_total{resolution="stale"}'
+      );
+
+      const stored = await AlertV2.findOne({ _id: alert._id }).lean();
+      expect(stored!.audit.resolution).toBe('manual');
+    });
+
+    // Without this, a predicate tightened until it never matches would pass all
+    // three tests above while silently breaking the sweep entirely.
+    it('should still report its own resolutions under the same frozen clock', async () => {
+      monitoring.resetMetrics();
+
+      const { result, alert } = await raceForeignResolution(
+        'device_gone',
+        ['device_001'],
+        async () => {
+          /* no racer: the sweep's own op is the only writer */
+        }
+      );
+
+      expect(result.resolved).toHaveLength(1);
+      expect(result.resolved[0].resolution).toBe('device_inactive');
+      expect(monitoring.getPrometheusMetrics()).toContain(
+        'alerts_resolved_total{resolution="device_inactive"} 1'
+      );
+
+      const stored = await AlertV2.findOne({ _id: alert._id }).lean();
+      expect(stored!.audit.resolution).toBe('device_inactive');
+    });
+
+    // Both branches in ONE sweep, which is what makes a single blanket
+    // predicate insufficient: the grouped $or must confirm each candidate
+    // against the resolution ITS OWN op wrote, not against a shared value.
+    it('should confirm a mixed stale/device_inactive sweep per candidate', async () => {
+      monitoring.resetMetrics();
+
+      const inactive = await AlertV2.create(
+        createAlertInput({
+          device_id: 'device_gone',
+          status: 'firing',
+          last_observed_at: minutesAgo(1),
+        })
+      );
+      const stale = await AlertV2.create(
+        createAlertInput({
+          device_id: 'device_001',
+          status: 'firing',
+          last_observed_at: minutesAgo(60),
+        })
+      );
+
+      const result = await sweepStaleAlerts(new Set(['device_001']));
+
+      expect(result.resolved).toHaveLength(2);
+      const byId = new Map(result.resolved.map(a => [a._id, a.resolution]));
+      expect(byId.get(String(inactive._id))).toBe('device_inactive');
+      expect(byId.get(String(stale._id))).toBe('stale');
+
+      const prom = monitoring.getPrometheusMetrics();
+      expect(prom).toContain('alerts_resolved_total{resolution="device_inactive"} 1');
+      expect(prom).toContain('alerts_resolved_total{resolution="stale"} 1');
+    });
+  });
 });
 
 describe('safe wrappers', () => {

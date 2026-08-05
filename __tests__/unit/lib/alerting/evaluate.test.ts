@@ -6,6 +6,7 @@ import { Types } from 'mongoose';
 import AlertRuleV2 from '@/models/v2/AlertRuleV2';
 import AlertV2 from '@/models/v2/AlertV2';
 import { evaluateReadings, extractWriteErrors } from '@/lib/alerting/evaluate';
+import * as selectorModule from '@/lib/alerting/selector';
 import { getMetricsSnapshot, getPrometheusMetrics, logger, resetMetrics } from '@/lib/monitoring';
 import { createAlertInput, createAlertRuleInput, resetCounters } from '../../../setup/factories';
 import type { EvaluableDevice, EvaluableReading } from '@/lib/alerting/types';
@@ -594,6 +595,132 @@ describe('evaluateReadings', () => {
     }
   });
 
+  // The resolve-side twin of the promotion test above, and NOT covered by it.
+  //
+  // `fired_at` is written by evaluate.ts and nothing else, so confirming a
+  // promotion on `fired_at: now` is exclusive on its own. `audit.resolved_at`
+  // is different: the staleness sweep (sweep.ts) and AlertV2.resolve() — the
+  // manual PATCH path — both write it too, and ingest (evaluate) vs cron
+  // (sweep), or a human clicking Resolve as a fresh reading lands, are ordinary
+  // concurrency rather than exotic. A collision to the millisecond therefore
+  // lets a run confirm a transition it did not cause, and broadcast it as
+  // `resolution: 'auto'` while the stored document says otherwise. The
+  // predicate additionally matches `audit.resolution: 'auto'`, which this
+  // branch is the only writer of.
+  describe('resolve confirmation is exact, not merely same-instant', () => {
+    /** Open a firing episode, then race a foreign resolution into `now`. */
+    async function raceForeignResolution(
+      now: Date,
+      resolveRacer: (id: Types.ObjectId) => Promise<unknown>
+    ) {
+      await seedRule();
+      const t0 = new Date('2026-08-01T12:00:00.000Z');
+      const t1 = new Date('2026-08-01T12:05:00.000Z');
+
+      await evaluateReadings([reading(35, t0)], [DEVICE]);
+      const firing = await AlertV2.findOne({}).lean();
+
+      // Freeze the clock so THIS run's internal `now` — used for both its own
+      // $set and the Step 8 reconciliation query — is a value the test knows in
+      // advance. A same-millisecond collision cannot be expressed
+      // deterministically otherwise. Only Date is faked, so the real
+      // mongodb-memory-server connection's timers are untouched.
+      jest.useFakeTimers({
+        doNotFake: [
+          'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+          'setImmediate', 'clearImmediate', 'nextTick', 'hrtime', 'performance',
+          'queueMicrotask',
+        ],
+      });
+      jest.setSystemTime(now);
+
+      try {
+        const realBulkWrite = AlertV2.bulkWrite.bind(AlertV2);
+        const bulkWriteSpy = jest
+          .spyOn(AlertV2, 'bulkWrite')
+          .mockImplementationOnce(async (writes, options) => {
+            await resolveRacer(firing!._id);
+            return realBulkWrite(writes, options);
+          });
+
+        const result = await evaluateReadings([reading(20, t1)], [DEVICE]);
+        bulkWriteSpy.mockRestore();
+        return result;
+      } finally {
+        jest.useRealTimers();
+      }
+    }
+
+    it('should not report a sweep resolution landing in the same millisecond as its own', async () => {
+      const now = new Date('2026-08-01T12:05:00.500Z');
+
+      const result = await raceForeignResolution(now, async id => {
+        // Exactly what sweepStaleAlerts' bulk op writes, stamped with the same
+        // `now` this evaluator run will use.
+        await AlertV2.updateOne(
+          { _id: id, is_open: true },
+          {
+            $set: {
+              status: 'resolved',
+              is_open: false,
+              'audit.updated_at': now,
+              'audit.updated_by': 'system',
+              'audit.resolved_at': now,
+              'audit.resolved_by': 'system',
+              'audit.resolution': 'stale',
+            },
+          }
+        );
+      });
+
+      // This run's own guarded resolve op matched nothing — is_open was already
+      // false by the time it ran. audit.resolved_at equals this run's `now` only
+      // because the SWEEP set it.
+      expect(result.resolved).toHaveLength(0);
+      expect(getPrometheusMetrics()).not.toContain('alerts_resolved_total{resolution="auto"}');
+
+      const stored = await AlertV2.findOne({}).lean();
+      expect(stored!.audit.resolution).toBe('stale'); // history is not relabelled
+      expect(stored!.resolved_value).toBeUndefined(); // nothing this run intended landed
+    });
+
+    it('should not report a manual resolution landing in the same millisecond as its own', async () => {
+      const now = new Date('2026-08-01T12:05:00.500Z');
+
+      // The real static the PATCH /alerts/[id] route calls — it stamps its own
+      // `new Date()`, which under the frozen clock is exactly this run's `now`.
+      const result = await raceForeignResolution(now, id =>
+        AlertV2.resolve(String(id), 'human@example.com', 'manual')
+      );
+
+      expect(result.resolved).toHaveLength(0);
+      expect(getPrometheusMetrics()).not.toContain('alerts_resolved_total{resolution="auto"}');
+
+      const stored = await AlertV2.findOne({}).lean();
+      expect(stored!.audit.resolution).toBe('manual');
+      expect(stored!.audit.resolved_by).toBe('human@example.com');
+    });
+
+    // The counter must still move when the evaluator genuinely does resolve the
+    // episode — a predicate tightened until it never matches would pass both
+    // tests above while breaking auto-resolution entirely.
+    it('should still report its own auto-resolve under the same frozen clock', async () => {
+      const now = new Date('2026-08-01T12:05:00.500Z');
+
+      const result = await raceForeignResolution(now, async () => {
+        /* no racer: this run's own resolve op is the only writer */
+      });
+
+      expect(result.resolved).toHaveLength(1);
+      expect(result.resolved[0].resolution).toBe('auto');
+      expect(getPrometheusMetrics()).toContain('alerts_resolved_total{resolution="auto"} 1');
+
+      const stored = await AlertV2.findOne({}).lean();
+      expect(stored!.audit.resolution).toBe('auto');
+      expect(stored!.resolved_value).toBe(20);
+    });
+  });
+
   it('should count pending clears from the deletes that actually landed', async () => {
     await seedRule({ for_duration_seconds: 600 });
     const t0 = new Date('2026-08-01T12:00:00.000Z');
@@ -760,6 +887,14 @@ describe('evaluateReadings', () => {
     findSpy.mockRestore();
   });
 
+  // Two layers, deliberately. `normalizeRule` (rule-cache.ts) now Zod-validates
+  // every cached rule and drops the unusable ones before they are ever bucketed,
+  // so the malformed-DATA cases below are caught there and never reach the loop
+  // — which is why the reason counters still move while `logger.error` no longer
+  // does (rule-cache logs at warn). The evaluator keeps its own boundary for
+  // what validation cannot predict: a rule whose shape is legal but whose
+  // MATCHING throws. Both layers are exercised here; the assertions say which
+  // is which.
   describe('per-rule error boundary', () => {
     it('should skip a rule with an unknown metric and still fire the valid rule', async () => {
       await seedRawRule({ name: 'Bad metric rule', metric: 'not_a_real_metric' });
@@ -787,6 +922,30 @@ describe('evaluateReadings', () => {
       );
     });
 
+    // E5's second named consequence, asserted where it actually bites. A rule
+    // whose `severity` is not in the enum used to survive the cache's cast,
+    // reach the evaluator, and be written into an AlertV2 insert — where it
+    // fails schema validation and takes the batch's integrity with it. The
+    // valid rule alongside it must be entirely unaffected: its episode stored,
+    // its notification emitted, and NO notification emitted for the rule that
+    // never produced a document.
+    it('should not let a rule that cannot be written cost the valid rule its alert', async () => {
+      await seedRawRule({ name: 'Bad severity rule', severity: 'apocalyptic' });
+      await seedRule(); // 'High temp'
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+      const result = await evaluateReadings([reading(35, new Date())], [DEVICE]);
+
+      expect(result.fired).toHaveLength(1);
+      expect(result.fired[0].rule_name).toBe('High temp');
+      // The document really landed — `fired` is not just an in-memory list.
+      expect(await AlertV2.countDocuments({ rule_name: 'High temp', is_open: true })).toBe(1);
+      // And nothing else did: no half-written episode for the unusable rule.
+      expect(await AlertV2.countDocuments({})).toBe(1);
+
+      warnSpy.mockRestore();
+    });
+
     it('should count a skipped rule via getMetricsSnapshot()', async () => {
       await seedRawRule({ name: 'Bad metric rule', metric: 'not_a_real_metric' });
 
@@ -799,41 +958,45 @@ describe('evaluateReadings', () => {
       expect(rulesSkipped.unknown_metric).toBe(1);
     });
 
-    it('should log the skipped rule with ruleId, ruleName, metric, and error', async () => {
+    it('should log the skipped rule with its id, name and the failing field', async () => {
       const bad = await seedRawRule({ name: 'Bad metric rule', metric: 'not_a_real_metric' });
-      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+      // Caught by rule-cache's Zod gate before bucketing, so the signal is a
+      // warn there rather than the evaluator's own error. Asserted on the same
+      // identifying fields either way — the point of the finding is that the
+      // drop is attributable, not which module emits it.
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
 
       await evaluateReadings([reading(35, new Date())], [DEVICE]);
 
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(warnSpy).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           ruleId: String(bad._id),
           ruleName: 'Bad metric rule',
-          metric: 'not_a_real_metric',
-          error: expect.any(String),
+          reason: 'unknown_metric',
+          issues: expect.arrayContaining([expect.stringContaining('metric')]),
         })
       );
 
-      errorSpy.mockRestore();
+      warnSpy.mockRestore();
     });
 
-    it('should log and count a fleet-wide bad rule at most once per call, not once per reading', async () => {
-      // A valid metric and a valid (auto-generated) _id, so this rule clears
-      // validateRule and is cached there as GOOD — proving this test exercises
-      // the dedup around the general matching try/catch, not validateRule's own
-      // per-rule cache, which a rule rejected for an unknown metric or a bad id
-      // would never get past in the first place.
-      //
-      // `selector.tags` is a string, not an array: `.every` is not a function on
-      // a string, so matchesSelector throws on every reading, not just the first.
+    // A malformed selector is DATA, so it is now rejected upstream — the rule
+    // never reaches the evaluation loop at all, which is strictly better than
+    // throwing once per reading and catching it. Both halves are asserted: the
+    // rule is gone (no pair evaluated) and the drop is counted once.
+    it('should reject a rule with a malformed selector before it reaches the loop', async () => {
+      // `selector.tags` is a string, not an array — `.every` is not a function
+      // on a string, so this used to throw inside matchesSelector on every
+      // reading.
       await seedRawRule({
         name: 'Bad selector rule',
         selector: { types: ['temperature'], tags: 'not-an-array' },
       });
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
       const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
 
-      await evaluateReadings(
+      const result = await evaluateReadings(
         [
           reading(35, new Date('2026-08-01T12:00:00.000Z')),
           reading(36, new Date('2026-08-01T12:01:00.000Z')),
@@ -842,13 +1005,61 @@ describe('evaluateReadings', () => {
         [DEVICE]
       );
 
-      // Three readings against the bad rule, one bad rule: without the per-call
-      // dedup this would log and count three times, not one.
+      expect(result.evaluatedPairs).toBe(0);
+      expect(errorSpy).not.toHaveBeenCalled(); // nothing threw during matching
+      // Three readings, one bad rule: counted once per load, not once per reading.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(getPrometheusMetrics()).toContain(
+        'alert_rules_skipped_total{reason="unexpected_error"} 1'
+      );
+
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    // The evaluator's OWN boundary, which validation cannot subsume: a rule
+    // whose stored shape is entirely legal but whose matching still throws.
+    // Forced with a spy because — by construction — no legal rule document can
+    // produce this any more, which is exactly why the boundary needs a test
+    // that does not depend on finding one.
+    it('should skip a rule whose matching throws and still fire the valid rule', async () => {
+      // The two rules are told apart by a perfectly legal selector dimension —
+      // NOT by an injected marker field, which the cache's strict selector
+      // schema would (correctly) reject before the evaluator ever saw it.
+      await seedRule({
+        name: 'Explodes on match',
+        selector: { types: ['temperature'], zone: 'explode-zone' },
+      });
+      await seedRule({ name: 'High temp' });
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+      const matchSpy = jest
+        .spyOn(selectorModule, 'matchesSelector')
+        .mockImplementation((_device, sel) => {
+          if (sel?.zone === 'explode-zone')
+            throw new TypeError('selector.tags.every is not a function');
+          return true;
+        });
+
+      const result = await evaluateReadings(
+        [
+          reading(35, new Date('2026-08-01T12:00:00.000Z')),
+          reading(36, new Date('2026-08-01T12:01:00.000Z')),
+          reading(37, new Date('2026-08-01T12:02:00.000Z')),
+        ],
+        [DEVICE]
+      );
+
+      // The good rule is unaffected: one bad rule costs only itself.
+      expect(result.fired).toHaveLength(1);
+      expect(result.fired[0].rule_name).toBe('High temp');
+      // Three readings against the throwing rule, logged and counted ONCE —
+      // the evaluator's per-call dedup.
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(getPrometheusMetrics()).toContain(
         'alert_rules_skipped_total{reason="unexpected_error"} 1'
       );
 
+      matchSpy.mockRestore();
       errorSpy.mockRestore();
     });
   });

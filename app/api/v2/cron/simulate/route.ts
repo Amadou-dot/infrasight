@@ -4,7 +4,7 @@ import { pusherServer } from '@/lib/pusher';
 import DeviceV2, { type IDeviceV2 } from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import { type NextRequest, NextResponse } from 'next/server';
-import { logger } from '@/lib/monitoring';
+import { captureException, logger, recordIngestion } from '@/lib/monitoring';
 import { safeEvaluateReadings, safeSweepStaleAlerts } from '@/lib/alerting';
 import {
   generateSimulatedReadings,
@@ -65,6 +65,38 @@ export async function GET(request: NextRequest) {
     //    is the only thing downstream steps may treat as having happened.
     const insertedReadings = await ReadingV2.bulkInsertReadings(newReadings);
     const rejectedCount = newReadings.length - insertedReadings.length;
+
+    // 2b. Make rejection observable. It used to appear ONLY in the response
+    //     body of a 200 {success:true} — no log, no metric — which makes total
+    //     rejection the most dangerous state this handler has: nothing fires,
+    //     `last_observed_at` stops advancing on every open alert, and after
+    //     ALERT_STALE_AFTER_SECONDS the sweep auto-resolves every one of them
+    //     as `stale`. The dashboard then shows a green checkmark precisely
+    //     because ingest is fully down. The response contract is unchanged;
+    //     this is observability, not behaviour.
+    recordIngestion(insertedReadings.length, rejectedCount);
+
+    if (rejectedCount > 0) {
+      const rejectionContext = {
+        generated: newReadings.length,
+        inserted: insertedReadings.length,
+        rejected: rejectedCount,
+        deviceCount: devices.length,
+      };
+
+      if (insertedReadings.length === 0) {
+        // Total rejection is an outage, not a data-quality blip: escalate.
+        logger.error('Simulated reading ingest rejected every reading', rejectionContext);
+        captureException(
+          new Error(
+            `Simulated reading ingest rejected all ${rejectedCount} readings; alert staleness will begin auto-resolving open alerts`
+          ),
+          rejectionContext
+        );
+      } else
+        logger.warn('Simulated reading ingest partially rejected', rejectionContext);
+
+    }
 
     // 3. Trigger Real-time Update (The "Hot" Path). Broadcast only what was
     //    actually written — a rejected reading must never appear on a client

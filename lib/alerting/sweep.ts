@@ -94,8 +94,14 @@ export async function sweepStaleAlerts(reportingDeviceIds: Set<string>): Promise
     // function's snapshot read and its bulk write, a concurrent
     // evaluateReadings() on the ingest path can record a fresh breaching
     // observation, and without the cutoff predicate this op would close an
-    // alert that is actively breaching again. Mirrors evaluate.ts's
-    // `last_observed_at: { $lt: … }` guard on its own resolve op (evaluate.ts:345).
+    // alert that is actively breaching again.
+    //
+    // Mirrors the `last_observed_at: { $lt: … }` predicate on the auto-resolve
+    // updateOne in evaluateReadings() (lib/alerting/evaluate.ts) — the one in
+    // its "not breaching / existing episode has fired" branch, alongside
+    // `is_open: true`. Named by function and predicate rather than by line
+    // number on purpose: the previous version of this comment cited a line that
+    // had since drifted onto an unrelated field of the insertOne document.
     ops.push({
       updateOne: {
         filter:
@@ -145,14 +151,60 @@ export async function sweepStaleAlerts(reportingDeviceIds: Set<string>): Promise
 
   // BulkWriteResult exposes aggregate counts, not per-op match status, so the
   // resolve set is confirmed with one follow-up query rather than assumed from
-  // resolveCandidates. Every resolve op in THIS run stamps audit.resolved_at
-  // with the same `now`, which makes the query's result exactly the confirmed
-  // set — one extra query per sweep, not a per-alert findOneAndUpdate loop.
+  // resolveCandidates — one extra query per sweep, not a per-alert
+  // findOneAndUpdate loop.
+  //
+  // House rule (shared with evaluateReadings' Step 8): a write-confirmation
+  // predicate must match a value-set that ONLY the confirming operation could
+  // have produced. `audit.resolved_at: now` alone does NOT satisfy it. Three
+  // other code paths write that field, and each is genuinely concurrent with a
+  // cron sweep:
+  //
+  //   - evaluateReadings' auto-resolve on the ingest path, which writes
+  //     `audit.resolution: 'auto'`;
+  //   - AlertV2.resolve(), which PATCH /api/v2/alerts/[id] calls with 'manual'
+  //     when a human clicks Resolve;
+  //   - PATCH /api/v2/alert-rules/[id], which closes episodes orphaned by a
+  //     condition change, also with 'manual'.
+  //
+  // A collision to the millisecond with any of them would make this sweep
+  // confirm — and broadcast, and count — a resolution it did not cause, labelled
+  // 'stale' or 'device_inactive' while the stored document says 'auto' or
+  // 'manual'. So the predicate additionally matches the resolution THIS
+  // candidate's own op wrote. That value is carried on the candidate rather than
+  // re-derived, so the predicate cannot drift from the write it is confirming.
+  //
+  // Why that is exclusive: 'stale' and 'device_inactive' are written by this
+  // function and nowhere else in the codebase (verified by grep) — the evaluator
+  // only ever writes 'auto', and both manual paths only ever write 'manual'.
+  // The two predicates are mutually exclusive by construction, so neither the
+  // sweep nor the evaluator can confirm the other's write.
+  //
+  // One residual, stated rather than papered over: two OVERLAPPING sweeps whose
+  // `now` collides would both confirm the same document, since a sweep is not
+  // distinguishable from another sweep by the values it writes. The `is_open:
+  // true` guard means only one write lands, so the outcome is a duplicate
+  // notification carrying the CORRECT label — not the mislabelling fixed above.
+  // evaluateReadings carries the identical residual for two concurrent
+  // evaluators. Closing it would need a per-run token in the document.
+  //
+  // Grouped by resolution so this stays ONE query regardless of how many
+  // candidates each branch produced.
   let resolved: ResolvedAlert[] = [];
   if (resolveCandidates.length > 0) {
+    const idsByResolution = new Map<ResolvedAlert['resolution'], Types.ObjectId[]>();
+    for (const candidate of resolveCandidates) {
+      const ids = idsByResolution.get(candidate.alert.resolution);
+      if (ids) ids.push(candidate.id);
+      else idsByResolution.set(candidate.alert.resolution, [candidate.id]);
+    }
+
     const confirmed = await AlertV2.find({
-      _id: { $in: resolveCandidates.map(c => c.id) },
-      'audit.resolved_at': now,
+      $or: [...idsByResolution].map(([resolution, ids]) => ({
+        _id: { $in: ids },
+        'audit.resolved_at': now,
+        'audit.resolution': resolution,
+      })),
     })
       .select({ _id: 1 })
       .lean<{ _id: Types.ObjectId }[]>();
