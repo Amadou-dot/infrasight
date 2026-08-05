@@ -13,6 +13,7 @@ import mongoose from 'mongoose';
 import DeviceV2 from '../../models/v2/DeviceV2';
 import ReadingV2 from '../../models/v2/ReadingV2';
 import AlertRuleV2 from '../../models/v2/AlertRuleV2';
+import AlertV2 from '../../models/v2/AlertV2';
 import { assertSafeToWipe, describeTarget } from './db-guard';
 import { buildAlertRuleSeeds } from './alert-rule-seeds';
 
@@ -335,6 +336,15 @@ async function seed(): Promise<void> {
     await DeviceV2.deleteMany({});
     await ReadingV2.deleteMany({});
     await AlertRuleV2.deleteMany({});
+    // Alerts reference rule ids, and a fresh AlertRuleV2 seed above just
+    // invalidated every one of them. Leaving old alerts_v2 documents behind
+    // would show a freshly seeded demo phantom "firing" alerts pointing at
+    // rules that no longer exist — their devices still exist too, so they
+    // are not swept as device_inactive, and would only clear once the
+    // staleness sweep eventually closes them (up to ALERT_STALE_AFTER_SECONDS
+    // later). Clearing them here trades away using a re-seed to demonstrate
+    // the staleness sweep, in favor of not shipping a broken first impression.
+    await AlertV2.deleteMany({});
     console.log('✅ Cleared existing data\n');
 
     // Generate and insert devices
