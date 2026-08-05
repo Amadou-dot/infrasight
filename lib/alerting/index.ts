@@ -44,11 +44,20 @@ export type { EvaluableDevice, EvaluableReading, EvaluationResult, CachedAlertRu
 /**
  * Forward a swallowed alerting failure to Sentry. `logger.error` only ever
  * reaches a console line (see lib/monitoring/logger.ts), and the
- * `evaluation_error` counter these callers also record (see recordAlert
- * below) resets on every serverless cold start — this call is what actually
- * makes a silently broken evaluator visible in production.
+ * `evaluation_error` counter these callers also record (see recordAlert in
+ * lib/monitoring/metrics.ts) is per-process memory that resets on every
+ * serverless cold start and is only readable through an admin-gated metrics
+ * endpoint — this call is what actually makes a silently broken evaluator
+ * visible in production.
  *
- * Guarded on its own: captureException() is a no-op when Sentry isn't
+ * That last sentence is load-bearing and was once false: captureException()
+ * used to be gated on a module-local flag set only by an initSentry() that
+ * production never called, so this escalation was dead code. It now routes to
+ * the `@sentry/nextjs` singleton that instrumentation.ts initializes, gated on
+ * SENTRY_DSN alone. If you ever make capturing depend on shim state again, this
+ * comment goes back to being a lie.
+ *
+ * Guarded on its own: captureException() is still a no-op when Sentry isn't
  * configured (see lib/monitoring/sentry.ts), but this function must tolerate
  * it throwing anyway — a misbehaving Sentry SDK must never turn an
  * already-handled evaluator error into an unhandled one and defeat the very

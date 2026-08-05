@@ -1,14 +1,43 @@
 /**
- * Optional Sentry Integration
+ * Sentry Integration
  *
- * Conditionally initializes Sentry if SENTRY_DSN is configured.
- * Provides error tracking and performance monitoring.
+ * Sentry itself stays optional — every helper here is a no-op when no
+ * `SENTRY_DSN` is configured. Thin wrapper over the `@sentry/nextjs` module
+ * singleton, used by
+ * `withErrorHandler` and by `lib/alerting`'s swallowed-failure escalation.
+ *
+ * WHY THIS FILE IMPORTS SENTRY STATICALLY AND GATES ON CONFIGURATION:
+ *
+ * Production never calls `initSentry()`. Next.js initializes Sentry through
+ * `instrumentation.ts` -> `sentry.server.config.ts` / `sentry.edge.config.ts`,
+ * each of which calls `Sentry.init()` on the `@sentry/nextjs` module singleton.
+ * An earlier version of this file lazily `await import(...)`-ed the SDK inside
+ * `initSentry()`, stashed it in a module-local, and gated every capture helper
+ * on that local being populated. Since nothing in production ever called
+ * `initSentry()`, the local stayed `null` and EVERY `captureException()` in the
+ * codebase returned early — the escalation path was dead code across the whole
+ * app, and the only thing that hid it was a unit test that called
+ * `initSentry()` itself, which production does not do.
+ *
+ * So: the helpers below talk to the same module singleton the Next.js config
+ * files initialize, and they gate on `isSentryConfigured()` (is a DSN set at
+ * all?) rather than on this module's private state. Do not reintroduce a
+ * module-local initialization flag as a precondition for capturing.
+ *
+ * The import is static rather than dynamic on purpose. `@sentry/nextjs` is a
+ * hard dependency (package.json), the `sentry.*.config.ts` files already import
+ * it statically, and the dynamic import is what created the
+ * initialization-order trap in the first place.
  */
 
-import type * as SentryTypes from '@sentry/nextjs';
+import * as Sentry from '@sentry/nextjs';
 
+/**
+ * Guards `initSentry()`'s idempotency and NOTHING else. Deliberately not
+ * consulted by any capture helper — see the file header: making it a
+ * precondition is exactly how the escalation path became dead code.
+ */
 let sentryInitialized = false;
-let Sentry: typeof SentryTypes | null = null;
 
 /**
  * Check if Sentry is configured
@@ -18,8 +47,16 @@ export function isSentryConfigured(): boolean {
 }
 
 /**
- * Initialize Sentry if configured
- * Should be called early in the application lifecycle
+ * Initialize Sentry if configured.
+ *
+ * Retained for entry points that are NOT Next.js request handlers (standalone
+ * scripts under `scripts/v2/`, one-off tooling) and re-exported from
+ * `lib/monitoring/index.ts`. Inside the Next.js server and edge runtimes this
+ * is redundant: `instrumentation.ts` has already initialized the same
+ * singleton, and calling this again would just re-`init()` it.
+ *
+ * Calling it is NOT a precondition for `captureException()` / `captureMessage()`
+ * / `addBreadcrumb()` to reach Sentry.
  */
 export async function initSentry(): Promise<boolean> {
   const dsn = process.env.SENTRY_DSN;
@@ -29,9 +66,6 @@ export async function initSentry(): Promise<boolean> {
   if (sentryInitialized) return true;
 
   try {
-    // Dynamic import for optional Sentry dependency
-    Sentry = await import('@sentry/nextjs');
-
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV || 'development',
@@ -68,13 +102,17 @@ export async function initSentry(): Promise<boolean> {
  * classifier like `{ subsystem: 'alerting' }` as `tags`, not folded into `context` — nesting it
  * under `extra` (e.g. `captureException(err, { tags: {...} })`) does NOT make it a real tag, it
  * just produces a literal `tags` key inside Additional Data.
+ *
+ * Gated on DSN configuration, never on `initSentry()` having run — see the file
+ * header. With no DSN the SDK is inert anyway, but returning early keeps the
+ * documented `undefined` return that callers use to mean "not escalated".
  */
 export function captureException(
   error: Error,
   context?: Record<string, unknown>,
   tags?: Record<string, string>
 ): string | undefined {
-  if (!Sentry || !sentryInitialized) return undefined;
+  if (!isSentryConfigured()) return undefined;
 
   return Sentry.captureException(error, {
     extra: context,
@@ -90,7 +128,7 @@ export function captureMessage(
   level: 'info' | 'warning' | 'error' = 'info',
   context?: Record<string, unknown>
 ): string | undefined {
-  if (!Sentry || !sentryInitialized) return undefined;
+  if (!isSentryConfigured()) return undefined;
 
   return Sentry.captureMessage(message, {
     level,
@@ -107,7 +145,7 @@ export function addBreadcrumb(
   data?: Record<string, unknown>,
   level: 'debug' | 'info' | 'warning' | 'error' = 'info'
 ): void {
-  if (!Sentry || !sentryInitialized) return;
+  if (!isSentryConfigured()) return;
 
   Sentry.addBreadcrumb({
     message,
@@ -128,7 +166,7 @@ export function setUser(
     [key: string]: unknown;
   } | null
 ): void {
-  if (!Sentry || !sentryInitialized) return;
+  if (!isSentryConfigured()) return;
 
   Sentry.setUser(user);
 }
@@ -137,7 +175,7 @@ export function setUser(
  * Set additional context tags
  */
 export function setTag(key: string, value: string): void {
-  if (!Sentry || !sentryInitialized) return;
+  if (!isSentryConfigured()) return;
 
   Sentry.setTag(key, value);
 }
@@ -146,7 +184,7 @@ export function setTag(key: string, value: string): void {
  * Set extra context data
  */
 export function setExtra(key: string, value: unknown): void {
-  if (!Sentry || !sentryInitialized) return;
+  if (!isSentryConfigured()) return;
 
   Sentry.setExtra(key, value);
 }
@@ -155,7 +193,7 @@ export function setExtra(key: string, value: unknown): void {
  * Start a new transaction for performance monitoring
  */
 export function startTransaction(name: string, op: string): { finish: () => void } | undefined {
-  if (!Sentry || !sentryInitialized) return undefined;
+  if (!isSentryConfigured()) return undefined;
 
   const transaction = Sentry.startInactiveSpan({
     name,
