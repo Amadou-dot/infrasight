@@ -36,6 +36,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      # ts-jest runs transpile-only, so a green test suite proves nothing about
+      # types. Everything this repo encodes as a type-level guarantee — the
+      # Redacted<T> brand that makes skipping demo-mode redaction a compile
+      # error, the AuditIdentity/BroadcastActor brands that make broadcasting an
+      # admin's email a compile error, the AssertNever exhaustiveness aliases in
+      # models/v2/AlertRuleV2.ts — is enforced by tsc and by nothing else. No
+      # continue-on-error: these are gates, not warnings.
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint .
+
       - name: Setup test environment
         run: |
           cp example.env .env.local
