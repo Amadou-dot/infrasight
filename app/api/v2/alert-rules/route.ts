@@ -34,6 +34,21 @@ const SORT_FIELD_MAP: Record<string, string> = {
   severity: 'severity',
 };
 
+/**
+ * Urgency rank. Mongo sorts the raw string lexically, which puts `critical`
+ * last. Same `$switch` shape as /api/v2/alerts — deliberately one idiom across
+ * both endpoints rather than a second way of saying the same thing.
+ */
+const SEVERITY_RANK = {
+  $switch: {
+    branches: [
+      { case: { $eq: ['$severity', 'critical'] }, then: 3 },
+      { case: { $eq: ['$severity', 'warning'] }, then: 2 },
+    ],
+    default: 1, // info
+  },
+};
+
 // ============================================================================
 // GET /api/v2/alert-rules
 // ============================================================================
@@ -63,17 +78,30 @@ export async function GET(request: NextRequest) {
     if (query.severity) filter.severity = query.severity;
 
     const sortField = SORT_FIELD_MAP[query.sortBy ?? 'created_at'] ?? 'audit.created_at';
-    const sort: Record<string, 1 | -1> = { [sortField]: query.sortDirection === 'asc' ? 1 : -1 };
+    const direction: 1 | -1 = query.sortDirection === 'asc' ? 1 : -1;
+    const sort: Record<string, 1 | -1> = { [sortField]: direction };
 
-    const [rules, total] = await Promise.all([
-      AlertRuleV2.find(filter)
-        .select('-__v')
-        .sort(sort)
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .lean(),
-      AlertRuleV2.countDocuments(filter),
-    ]);
+    // `filter` carries no ObjectId-typed path (see the alerts route for why
+    // that matters), so $match can consume it directly.
+    const rulesQuery =
+      query.sortBy === 'severity'
+        ? AlertRuleV2.aggregate([
+            { $match: filter },
+            { $addFields: { _severity_rank: SEVERITY_RANK } },
+            // audit.created_at breaks ties so paging is stable within a band.
+            { $sort: { _severity_rank: direction, 'audit.created_at': -1 } },
+            { $skip: pagination.skip },
+            { $limit: pagination.limit },
+            { $project: { __v: 0, _severity_rank: 0 } },
+          ])
+        : AlertRuleV2.find(filter)
+            .select('-__v')
+            .sort(sort)
+            .skip(pagination.skip)
+            .limit(pagination.limit)
+            .lean();
+
+    const [rules, total] = await Promise.all([rulesQuery, AlertRuleV2.countDocuments(filter)]);
 
     recordRequest('GET', '/api/v2/alert-rules', 200, timer.elapsed());
 
@@ -95,8 +123,8 @@ async function handleCreateAlertRule(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    const { userId, user } = await requireAdmin();
-    const auditUser = getAuditUser(userId, user);
+    const authContext = await requireAdmin();
+    const auditUser = getAuditUser(authContext.userId, authContext.user);
 
     await dbConnect();
 
@@ -129,7 +157,16 @@ async function handleCreateAlertRule(request: NextRequest) {
     recordRequest('POST', '/api/v2/alert-rules', 201, duration);
     logger.info('Alert rule created', { ruleId: String(created._id), createdBy: auditUser, duration });
 
-    return jsonSuccess(created.toObject({ versionKey: false }), 'Alert rule created successfully', 201);
+    // requireAdmin() rejects a demo caller above, so this is inert today — it
+    // is here so a future RBAC change cannot quietly start returning
+    // audit.created_by/updated_by (a real administrator's email, via
+    // getAuditUser) to an anonymous demo visitor. Every response from the
+    // alert endpoints goes through one contract; this was the last hole in it.
+    return jsonSuccess(
+      redactAuditForDemo(created.toObject({ versionKey: false }), isDemoCaller(authContext)),
+      'Alert rule created successfully',
+      201
+    );
   })();
 }
 

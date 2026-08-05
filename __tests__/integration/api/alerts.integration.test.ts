@@ -7,6 +7,7 @@ import { Types } from 'mongoose';
 import AlertV2 from '@/models/v2/AlertV2';
 import DeviceV2 from '@/models/v2/DeviceV2';
 import * as alerting from '@/lib/alerting';
+import * as monitoring from '@/lib/monitoring';
 import { createAlertInput, createDeviceInput, resetCounters } from '../../setup/factories';
 import { mockAuthAsAdmin, mockAuthAsMember, mockAuthAsUnauthenticated } from '../../setup/auth-helpers';
 
@@ -125,6 +126,62 @@ describe('Alerts API Integration Tests', () => {
 
       expect(body.data).toHaveLength(1);
       expect(body.data[0].device_id).toBe('device_rule_a');
+    });
+
+    // The aggregate branch (sortBy=severity) and countDocuments read the SAME
+    // `filter`, but Mongoose casts queries and never pipelines: `rule_id` is
+    // the raw 24-hex string Zod produced, so $match compared a string against
+    // an ObjectId-typed field and matched nothing while countDocuments cast it
+    // correctly. The envelope advertised a non-zero total and shipped zero
+    // rows. `ActiveAlertsWidget` already puts the aggregate branch on the
+    // dashboard's hot path, so any rule-scoped view lands exactly here.
+    it('should return rows and an agreeing total when sortBy=severity is combined with rule_id', async () => {
+      const scopedRuleId = new Types.ObjectId();
+      const otherRuleId = new Types.ObjectId();
+
+      await AlertV2.create(
+        createAlertInput({
+          status: 'firing',
+          rule_id: scopedRuleId,
+          device_id: 'device_scoped_crit',
+          severity: 'critical',
+        })
+      );
+      await AlertV2.create(
+        createAlertInput({
+          status: 'firing',
+          rule_id: scopedRuleId,
+          device_id: 'device_scoped_info',
+          severity: 'info',
+        })
+      );
+      await AlertV2.create(
+        createAlertInput({ status: 'firing', rule_id: otherRuleId, device_id: 'device_other' })
+      );
+
+      const response = await listAlerts(
+        createMockGetRequest('/api/v2/alerts', {
+          sortBy: 'severity',
+          sortDirection: 'desc',
+          rule_id: String(scopedRuleId),
+        })
+      );
+      const body = await parseResponse<{
+        data: Array<{ device_id: string }>;
+        pagination: { total: number };
+      }>(response);
+
+      expect(response.status).toBe(200);
+      // The bug's exact signature: an empty page under a non-zero total.
+      expect(body.data.length).toBeGreaterThan(0);
+      expect(body.data.map(a => a.device_id)).toEqual([
+        'device_scoped_crit',
+        'device_scoped_info',
+      ]);
+      // Single page, so the two must agree — the count still has to be
+      // scoped to the rule, not silently widened to make them match.
+      expect(body.pagination.total).toBe(body.data.length);
+      expect(body.pagination.total).toBe(2);
     });
 
     // Distinct from "should default to open alerts" above: that test never
@@ -568,6 +625,31 @@ describe('Alerts API Integration Tests', () => {
       spy.mockRestore();
     });
 
+    // The companion to the assertion above. Both values are `string` and both
+    // are in scope in the same handler, so the interesting property is not
+    // just "actor is a user id" but that the two identities are DIFFERENT and
+    // each lands where it belongs — the audit trail keeps the email, the
+    // broadcast keeps the opaque id. Branded types make the swap a compile
+    // error; this pins the runtime side of the same contract.
+    it('should persist the email to audit.resolved_by while broadcasting only the user id', async () => {
+      const spy = jest.spyOn(alerting, 'publishAlertEvents').mockResolvedValue(undefined);
+      const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+      await PATCH(
+        createMockPatchRequest(`/api/v2/alerts/${alert._id}`, { status: 'resolved' }),
+        { params: params(String(alert._id)) }
+      );
+
+      const stored = await AlertV2.findById(alert._id).lean();
+      const [, resolvedArg] = spy.mock.calls[0];
+
+      expect(stored!.audit.resolved_by).toBe('admin@example.com');
+      expect(resolvedArg[0].actor).toBe('user_test_admin');
+      expect(resolvedArg[0].actor).not.toBe(stored!.audit.resolved_by);
+
+      spy.mockRestore();
+    });
+
     it('should not expose the internal __v field on the updated alert', async () => {
       const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
 
@@ -651,6 +733,170 @@ describe('Alerts API Integration Tests', () => {
       );
 
       expect(response.status).toBe(404);
+    });
+
+    // ========================================================================
+    // THE NOTE WRITE
+    // ========================================================================
+    describe('note handling', () => {
+      function auditWithNote(note: string) {
+        const now = new Date();
+        return {
+          created_at: now,
+          created_by: 'system',
+          updated_at: now,
+          updated_by: 'system',
+          note,
+        };
+      }
+
+      // The note write used to run AFTER acknowledge()/resolve() had already
+      // committed. A throw there returned 500 — telling the operator the
+      // acknowledge had FAILED when it had not — and the natural retry then
+      // returned 422 "already acknowledged", leaving them with no way to
+      // reconcile the two answers. Writing the note first means a failure
+      // commits nothing, so the retry is clean.
+      it('should commit nothing, and stay retryable, when the note write fails', async () => {
+        const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+        const spy = jest
+          .spyOn(AlertV2, 'updateOne')
+          .mockRejectedValueOnce(new Error('note write exploded'));
+
+        const failed = await PATCH(
+          createMockPatchRequest(`/api/v2/alerts/${alert._id}`, {
+            status: 'acknowledged',
+            note: 'Dispatching a tech',
+          }),
+          { params: params(String(alert._id)) }
+        );
+
+        expect(failed.status).toBe(500);
+
+        // The transition must NOT have committed behind the error.
+        const afterFailure = await AlertV2.findById(alert._id).lean();
+        expect(afterFailure!.status).toBe('firing');
+        expect(afterFailure!.audit.acknowledged_at).toBeUndefined();
+
+        spy.mockRestore();
+
+        // ...so the operator's natural retry succeeds, rather than hitting
+        // 422 ALERT_ALREADY_ACKNOWLEDGED for a transition they were told failed.
+        const retry = await PATCH(
+          createMockPatchRequest(`/api/v2/alerts/${alert._id}`, {
+            status: 'acknowledged',
+            note: 'Dispatching a tech',
+          }),
+          { params: params(String(alert._id)) }
+        );
+        const body = await parseResponse<{
+          data: { status: string; audit: { note?: string } };
+        }>(retry);
+
+        expect(retry.status).toBe(200);
+        expect(body.data.status).toBe('acknowledged');
+        expect(body.data.audit.note).toBe('Dispatching a tech');
+      });
+
+      // `if (note)` discarded an explicit `note: ''`, so a note could be
+      // written but never withdrawn. A presence check is what makes the field
+      // clearable; truthiness cannot express "set this to nothing".
+      it('should clear an existing note when the caller sends an empty string', async () => {
+        const alert = await AlertV2.create(
+          createAlertInput({ status: 'firing', audit: auditWithNote('Original note') })
+        );
+
+        const response = await PATCH(
+          createMockPatchRequest(`/api/v2/alerts/${alert._id}`, {
+            status: 'acknowledged',
+            note: '',
+          }),
+          { params: params(String(alert._id)) }
+        );
+
+        expect(response.status).toBe(200);
+
+        const stored = await AlertV2.findById(alert._id).lean();
+        expect(stored!.status).toBe('acknowledged');
+        expect(stored!.audit.note).toBeUndefined();
+      });
+
+      it('should leave an existing note untouched when the caller omits the field', async () => {
+        const alert = await AlertV2.create(
+          createAlertInput({ status: 'firing', audit: auditWithNote('Original note') })
+        );
+
+        await PATCH(
+          createMockPatchRequest(`/api/v2/alerts/${alert._id}`, { status: 'acknowledged' }),
+          { params: params(String(alert._id)) }
+        );
+
+        const stored = await AlertV2.findById(alert._id).lean();
+        expect(stored!.audit.note).toBe('Original note');
+      });
+
+      // One operator action must leave one timestamp. The old `.save()` fired
+      // AlertV2's pre('save') hook, which re-stamped audit.updated_at a moment
+      // after acknowledge()'s own $set had already set it — so the audit trail
+      // showed an update strictly later than the acknowledgement it WAS.
+      it('should stamp audit.updated_at once, from the transition itself', async () => {
+        const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+        await PATCH(
+          createMockPatchRequest(`/api/v2/alerts/${alert._id}`, {
+            status: 'acknowledged',
+            note: 'Handled',
+          }),
+          { params: params(String(alert._id)) }
+        );
+
+        const stored = await AlertV2.findById(alert._id).lean();
+        expect(stored!.audit.updated_at).toEqual(stored!.audit.acknowledged_at);
+      });
+    });
+
+    // ========================================================================
+    // BROADCAST FAILURE AFTER A COMMITTED WRITE
+    // ========================================================================
+    //
+    // The resolve is already in the database by the time publishAlertEvents
+    // runs, so a broadcast fault must not become a 500 — but it must not
+    // vanish either. logger.error only reaches a console line
+    // (lib/monitoring/logger.ts), so the Sentry escalation is what makes a
+    // permanently broken broadcast visible while every PATCH returns 200.
+    describe('broadcast failure', () => {
+      it('should still return 200 with the resolve applied, and escalate the failure', async () => {
+        const publishSpy = jest
+          .spyOn(alerting, 'publishAlertEvents')
+          .mockRejectedValue(new Error('envelope construction exploded'));
+        const captureSpy = jest
+          .spyOn(monitoring, 'captureException')
+          .mockReturnValue(undefined);
+
+        const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+        const response = await PATCH(
+          createMockPatchRequest(`/api/v2/alerts/${alert._id}`, { status: 'resolved' }),
+          { params: params(String(alert._id)) }
+        );
+        const body = await parseResponse<{ data: { status: string } }>(response);
+
+        expect(response.status).toBe(200);
+        expect(body.data.status).toBe('resolved');
+
+        const stored = await AlertV2.findById(alert._id).lean();
+        expect(stored!.status).toBe('resolved');
+        expect(stored!.is_open).toBe(false);
+
+        // Escalated, not silently swallowed.
+        expect(captureSpy).toHaveBeenCalledTimes(1);
+        expect((captureSpy.mock.calls[0][0] as Error).message).toBe(
+          'envelope construction exploded'
+        );
+        expect(captureSpy.mock.calls[0][2]).toEqual({ subsystem: 'alerting' });
+
+        publishSpy.mockRestore();
+        captureSpy.mockRestore();
+      });
     });
   });
 

@@ -21,6 +21,7 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { Types } from 'mongoose';
 import dbConnect from '@/lib/db';
 import AlertV2 from '@/models/v2/AlertV2';
 import {
@@ -114,10 +115,21 @@ export async function GET(request: NextRequest) {
 
     const direction: 1 | -1 = query.sortDirection === 'asc' ? 1 : -1;
 
+    // Mongoose casts QUERIES but never aggregation pipelines. `filter.rule_id`
+    // is the raw 24-hex string Zod produced: `countDocuments(filter)` casts it
+    // to an ObjectId and matches, `$match` compares a string against an
+    // ObjectId-typed field and matches nothing — so the aggregate branch used
+    // to report a non-zero `total` alongside zero rows. Cast into a COPY: the
+    // count must keep reading the one `filter` both branches agree on, and
+    // rule_id is the only ObjectId-typed path here (device_id, status,
+    // severity are strings; fired_at is already a Date).
+    const aggregateMatch =
+      query.rule_id ? { ...filter, rule_id: new Types.ObjectId(query.rule_id) } : filter;
+
     const alertsQuery =
       query.sortBy === 'severity'
         ? AlertV2.aggregate([
-            { $match: filter },
+            { $match: aggregateMatch },
             { $addFields: { _severity_rank: SEVERITY_RANK } },
             // fired_at breaks ties so paging is stable within a severity band.
             { $sort: { _severity_rank: direction, fired_at: -1 } },
