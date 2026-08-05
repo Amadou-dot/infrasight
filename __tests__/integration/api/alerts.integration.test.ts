@@ -465,6 +465,24 @@ describe('Alerts API Integration Tests', () => {
       expect(body.error.code).toBe('ALERT_NOT_FOUND');
     });
 
+    // `pending` is internal (see the list endpoint's own header comment and
+    // its `VISIBLE_STATUSES` filter, which excludes it from every list
+    // response) — a `pending` alert existing in the collection must not be
+    // fetchable by id either, or the two endpoints disagree about what
+    // "exists" means for the same resource.
+    it('should 404 for a pending alert, matching the list endpoint\'s contract', async () => {
+      const alert = await AlertV2.create(createAlertInput({ status: 'pending', is_open: true }));
+
+      const response = await getAlert(
+        createMockGetRequest(`/api/v2/alerts/${alert._id}`),
+        { params: params(String(alert._id)) }
+      );
+      const body = await parseResponse<{ error: { code: string } }>(response);
+
+      expect(response.status).toBe(404);
+      expect(body.error.code).toBe('ALERT_NOT_FOUND');
+    });
+
     it('should 400 for a malformed id', async () => {
       const response = await getAlert(
         createMockGetRequest('/api/v2/alerts/nope'),
@@ -633,6 +651,179 @@ describe('Alerts API Integration Tests', () => {
       );
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  // ==========================================================================
+  // DEMO MODE REDACTION (Critical finding from the whole-branch review)
+  // ==========================================================================
+  //
+  // getAuditUser() (lib/auth/index.ts) resolves audit.*_by fields to the
+  // acting admin's Clerk EMAIL whenever one is on file. requireOrgMembership()
+  // grants an anonymous demo-mode visitor the same read access as a real org
+  // member, so without server-side redaction every GET here would hand a
+  // stranger a real administrator's email. Each pair below proves BOTH
+  // halves of the contract: a demo caller gets no email anywhere in the
+  // payload, and a genuinely authenticated admin still gets the real value —
+  // a redaction that fired unconditionally would pass a demo-only test suite
+  // while silently breaking the feature for every real user.
+  describe('demo mode redaction', () => {
+    const originalDemoMode = process.env.DEMO_MODE;
+
+    afterEach(() => {
+      if (originalDemoMode === undefined) delete process.env.DEMO_MODE;
+      else process.env.DEMO_MODE = originalDemoMode;
+    });
+
+    /** Simulate an anonymous visitor on a demo deployment: no session, DEMO_MODE on. */
+    function mockDemoVisitor() {
+      process.env.DEMO_MODE = 'true';
+      mockAuthAsUnauthenticated();
+    }
+
+    function auditWithRealEmail(overrides: Record<string, unknown>) {
+      const now = new Date();
+      return {
+        created_at: now,
+        created_by: 'admin@example.com',
+        updated_at: now,
+        updated_by: 'admin@example.com',
+        ...overrides,
+      };
+    }
+
+    it('should redact audit actor fields for a demo-mode list request', async () => {
+      mockDemoVisitor();
+      await AlertV2.create(
+        createAlertInput({
+          status: 'acknowledged',
+          audit: auditWithRealEmail({
+            acknowledged_at: new Date(),
+            acknowledged_by: 'admin@example.com',
+          }),
+        })
+      );
+
+      const response = await listAlerts(createMockGetRequest('/api/v2/alerts'));
+      const body = await parseResponse<unknown>(response);
+
+      expect(response.status).toBe(200);
+      // Blunt but robust: no value anywhere in the payload may contain an
+      // email address when the caller is the anonymous demo visitor — this
+      // would still catch a leak through a field nobody thought to name.
+      expect(JSON.stringify(body)).not.toContain('@');
+    });
+
+    it('should still return the real actor to a genuinely authenticated admin (list)', async () => {
+      mockAuthAsAdmin();
+      await AlertV2.create(
+        createAlertInput({
+          status: 'acknowledged',
+          audit: auditWithRealEmail({
+            acknowledged_at: new Date(),
+            acknowledged_by: 'admin@example.com',
+          }),
+        })
+      );
+
+      const response = await listAlerts(createMockGetRequest('/api/v2/alerts'));
+      const body = await parseResponse<{ data: Array<{ audit: { acknowledged_by?: string } }> }>(
+        response
+      );
+
+      expect(response.status).toBe(200);
+      expect(body.data[0].audit.acknowledged_by).toBe('admin@example.com');
+    });
+
+    it('should redact audit actor fields for a demo-mode single-alert request', async () => {
+      const alert = await AlertV2.create(
+        createAlertInput({
+          status: 'resolved',
+          is_open: false,
+          audit: auditWithRealEmail({
+            resolved_at: new Date(),
+            resolved_by: 'admin@example.com',
+            resolution: 'manual',
+          }),
+        })
+      );
+      mockDemoVisitor();
+
+      const response = await getAlert(createMockGetRequest(`/api/v2/alerts/${alert._id}`), {
+        params: params(String(alert._id)),
+      });
+      const body = await parseResponse<unknown>(response);
+
+      expect(response.status).toBe(200);
+      expect(JSON.stringify(body)).not.toContain('@');
+    });
+
+    it('should still return the real actor to a genuinely authenticated admin (single alert)', async () => {
+      const alert = await AlertV2.create(
+        createAlertInput({
+          status: 'resolved',
+          is_open: false,
+          audit: auditWithRealEmail({
+            resolved_at: new Date(),
+            resolved_by: 'admin@example.com',
+            resolution: 'manual',
+          }),
+        })
+      );
+
+      const response = await getAlert(createMockGetRequest(`/api/v2/alerts/${alert._id}`), {
+        params: params(String(alert._id)),
+      });
+      const body = await parseResponse<{ data: { audit: { resolved_by?: string } } }>(response);
+
+      expect(response.status).toBe(200);
+      expect(body.data.audit.resolved_by).toBe('admin@example.com');
+    });
+
+    it('should leave a system actor alone for a demo-mode reader, not misrepresent it as an admin', async () => {
+      // Factory default audit for a resolved alert is created_by/updated_by/
+      // resolved_by: 'system' — an auto-resolution, not a human action.
+      const alert = await AlertV2.create(createAlertInput({ status: 'resolved', is_open: false }));
+      mockDemoVisitor();
+
+      const response = await getAlert(createMockGetRequest(`/api/v2/alerts/${alert._id}`), {
+        params: params(String(alert._id)),
+      });
+      const body = await parseResponse<{ data: { audit: { resolved_by?: string } } }>(response);
+
+      expect(body.data.audit.resolved_by).toBe('system');
+    });
+
+    // PATCH is requireAdmin()-only, so a demo-mode visitor 403s before the
+    // handler can construct a response at all. This documents WHY redacting
+    // the PATCH response (added alongside GET, for the same endpoint file)
+    // is defense in depth rather than something a demo caller can presently
+    // trigger — the hard requirement is GET, which a demo visitor can reach.
+    it('should 403 a demo-mode visitor attempting to PATCH, never reaching the response body', async () => {
+      const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+      mockDemoVisitor();
+
+      const response = await PATCH(
+        createMockPatchRequest(`/api/v2/alerts/${alert._id}`, { status: 'acknowledged' }),
+        { params: params(String(alert._id)) }
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should still return the real actor to a genuinely authenticated admin (PATCH)', async () => {
+      const alert = await AlertV2.create(createAlertInput({ status: 'firing' }));
+
+      const response = await PATCH(
+        createMockPatchRequest(`/api/v2/alerts/${alert._id}`, { status: 'acknowledged' }),
+        { params: params(String(alert._id)) }
+      );
+      const body = await parseResponse<{ data: { audit: { acknowledged_by?: string } } }>(
+        response
+      );
+
+      expect(response.status).toBe(200);
+      expect(body.data.audit.acknowledged_by).toBe('admin@example.com');
     });
   });
 });

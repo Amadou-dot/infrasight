@@ -24,7 +24,8 @@ import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { invalidateAlertRules } from '@/lib/cache';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
-import { requireAdmin, requireOrgMembership, getAuditUser } from '@/lib/auth';
+import { requireAdmin, requireOrgMembership, getAuditUser, isDemoCaller } from '@/lib/auth';
+import { redactAuditForDemo } from '@/lib/alerting';
 
 const SORT_FIELD_MAP: Record<string, string> = {
   name: 'name',
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    await requireOrgMembership();
+    const authContext = await requireOrgMembership();
     await dbConnect();
 
     const validationResult = validateQuery(request.nextUrl.searchParams, listAlertRulesQuerySchema);
@@ -76,8 +77,11 @@ export async function GET(request: NextRequest) {
 
     recordRequest('GET', '/api/v2/alert-rules', 200, timer.elapsed());
 
+    // Demo mode grants an anonymous visitor the same read access as a real org
+    // member (see requireOrgMembership()) — never let that also hand them a
+    // real administrator's email off audit.created_by/updated_by/deleted_by.
     return jsonPaginated(
-      rules,
+      redactAuditForDemo(rules, isDemoCaller(authContext)),
       calculateOffsetPagination(total, pagination.page, pagination.limit)
     );
   })();
