@@ -511,21 +511,39 @@ export async function evaluateReadings(
     // ---- Step 8: confirm the guarded updates against what actually matched ----
     //
     // A guarded updateOne matching ZERO documents is a driver success, and
-    // BulkWriteResult reports aggregate counts, not per-op match status. Every op
-    // in THIS run stamps `audit.updated_at` with the same `now`, so one follow-up
-    // query returns exactly the ops that matched. Silent refresh ops carry no
-    // notification and are left out of it — one extra query per evaluation, never
-    // one per pair.
-    const notifiedUpdateIds: Types.ObjectId[] = [];
-    for (const candidate of notificationCandidates)
-      if (candidate?.confirmId) notifiedUpdateIds.push(candidate.confirmId);
+    // BulkWriteResult reports aggregate counts, not per-op match status.
+    //
+    // House rule: a write-confirmation predicate must key on a field that
+    // ONLY the confirming operation sets. `audit.updated_at` fails that rule
+    // here — every op in this run stamps it, including the silent
+    // observation-refresh updates above (still-breaching-but-not-due-yet,
+    // and firing/acknowledged refresh) — and so does a CONCURRENT evaluator
+    // whose own `now` lands in the same millisecond. Two requests can read
+    // the same pending episode; the loser's guarded update then matches zero
+    // rows, but if its `now` happens to equal the winner's, confirming on
+    // `audit.updated_at` alone would still match and emit a second
+    // notification for one transition. A promotion writes `fired_at`; an
+    // auto-resolve writes `audit.resolved_at` — nothing else touches either
+    // field, so confirming each candidate kind against its own field proves
+    // ITS op landed rather than merely that SOME write touched the document
+    // at this instant. Mirrors sweep.ts's resolve reconciliation, which
+    // already confirms on `audit.resolved_at` alone for exactly this reason.
+    const promotedIds: Types.ObjectId[] = [];
+    const resolvedIds: Types.ObjectId[] = [];
+    for (const candidate of notificationCandidates) {
+      if (!candidate?.confirmId) continue;
+      if (candidate.kind === 'fired') promotedIds.push(candidate.confirmId);
+      else resolvedIds.push(candidate.confirmId);
+    }
 
     const confirmedUpdateIds = new Set<string>();
-    if (notifiedUpdateIds.length > 0) {
-      const confirmed = await AlertV2.find({
-        _id: { $in: notifiedUpdateIds },
-        'audit.updated_at': now,
-      })
+    if (promotedIds.length > 0 || resolvedIds.length > 0) {
+      const confirmOr: Record<string, unknown>[] = [];
+      if (promotedIds.length > 0) confirmOr.push({ _id: { $in: promotedIds }, fired_at: now });
+      if (resolvedIds.length > 0)
+        confirmOr.push({ _id: { $in: resolvedIds }, 'audit.resolved_at': now });
+
+      const confirmed = await AlertV2.find({ $or: confirmOr })
         .select({ _id: 1 })
         .lean<{ _id: Types.ObjectId }[]>();
       for (const doc of confirmed) confirmedUpdateIds.add(String(doc._id));
