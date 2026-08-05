@@ -62,7 +62,15 @@ export interface IAlertRuleV2 {
   name: string;
   description?: string;
   enabled: boolean;
-  selector: IAlertRuleSelector;
+  // Optional, not just "always defaulted": the schema below gives `selector`
+  // a `default: () => ({})`, but Mongoose's default `minimize` behavior strips
+  // an empty nested object before it reaches Mongo, so a rule with no
+  // constraints at all (e.g. the seeded "Low battery" rule) reads back with
+  // this field genuinely absent. `matchesSelector` (lib/alerting/selector.ts)
+  // and the rule bucketer (lib/alerting/rule-cache.ts) already treat it as
+  // optional -- this makes the type honest about that runtime shape instead
+  // of promising a guarantee `.lean()` doesn't keep.
+  selector?: IAlertRuleSelector;
   metric: AlertMetric;
   comparison: AlertComparison;
   threshold: number;

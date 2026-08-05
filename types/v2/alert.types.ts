@@ -51,7 +51,12 @@ export interface AlertRuleV2Response {
   name: string;
   description?: string;
   enabled: boolean;
-  selector: AlertRuleSelector;
+  // Optional, not just "usually populated": a rule with no constraints at all
+  // (e.g. the seeded "Low battery" rule) persists as `selector: {}`, and
+  // Mongoose's default `minimize` behavior strips an empty nested object
+  // before it reaches Mongo -- every `.lean()` read of that rule genuinely
+  // has no `selector` key. See models/v2/AlertRuleV2.ts's matching field.
+  selector?: AlertRuleSelector;
   metric: AlertMetric;
   comparison: AlertComparison;
   threshold: number;
