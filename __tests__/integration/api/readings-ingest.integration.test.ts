@@ -1479,4 +1479,189 @@ describe('POST /api/v2/readings/ingest Integration Tests', () => {
       expect(unmatchedAlert).toBeNull();
     });
   });
+
+  // ==========================================================================
+  // PARTIAL INSERT HANDLING (Important finding from the whole-branch review)
+  // ==========================================================================
+  //
+  // Mirrors simulate-cron.integration.test.ts's "partial insert handling"
+  // tests, which cover the same bug already fixed on the cron write path
+  // (commits 2480e01, 4cb3d26). This route builds `validReadings` (everything
+  // ATTEMPTED) before its batch-insert loop and, before this fix, evaluated
+  // alert rules against that array regardless of which documents actually
+  // landed in `readings_v2` — a reading that failed to insert could still
+  // fire an alert with a trigger_value from a row that does not exist.
+  //
+  // The rejection is driven through `ReadingV2.insertMany` itself (the exact
+  // call the route makes — it does not go through `bulkInsertReadings`),
+  // never by mocking what the evaluator receives: `evaluateSpy` below is a
+  // plain `jest.spyOn` with no `mockImplementation`, so it still calls
+  // through to the real `evaluateReadings` and the real bulk-write recovery
+  // logic in the route runs for real. A test that instead asserted on a
+  // value it invented independently of what actually persisted would pass
+  // even if the fix were reverted.
+  describe('partial insert handling', () => {
+    it('evaluates only the readings that actually persisted, never the full attempted batch', async () => {
+      await seedDevice('device_partial_ingest_01');
+      await seedDevice('device_partial_ingest_02');
+      await seedDevice('device_partial_ingest_03');
+
+      await AlertRuleV2.create(
+        createAlertRuleInput({
+          name: 'Partial insert rule',
+          metric: 'value',
+          comparison: 'gt',
+          threshold: 30,
+          severity: 'critical',
+          selector: { types: ['temperature'] },
+        })
+      );
+
+      // Real MongoBulkWriteError shape (see mongodb@7's mongodb.d.ts):
+      // `insertedIds` is an index -> _id map, keyed by position in the array
+      // passed to insertMany. Index 1 (the second reading, device_02) is the
+      // one that "failed" — 0 and 2 survived.
+      const bulkError = Object.assign(new Error('simulated partial bulk write failure'), {
+        insertedCount: 2,
+        insertedIds: { 0: 'inserted-id-0', 2: 'inserted-id-2' },
+        writeErrors: [{ index: 1, code: 121 }],
+      });
+      const insertManySpy = jest
+        .spyOn(ReadingV2, 'insertMany')
+        .mockRejectedValueOnce(bulkError as never);
+      const evaluateSpy = jest.spyOn(evaluateModule, 'evaluateReadings');
+
+      const { POST } = await import('@/app/api/v2/readings/ingest/route');
+
+      const request = createMockPostRequest('/api/v2/readings/ingest', {
+        readings: [
+          {
+            device_id: 'device_partial_ingest_01',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42, // breaches threshold of 30
+            timestamp: new Date().toISOString(),
+          },
+          {
+            device_id: 'device_partial_ingest_02',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            device_id: 'device_partial_ingest_03',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
+
+      const response = await POST(request);
+      const body = await parseResponse<{
+        success: boolean;
+        data: { inserted: number; rejected: number };
+      }>(response);
+
+      expect(insertManySpy).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(201);
+      // The response must describe what was actually persisted, not what was
+      // merely attempted.
+      expect(body.data.inserted).toBe(2);
+      expect(body.data.rejected).toBe(1);
+
+      // The evaluator must receive exactly the two readings recovered via
+      // insertedIds (indices 0 and 2) — never index 1, which never
+      // persisted, and never the full 3-reading attempted batch.
+      expect(evaluateSpy).toHaveBeenCalledTimes(1);
+      const passedReadings = evaluateSpy.mock.calls[0][0];
+      expect(passedReadings).toHaveLength(2);
+      expect(passedReadings.map(r => r.metadata?.device_id).sort()).toEqual([
+        'device_partial_ingest_01',
+        'device_partial_ingest_03',
+      ]);
+
+      // Proves the exclusion is THIS specific reading, not just a count: the
+      // dropped device breaches the identical rule at the identical value as
+      // its two surviving peers, yet must have no alert at all.
+      const droppedAlert = await AlertV2.findOne({
+        device_id: 'device_partial_ingest_02',
+      }).lean();
+      expect(droppedAlert).toBeNull();
+
+      const survivorAlert = await AlertV2.findOne({
+        device_id: 'device_partial_ingest_01',
+      }).lean();
+      expect(survivorAlert).not.toBeNull();
+      expect(survivorAlert!.status).toBe('firing');
+
+      insertManySpy.mockRestore();
+      evaluateSpy.mockRestore();
+    });
+
+    it('treats a batch as contributing nothing to evaluation when insertedIds is unavailable', async () => {
+      await seedDevice('device_partial_noids_01');
+
+      await AlertRuleV2.create(
+        createAlertRuleInput({
+          name: 'No insertedIds rule',
+          metric: 'value',
+          comparison: 'gt',
+          threshold: 30,
+          severity: 'critical',
+          selector: { types: ['temperature'] },
+        })
+      );
+
+      // A bulk write error that reports a partial success (insertedCount > 0)
+      // but, unlike the driver's real MongoBulkWriteError, carries no
+      // insertedIds map — the deliberate under-approximation path.
+      const bulkError = Object.assign(new Error('partial failure without insertedIds'), {
+        insertedCount: 1,
+      });
+      const insertManySpy = jest
+        .spyOn(ReadingV2, 'insertMany')
+        .mockRejectedValueOnce(bulkError as never);
+      const evaluateSpy = jest.spyOn(evaluateModule, 'evaluateReadings');
+      const warnSpy = jest.spyOn(monitoring.logger, 'warn');
+
+      const { POST } = await import('@/app/api/v2/readings/ingest/route');
+
+      const request = createMockPostRequest('/api/v2/readings/ingest', {
+        readings: [
+          {
+            device_id: 'device_partial_noids_01',
+            type: 'temperature',
+            unit: 'celsius',
+            value: 42,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
+
+      const response = await POST(request);
+      const body = await parseResponse<{ data: { inserted: number } }>(response);
+
+      // Reporting still reflects the driver's insertedCount...
+      expect(response.status).toBe(201);
+      expect(body.data.inserted).toBe(1);
+      // ...but evaluation never runs: there is no way to identify which
+      // specific reading the count refers to, so the batch is excluded
+      // entirely rather than guessed at.
+      expect(evaluateSpy).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('insertedIds'),
+        expect.objectContaining({ insertedCount: 1 })
+      );
+
+      const alert = await AlertV2.findOne({ device_id: 'device_partial_noids_01' }).lean();
+      expect(alert).toBeNull();
+
+      insertManySpy.mockRestore();
+      evaluateSpy.mockRestore();
+      warnSpy.mockRestore();
+    });
+  });
 });

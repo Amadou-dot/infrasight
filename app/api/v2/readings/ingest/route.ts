@@ -190,7 +190,15 @@ async function handleIngest(request: NextRequest) {
       }
     }
 
-    // Batch insert valid readings
+    // Batch insert valid readings, accumulating exactly the documents that
+    // persisted. `insertedReadings` — never `validReadings`, which is only
+    // what was ATTEMPTED — is what alert evaluation below must see: a
+    // reading that never made it into `readings_v2` must never be allowed to
+    // fire or resolve an alert. Mirrors the cron path's identical fix
+    // (commits 2480e01, 4cb3d26), which threads bulkInsertReadings' returned
+    // subset through the same way.
+    const insertedReadings: Partial<IReadingV2>[] = [];
+
     if (validReadings.length > 0)
       // Process in batches to avoid overwhelming the database
       for (let i = 0; i < validReadings.length; i += BATCH_SIZE) {
@@ -202,6 +210,7 @@ async function handleIngest(request: NextRequest) {
           });
           const successfulInsertsInBatch = insertResult.length;
           results.inserted += successfulInsertsInBatch;
+          insertedReadings.push(...insertResult);
           const batchFailures = batch.length - successfulInsertsInBatch;
           if (batchFailures > 0) {
             results.rejected += batchFailures;
@@ -212,12 +221,42 @@ async function handleIngest(request: NextRequest) {
             });
           }
         } catch (error: unknown) {
-          // Handle bulk write errors (some may have succeeded)
+          // Handle bulk write errors (some may have succeeded). With
+          // `ordered: false`, MongoBulkWriteError.insertedIds is the driver's
+          // index -> _id map for exactly the documents THIS batch actually
+          // wrote (index is relative to `batch`, not the full request) — map
+          // those indices back to `batch` to recover the persisted subset.
           let successfulInsertsInBatch = 0;
           if (error && typeof error === 'object' && 'insertedCount' in error) {
-            const bulkError = error as { insertedCount: number };
+            const bulkError = error as {
+              insertedCount: number;
+              insertedIds?: Record<number, unknown>;
+            };
             successfulInsertsInBatch = bulkError.insertedCount ?? 0;
             results.inserted += successfulInsertsInBatch;
+
+            if (bulkError.insertedIds)
+              for (const key of Object.keys(bulkError.insertedIds)) {
+                const persisted = batch[Number(key)];
+                if (persisted) insertedReadings.push(persisted);
+              }
+            else if (successfulInsertsInBatch > 0)
+              // No insertedIds to identify which specific entries survived.
+              // Deliberate under-approximation: treat this batch as
+              // contributing NOTHING to evaluation rather than guessing.
+              // `results.inserted` above still counts them correctly for the
+              // response — only alert evaluation loses visibility into a
+              // reading that genuinely persisted this cycle, which is a real
+              // but strictly safer failure than the bug being fixed (a
+              // non-existent reading firing an alert).
+              logger.warn(
+                'Bulk insert partially failed without insertedIds; this batch will not be evaluated for alerts',
+                {
+                  batchStart: i,
+                  batchSize: batch.length,
+                  insertedCount: successfulInsertsInBatch,
+                }
+              );
           }
 
           // Count failures
@@ -252,11 +291,14 @@ async function handleIngest(request: NextRequest) {
       });
     }
 
-    // Evaluate alert rules. Runs strictly after the inserts have committed and
-    // cannot affect them; safeEvaluateReadings never throws.
-    if (results.inserted > 0) {
+    // Evaluate alert rules against the readings that actually persisted.
+    // Runs strictly after the inserts have committed and cannot affect them;
+    // safeEvaluateReadings never throws. Gated on insertedReadings, not
+    // results.inserted: the two can differ (see the insertedIds-less
+    // fallback above), and only the former is safe to hand to the evaluator.
+    if (insertedReadings.length > 0) {
       const evaluation = await safeEvaluateReadings(
-        validReadings,
+        insertedReadings,
         existingDevices as unknown as Parameters<typeof safeEvaluateReadings>[1]
       );
 
