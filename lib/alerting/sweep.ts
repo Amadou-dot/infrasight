@@ -16,13 +16,39 @@
 
 import type { AnyBulkWriteOperation, Types } from 'mongoose';
 import AlertV2, { type IAlertV2 } from '@/models/v2/AlertV2';
-import { recordAlert } from '@/lib/monitoring';
+import { logger, recordAlert } from '@/lib/monitoring';
 import type { ResolvedAlert } from '@/types/v2/alert.types';
 
-export const STALE_AFTER_SECONDS = parseInt(
-  process.env.ALERT_STALE_AFTER_SECONDS || '1800',
-  10
-);
+const DEFAULT_STALE_AFTER_SECONDS = 1800;
+
+/**
+ * A malformed `ALERT_STALE_AFTER_SECONDS` (non-numeric, or parseInt's
+ * partial-parse leaving a NaN) used to silently disable staleness detection
+ * entirely: `new Date(NaN)` is an Invalid Date, so `last_observed_at <
+ * cutoff` is always false and the branch below stops firing — permanently
+ * and silently, with `device_inactive` still working to mask it. Guard with
+ * Number.isFinite (parseInt itself never throws) and fall back to the
+ * documented default, logging so the misconfiguration is visible instead of
+ * merely inert. A non-positive value is equally nonsensical for "seconds
+ * after which to consider stale" and is rejected the same way.
+ */
+function parseStaleAfterSeconds(): number {
+  const raw = process.env.ALERT_STALE_AFTER_SECONDS;
+  if (!raw) return DEFAULT_STALE_AFTER_SECONDS;
+
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    logger.warn(
+      `Malformed ALERT_STALE_AFTER_SECONDS "${raw}"; falling back to ${DEFAULT_STALE_AFTER_SECONDS}s. Staleness detection would otherwise be silently disabled.`,
+      { value: raw }
+    );
+    return DEFAULT_STALE_AFTER_SECONDS;
+  }
+
+  return parsed;
+}
+
+export const STALE_AFTER_SECONDS = parseStaleAfterSeconds();
 
 export interface SweepResult {
   /** Pending episodes deleted — an episode that never fired is not history. */

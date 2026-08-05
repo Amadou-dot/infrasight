@@ -18,6 +18,66 @@ describe('STALE_AFTER_SECONDS', () => {
   it('should default to 30 minutes', () => {
     expect(STALE_AFTER_SECONDS).toBe(1800);
   });
+
+  // STALE_AFTER_SECONDS is computed once at module load from
+  // ALERT_STALE_AFTER_SECONDS, so exercising a different env value requires a
+  // fresh module instance — jest.resetModules() + a dynamic require, the same
+  // technique __tests__/unit/lib/sentry.test.ts uses for its own
+  // env-driven, import-time configuration.
+  describe('malformed ALERT_STALE_AFTER_SECONDS', () => {
+    const original = process.env.ALERT_STALE_AFTER_SECONDS;
+
+    afterEach(() => {
+      if (original === undefined) delete process.env.ALERT_STALE_AFTER_SECONDS;
+      else process.env.ALERT_STALE_AFTER_SECONDS = original;
+      jest.resetModules();
+    });
+
+    it('should fall back to 1800 and warn on a non-numeric value, instead of silently disabling staleness detection', () => {
+      process.env.ALERT_STALE_AFTER_SECONDS = 'not-a-number';
+
+      jest.resetModules();
+      // Requiring monitoring fresh FIRST, then spying on its logger, then
+      // requiring sweep fresh: sweep's own internal require of
+      // '@/lib/monitoring' resolves to this exact cached instance (same
+      // resolved path, same fresh registry generation), so the spy actually
+      // intercepts the call sweep.ts makes — spying on the OLD top-level
+      // `monitoring` import (from before resetModules) would not, since that
+      // binds to a now-discarded module instance.
+      const freshMonitoring = require('@/lib/monitoring');
+      const warnSpy = jest.spyOn(freshMonitoring.logger, 'warn').mockImplementation(() => {});
+
+      const fresh = require('@/lib/alerting/sweep');
+
+      // Would be NaN under the old parseInt-with-no-guard code — proving
+      // this assertion alone is not vacuous even without the warn check.
+      expect(fresh.STALE_AFTER_SECONDS).toBe(1800);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Malformed ALERT_STALE_AFTER_SECONDS'),
+        expect.objectContaining({ value: 'not-a-number' })
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it('should fall back to 1800 on a non-positive value', () => {
+      process.env.ALERT_STALE_AFTER_SECONDS = '-30';
+
+      jest.resetModules();
+      const fresh = require('@/lib/alerting/sweep');
+
+      expect(fresh.STALE_AFTER_SECONDS).toBe(1800);
+    });
+
+    it('should use a valid override unchanged', () => {
+      process.env.ALERT_STALE_AFTER_SECONDS = '900';
+
+      jest.resetModules();
+      const fresh = require('@/lib/alerting/sweep');
+
+      expect(fresh.STALE_AFTER_SECONDS).toBe(900);
+    });
+  });
 });
 
 describe('sweepStaleAlerts', () => {
