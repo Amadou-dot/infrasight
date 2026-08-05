@@ -37,6 +37,199 @@ jest.mock('@/lib/monitoring/logger', () => ({
   },
 }));
 
+// ============================================================================
+// A TINY LUA EVALUATOR FOR THE COMMIT SCRIPT
+// ============================================================================
+//
+// WHY THIS EXISTS. The cross-process guard is a Lua script (`lib/cache/cache.ts`,
+// COMMIT_IF_EPOCH_UNCHANGED) and CI runs no Redis, so nothing in the committed
+// suite used to EXECUTE it — the fake `eval` below reimplemented the
+// compare-and-set contract in JavaScript and threw the `_script` argument away.
+// That made every assertion about the guard an assertion about the fake. The
+// script's `~=` could be flipped to `==`, inverting the guard into "commit only
+// when the epoch HAS changed" — committing precisely the stale writes the guard
+// exists to prevent — and the whole suite stayed green.
+//
+// So the fake now runs the real script text. This is not a Lua implementation;
+// it is an interpreter for exactly the constructs COMMIT_IF_EPOCH_UNCHANGED
+// uses (local binding, `redis.call`, one-line `if ... then ... end`, `return
+// <int>`, `==`/`~=` on strings and booleans). Anything else throws rather than
+// being skipped or guessed at, so a future edit that outgrows it fails loudly
+// here instead of quietly reverting these tests to testing a fake again.
+//
+// Semantics that matter and are deliberately modelled:
+//   - a missing key makes `redis.call('GET', ...)` yield `false`, because Redis
+//     maps nil to false in Lua. That is what the script's `current == false`
+//     normalization exists to handle.
+//   - `==` does not coerce across types, so `'' == false` is false, as in Lua.
+
+/** The only value types this script ever produces. */
+type LuaValue = string | boolean | number;
+
+interface LuaRedis {
+  call(command: string, ...args: LuaValue[]): LuaValue;
+}
+
+function unsupportedLua(what: string, detail: string): never {
+  throw new Error(
+    `The commit script uses Lua this evaluator does not implement (${what}): ${detail}`
+  );
+}
+
+/** Splits a call's argument list on top-level commas. */
+function splitLuaArgs(argList: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let current = '';
+
+  for (const char of argList) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      args.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) args.push(current);
+
+  return args;
+}
+
+/**
+ * Execute `script` with the given KEYS/ARGV against `redis`, returning the
+ * integer the script returns. Lua is 1-indexed; KEYS/ARGV are passed 0-indexed
+ * here and adjusted on lookup.
+ */
+function runLuaCommitScript(
+  script: string,
+  keys: string[],
+  argv: string[],
+  redis: LuaRedis
+): number {
+  const locals = new Map<string, LuaValue>();
+
+  const evaluate = (raw: string): LuaValue => {
+    const expression = raw.trim();
+
+    const argvIndex = /^ARGV\[(\d+)\]$/.exec(expression);
+    if (argvIndex) return argv[Number(argvIndex[1]) - 1] ?? false;
+
+    const keysIndex = /^KEYS\[(\d+)\]$/.exec(expression);
+    if (keysIndex) return keys[Number(keysIndex[1]) - 1] ?? false;
+
+    const stringLiteral = /^'([^']*)'$/.exec(expression);
+    if (stringLiteral) return stringLiteral[1];
+
+    if (expression === 'false') return false;
+    if (expression === 'true') return true;
+    if (/^-?\d+$/.test(expression)) return Number(expression);
+
+    const call = /^redis\.call\((.*)\)$/.exec(expression);
+    if (call) {
+      const [command, ...args] = splitLuaArgs(call[1]).map(evaluate);
+      if (typeof command !== 'string') unsupportedLua('redis.call command', expression);
+      return redis.call(command, ...args);
+    }
+
+    if (/^[A-Za-z_]\w*$/.test(expression)) {
+      if (!locals.has(expression)) unsupportedLua('unbound name', expression);
+      return locals.get(expression) as LuaValue;
+    }
+
+    return unsupportedLua('expression', expression);
+  };
+
+  const isTruthy = (raw: string): boolean => {
+    const comparison = /^(.+?)\s*(==|~=)\s*(.+)$/.exec(raw.trim());
+    if (!comparison) unsupportedLua('condition', raw);
+
+    // No cross-type coercion, exactly like Lua: '' does not equal false.
+    const equal = evaluate(comparison[1]) === evaluate(comparison[3]);
+    return comparison[2] === '==' ? equal : !equal;
+  };
+
+  /** Returns the script's return value, or undefined if the statement fell through. */
+  const execute = (raw: string): number | undefined => {
+    const statement = raw.trim();
+
+    const returned = /^return\s+(-?\d+)$/.exec(statement);
+    if (returned) return Number(returned[1]);
+
+    const declaration = /^local\s+([A-Za-z_]\w*)\s*=\s*(.+)$/.exec(statement);
+    if (declaration) {
+      locals.set(declaration[1], evaluate(declaration[2]));
+      return undefined;
+    }
+
+    if (/^redis\.call\(/.test(statement)) {
+      evaluate(statement);
+      return undefined;
+    }
+
+    const assignment = /^([A-Za-z_]\w*)\s*=\s*(.+)$/.exec(statement);
+    if (assignment) {
+      if (!locals.has(assignment[1]))
+        unsupportedLua('assignment to an undeclared name', statement);
+      locals.set(assignment[1], evaluate(assignment[2]));
+      return undefined;
+    }
+
+    return unsupportedLua('statement', statement);
+  };
+
+  const lines = script
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('--'));
+
+  for (const line of lines) {
+    const conditional = /^if\s+(.+?)\s+then\s+(.+?)\s+end$/.exec(line);
+
+    if (conditional) {
+      if (!isTruthy(conditional[1])) continue;
+      const result = execute(conditional[2]);
+      if (result !== undefined) return result;
+      continue;
+    }
+
+    const result = execute(line);
+    if (result !== undefined) return result;
+  }
+
+  return unsupportedLua('control flow', 'the script ended without returning');
+}
+
+/** A `redis` table backed by a plain key/value map, for the evaluator to call into. */
+function createLuaRedis(store: Map<string, string>): LuaRedis {
+  return {
+    call(command: string, ...args: LuaValue[]): LuaValue {
+      const name = command.toUpperCase();
+
+      if (name === 'GET') {
+        const key = String(args[0]);
+        // Redis maps a missing key's nil to `false` in Lua.
+        return store.has(key) ? (store.get(key) as string) : false;
+      }
+
+      if (name === 'SETEX') {
+        const [key, , value] = args.map(String);
+        store.set(key, value);
+        return 'OK';
+      }
+
+      return unsupportedLua('redis command', name);
+    },
+  };
+}
+
+/** ioredis' `eval(script, numKeys, ...keysThenArgv)` calling convention. */
+function evalWithLua(store: Map<string, string>) {
+  return async (script: string, numKeys: number, ...args: string[]): Promise<number> =>
+    runLuaCommitScript(script, args.slice(0, numKeys), args.slice(numKeys), createLuaRedis(store));
+}
+
 describe('Cache Manager', () => {
   // Save original env and reset mocks before each test
   const originalEnv = process.env;
@@ -597,12 +790,20 @@ describe('Cache Manager', () => {
         readsEpoch: at(/redis\.call\(\s*'GET'\s*,\s*KEYS\[2\]\s*\)/),
         /** Normalizes a missing epoch key, so "never invalidated" compares equal to ''. */
         normalizesMissing: at(/==\s*false/),
-        /** Compares the two AND bails out. Both halves required on one line. */
+        /**
+         * Compares the two AND bails out. Both halves required on one line.
+         *
+         * The operator is pinned to `~=` on purpose. An earlier version of
+         * this matcher accepted `==` as well, which meant it passed against
+         * the exact inversion it was written to catch — "commit only when the
+         * epoch HAS changed" — a guard that refuses every legitimate write and
+         * admits every stale one. `guards` must mean "bails out on a
+         * MISMATCH", so only the inequality qualifies.
+         */
         guards: lines.findIndex(
           line =>
-            /\bcurrent\b\s*(~=|==)\s*\bobserved\b|\bobserved\b\s*(~=|==)\s*\bcurrent\b/.test(
-              line
-            ) && /\breturn\s+0\b/.test(line)
+            /\bcurrent\b\s*~=\s*\bobserved\b|\bobserved\b\s*~=\s*\bcurrent\b/.test(line) &&
+            /\breturn\s+0\b/.test(line)
         ),
         /** The one and only write. */
         writes: at(/redis\.call\(\s*'SETEX'\s*,\s*KEYS\[1\]\s*,\s*ARGV\[1\]\s*,\s*ARGV\[2\]\s*\)/),
@@ -664,6 +865,75 @@ describe('Cache Manager', () => {
       expect(script.lines.some(line => /\breturn\s+0\b/.test(line))).toBe(true);
       expect(script.lines.some(line => /\breturn\s+1\b/.test(line))).toBe(true);
     });
+
+    // ------------------------------------------------------------------
+    // ...and the same script, EXECUTED.
+    // ------------------------------------------------------------------
+    //
+    // The structural rows above describe the script's shape. These run it.
+    // Shape assertions can only ever check that some comparison is present;
+    // running it is what pins down which way round the comparison points. An
+    // inverted guard (`~=` flipped to `==`) satisfies "a comparison exists"
+    // and fails every row below.
+    describe('executed against the evaluator', () => {
+      const VALUE_KEY = 'exec:key';
+      const EPOCH_KEY = 'exec:key::epoch';
+      const TTL = '60';
+      const PAYLOAD = '{"fresh":true}';
+
+      /** Runs the module's real script over a store seeded with `epoch`. */
+      async function run(epoch: string | null, observedEpoch: string) {
+        const store = new Map<string, string>();
+        if (epoch !== null) store.set(EPOCH_KEY, epoch);
+
+        const result = await evalWithLua(store)(
+          await captureCommitScript(),
+          2,
+          VALUE_KEY,
+          EPOCH_KEY,
+          TTL,
+          PAYLOAD,
+          observedEpoch
+        );
+
+        return { result, store };
+      }
+
+      it('should commit when the epoch is unchanged since it was observed', async () => {
+        const { result, store } = await run('7', '7');
+
+        expect(result).toBe(1);
+        expect(store.get(VALUE_KEY)).toBe(PAYLOAD);
+      });
+
+      it('should REFUSE and write nothing when the epoch moved on', async () => {
+        // The C6 race itself: the fetch observed epoch 7, an invalidation in
+        // another process bumped it to 8, and this write is now stale.
+        const { result, store } = await run('8', '7');
+
+        expect(result).toBe(0);
+        expect(store.has(VALUE_KEY)).toBe(false);
+      });
+
+      it('should commit the first write to a key that was never invalidated', async () => {
+        // No epoch key at all: GET yields false, the script normalizes it to
+        // '', and '' is what readEpoch reported. Were this refused, caching
+        // would simply never happen.
+        const { result, store } = await run(null, '');
+
+        expect(result).toBe(1);
+        expect(store.get(VALUE_KEY)).toBe(PAYLOAD);
+      });
+
+      it('should refuse an unreadable epoch, which can never equal a real one', async () => {
+        // EPOCH_UNREADABLE contains a NUL byte precisely so it cannot collide
+        // with anything INCR produced. Fail closed.
+        const { result, store } = await run('3', '\u0000unreadable');
+
+        expect(result).toBe(0);
+        expect(store.has(VALUE_KEY)).toBe(false);
+      });
+    });
   });
 
   // ==========================================================================
@@ -678,11 +948,12 @@ describe('Cache Manager', () => {
   // registries, i.e. two independent generation counters — sharing one fake
   // Redis. Only the Redis-side epoch can pass them.
   //
-  // The fake's `eval` implements the compare-and-set contract the Lua script
-  // encodes (compare the epoch, SETEX only on a match) rather than
-  // interpreting Lua. The script text itself was verified against a real
-  // Redis 7 out of band; see the round-2 section of the P4 report for the
-  // exact command and its output.
+  // The fake's `eval` EXECUTES the module's real script text through
+  // `runLuaCommitScript` (see the evaluator at the top of this file), so these
+  // rows pass or fail on what the script actually says, not on a JavaScript
+  // restatement of what it is supposed to say. The script was additionally
+  // verified against a real Redis 7 out of band; see the round-2 section of
+  // the P4 report for the exact command and its output.
   describe('cross-process guard (Redis epoch)', () => {
     /** One shared "Redis server" that several isolated cache modules can talk to. */
     function createSharedRedis() {
@@ -725,24 +996,11 @@ describe('Cache Manager', () => {
           };
           return chain;
         }),
-        eval: jest.fn(
-          async (
-            _script: string,
-            _numKeys: number,
-            valueKey: string,
-            epochKey: string,
-            ttl: string,
-            value: string,
-            observedEpoch: string
-          ) => {
-            // Atomic by construction: one synchronous compare-and-set, which
-            // is exactly the property EVAL gives on a real server.
-            const current = store.get(epochKey) ?? '';
-            if (current !== observedEpoch) return 0;
-            store.set(valueKey, value);
-            return 1;
-          }
-        ),
+        // Runs the module's REAL script text through `runLuaCommitScript`
+        // rather than reimplementing the compare-and-set. Atomic by
+        // construction: the interpreter is synchronous from first line to
+        // return, which is the property EVAL gives on a real server.
+        eval: jest.fn(evalWithLua(store)),
       };
 
       return redis;

@@ -181,6 +181,68 @@ describe('POST /api/pusher/auth', () => {
     });
   });
 
+  // ==========================================================================
+  // DEMO MODE
+  // ==========================================================================
+  //
+  // Every other row in this file runs with DEMO_MODE deleted, which is exactly
+  // why this block is needed: under DEMO_MODE=true `getAuthContext()` hands an
+  // anonymous visitor a synthetic `org:member` context, so
+  // `requireOrgMembership()` SUCCEEDS for a caller with no session at all. The
+  // "rejects a signed-out caller with 401" row above passes only because the
+  // env var is unset there.
+  //
+  // Nothing inside this handler used to notice. The single thing refusing the
+  // request was `proxy.ts`, whose demo bypass is limited to GET/HEAD — and
+  // middleware behaviour is not exercised by these tests at all. A route whose
+  // entire job is to be the second line of defense had one line of defense.
+  describe('demo mode', () => {
+    beforeEach(() => {
+      process.env.DEMO_MODE = 'true';
+    });
+
+    afterEach(() => {
+      delete process.env.DEMO_MODE;
+    });
+
+    it('refuses to sign the alert channel for an anonymous demo visitor', async () => {
+      mockSignedOut();
+
+      const response = await authorizeChannel(authRequest(ALERT_CHANNEL));
+      const body = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('FORBIDDEN');
+      // The signature is what must never be minted here: it is what would let
+      // an anonymous visitor join `private-alerts` and receive rule names,
+      // device ids, trigger values and resolver identities.
+      expect(body).not.toHaveProperty('auth');
+    });
+
+    it('refuses on identity alone, before the socket id is even parsed', async () => {
+      mockSignedOut();
+
+      // A malformed socket id must not be what saves us — the rejection has to
+      // be the demo check, so this stays 403 rather than becoming a 400.
+      const response = await authorizeChannel(authRequest(ALERT_CHANNEL, 'not-a-socket'));
+
+      expect(response.status).toBe(403);
+    });
+
+    it('still authorizes a genuinely signed-in member while demo mode is on', async () => {
+      // The rejection is keyed on the demo sentinel, not on the env var: a
+      // demo deployment must keep working for real users who sign in.
+      mockSignedIn('org:member');
+
+      const response = await authorizeChannel(authRequest(ALERT_CHANNEL));
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(typeof body.auth).toBe('string');
+    });
+  });
+
   describe('channel allow-list', () => {
     // A member IS allowed on the alert channel, so every row here isolates the
     // channel check: same caller, different channel name.
