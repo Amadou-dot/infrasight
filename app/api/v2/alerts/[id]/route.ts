@@ -32,9 +32,9 @@ import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
-import { requireAdmin, requireOrgMembership, getAuditUser } from '@/lib/auth';
+import { requireAdmin, requireOrgMembership, getAuditUser, isDemoCaller } from '@/lib/auth';
 import { logger, recordRequest, createRequestTimer, recordAlert } from '@/lib/monitoring';
-import { publishAlertEvents } from '@/lib/alerting';
+import { publishAlertEvents, redactAuditForDemo } from '@/lib/alerting';
 
 // ============================================================================
 // GET /api/v2/alerts/[id]
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    await requireOrgMembership();
+    const authContext = await requireOrgMembership();
     await dbConnect();
 
     const { id } = await params;
@@ -69,8 +69,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const query = queryValidation.data as GetAlertQuery;
 
-    const alert = await AlertV2.findById(id).select('-__v').lean();
-    if (!alert) throw new ApiError(ErrorCodes.ALERT_NOT_FOUND, 404, `Alert '${id}' not found`);
+    const found = await AlertV2.findById(id).select('-__v').lean();
+    // `pending` is internal (see the list endpoint's header comment) and must
+    // never be visible to a client — treat it exactly like "does not exist"
+    // rather than leaking an alert whose for_duration_seconds hasn't elapsed.
+    if (!found || found.status === 'pending')
+      throw new ApiError(ErrorCodes.ALERT_NOT_FOUND, 404, `Alert '${id}' not found`);
+
+    // Demo mode grants an anonymous visitor the same read access as a real org
+    // member (see requireOrgMembership()) — never let that also hand them a
+    // real administrator's email off audit.acknowledged_by/resolved_by/etc.
+    const alert = redactAuditForDemo(found, isDemoCaller(authContext));
 
     const response: Record<string, unknown> = { ...alert };
 
@@ -145,7 +154,8 @@ async function handleUpdateAlert(
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    const { userId, user } = await requireAdmin();
+    const authContext = await requireAdmin();
+    const { userId, user } = authContext;
     const auditUser = getAuditUser(userId, user);
 
     await dbConnect();
@@ -186,29 +196,46 @@ async function handleUpdateAlert(
 
     if (status === 'resolved') recordAlert('resolved', { resolution: 'manual' });
     if (status === 'resolved')
-      await publishAlertEvents(
-        [],
-        [
-          {
-            _id: String(updated._id),
-            rule_id: String(updated.rule_id),
-            device_id: updated.device_id,
-            severity: updated.severity,
-            resolution: 'manual',
-            resolved_at: new Date().toISOString(),
-            // The Clerk USER ID, never getAuditUser's email — this payload
-            // reaches every connected client, including anonymous demo visitors.
-            actor: userId,
-          },
-        ]
-      );
+      try {
+        await publishAlertEvents(
+          [],
+          [
+            {
+              _id: String(updated._id),
+              rule_id: String(updated.rule_id),
+              device_id: updated.device_id,
+              severity: updated.severity,
+              resolution: 'manual',
+              resolved_at: new Date().toISOString(),
+              // The Clerk USER ID, never getAuditUser's email — this payload
+              // reaches every connected client, including anonymous demo visitors.
+              actor: userId,
+            },
+          ]
+        );
+      } catch (error) {
+        // Mirrors safeEvaluateReadings's own nested try/catch around
+        // publishAlertEvents (lib/alerting/index.ts): notify.ts already
+        // swallows Pusher's own trigger failure internally, so the only
+        // residual here is envelope construction — but this route already
+        // committed the resolve to the database, so a broadcast fault must
+        // never turn that into a 500.
+        logger.error('Alert broadcast failed after a committed write', {
+          alertId: id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
 
     const duration = timer.elapsed();
     recordRequest('PATCH', '/api/v2/alerts/[id]', 200, duration);
     logger.info('Alert transitioned', { alertId: id, status, by: auditUser, duration });
 
+    // Demo mode grants an anonymous visitor the same read access as a real org
+    // member for GET, but PATCH is requireAdmin()-only, so isDemoCaller here
+    // is always false in practice — applied anyway for defense in depth and
+    // to keep every response from these endpoints going through one contract.
     return jsonSuccess(
-      updated.toObject({ versionKey: false }),
+      redactAuditForDemo(updated.toObject({ versionKey: false }), isDemoCaller(authContext)),
       status === 'acknowledged' ? 'Alert acknowledged' : 'Alert resolved'
     );
   })();

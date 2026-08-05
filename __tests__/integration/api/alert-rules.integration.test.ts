@@ -431,4 +431,89 @@ describe('Alert Rules API Integration Tests', () => {
       expect(stored!.audit.deleted_at).toBeUndefined();
     });
   });
+
+  // ==========================================================================
+  // DEMO MODE REDACTION (Critical finding from the whole-branch review)
+  // ==========================================================================
+  //
+  // Same contract as alerts.integration.test.ts's "demo mode redaction" block:
+  // getAuditUser() resolves audit.*_by to a real email, requireOrgMembership()
+  // lets an anonymous demo visitor read this resource, so without redaction
+  // that email would leak. Each pair proves both halves: nothing reaches a
+  // demo caller, and an authenticated admin still gets the real value.
+  describe('demo mode redaction', () => {
+    const originalDemoMode = process.env.DEMO_MODE;
+
+    afterEach(() => {
+      if (originalDemoMode === undefined) delete process.env.DEMO_MODE;
+      else process.env.DEMO_MODE = originalDemoMode;
+    });
+
+    /** Simulate an anonymous visitor on a demo deployment: no session, DEMO_MODE on. */
+    function mockDemoVisitor() {
+      process.env.DEMO_MODE = 'true';
+      mockAuthAsUnauthenticated();
+    }
+
+    function auditWithRealEmail() {
+      const now = new Date();
+      return {
+        created_at: now,
+        created_by: 'admin@example.com',
+        updated_at: now,
+        updated_by: 'admin@example.com',
+      };
+    }
+
+    it('should redact audit actor fields for a demo-mode list request', async () => {
+      mockDemoVisitor();
+      await AlertRuleV2.create(createAlertRuleInput({ audit: auditWithRealEmail() }));
+
+      const response = await listRules(get('/api/v2/alert-rules'));
+      const body = await parseResponse<unknown>(response);
+
+      expect(response.status).toBe(200);
+      // Blunt but robust: no value anywhere in the payload may contain an
+      // email address when the caller is the anonymous demo visitor.
+      expect(JSON.stringify(body)).not.toContain('@');
+    });
+
+    it('should still return the real actor to a genuinely authenticated admin (list)', async () => {
+      mockAuthAsAdmin();
+      await AlertRuleV2.create(createAlertRuleInput({ audit: auditWithRealEmail() }));
+
+      const response = await listRules(get('/api/v2/alert-rules'));
+      const body = await parseResponse<{ data: Array<{ audit: { created_by?: string } }> }>(
+        response
+      );
+
+      expect(response.status).toBe(200);
+      expect(body.data[0].audit.created_by).toBe('admin@example.com');
+    });
+
+    it('should redact audit actor fields for a demo-mode single-rule request', async () => {
+      const rule = await AlertRuleV2.create(createAlertRuleInput({ audit: auditWithRealEmail() }));
+      mockDemoVisitor();
+
+      const response = await getRule(get(`/api/v2/alert-rules/${rule._id}`), {
+        params: params(String(rule._id)),
+      });
+      const body = await parseResponse<unknown>(response);
+
+      expect(response.status).toBe(200);
+      expect(JSON.stringify(body)).not.toContain('@');
+    });
+
+    it('should still return the real actor to a genuinely authenticated admin (single rule)', async () => {
+      const rule = await AlertRuleV2.create(createAlertRuleInput({ audit: auditWithRealEmail() }));
+
+      const response = await getRule(get(`/api/v2/alert-rules/${rule._id}`), {
+        params: params(String(rule._id)),
+      });
+      const body = await parseResponse<{ data: { audit: { created_by?: string } } }>(response);
+
+      expect(response.status).toBe(200);
+      expect(body.data.audit.created_by).toBe('admin@example.com');
+    });
+  });
 });

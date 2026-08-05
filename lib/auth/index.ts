@@ -93,6 +93,19 @@ function createDemoAuthContext(): AuthContext {
   };
 }
 
+/**
+ * Whether an auth context is the anonymous demo-mode visitor
+ * (`createDemoAuthContext()`), as opposed to a genuinely authenticated user.
+ *
+ * Route handlers use this to decide when to redact fields — like
+ * `audit.*_by`, which can carry a real admin's email via `getAuditUser()` —
+ * that must never reach an anonymous caller. Keyed on `DEMO_USER.userId`
+ * rather than a hardcoded `'demo'` literal so the sentinel is defined once.
+ */
+export function isDemoCaller(context: Pick<AuthContext, 'userId'>): boolean {
+  return context.userId === DEMO_USER.userId;
+}
+
 // ============================================================================
 // RBAC HELPERS
 // ============================================================================

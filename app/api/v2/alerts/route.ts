@@ -13,10 +13,11 @@
  * unlike alert-rules (which calls `invalidateAlertRules()` on every mutation),
  * no invalidation hook is wired to those writes. A cache-aside layer here would
  * mean stale results for an operator actively triaging what is currently
- * firing. Nothing publishes alerts over Pusher yet either: both
- * `safeEvaluateReadings()` call sites (readings/ingest, cron/simulate) discard
- * its result after logging it. Real-time delivery is Task 13/14's job, not
- * this endpoint's.
+ * firing. Real-time delivery is handled separately: `safeEvaluateReadings()`
+ * and `safeSweepStaleAlerts()` (lib/alerting/index.ts) publish fired/resolved
+ * episodes over Pusher internally, as part of evaluation/sweep itself — this
+ * endpoint never publishes anything, it only ever serves a poll, a refresh,
+ * or an initial page load.
  */
 
 import type { NextRequest } from 'next/server';
@@ -31,7 +32,8 @@ import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonPaginated } from '@/lib/api/response';
 import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
-import { requireOrgMembership } from '@/lib/auth';
+import { requireOrgMembership, isDemoCaller } from '@/lib/auth';
+import { redactAuditForDemo } from '@/lib/alerting';
 
 /** Statuses a client may ever see. `pending` is internal and always excluded. */
 const VISIBLE_STATUSES = ['firing', 'acknowledged', 'resolved'] as const;
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
   const timer = createRequestTimer();
 
   return withErrorHandler(async () => {
-    await requireOrgMembership();
+    const authContext = await requireOrgMembership();
     await dbConnect();
 
     const validationResult = validateQuery(request.nextUrl.searchParams, listAlertsQuerySchema);
@@ -138,6 +140,9 @@ export async function GET(request: NextRequest) {
     recordRequest('GET', '/api/v2/alerts', 200, duration);
     logger.debug('Alerts list request', { duration, total, statuses });
 
-    return jsonPaginated(alerts, paginationInfo);
+    // Demo mode grants an anonymous visitor the same read access as a real org
+    // member (see requireOrgMembership()) — never let that also hand them a
+    // real administrator's email off audit.acknowledged_by/resolved_by/etc.
+    return jsonPaginated(redactAuditForDemo(alerts, isDemoCaller(authContext)), paginationInfo);
   })();
 }
