@@ -35,14 +35,59 @@ const navItems = [
   { href: '/floor-plan', label: 'Floor Plan', icon: Map },
 ];
 
+/**
+ * The '/alerts' nav item's count affordance — shared by desktop and mobile
+ * nav so the two sites can't drift out of sync (review finding A1 flagged
+ * exactly that: "both badge sites are gated on `> 0`").
+ *
+ * A failed fetch renders a visually distinct DEGRADED badge (muted/amber
+ * "!") rather than silently falling back to the all-clear (no badge) — the
+ * two states must never be pixel-identical. `degraded` wins over `count`
+ * unconditionally: even a stale non-zero count sitting in the cache during a
+ * failed background refetch should not be trusted over the fact that the
+ * fetch just failed.
+ */
+function AlertCountBadge({ count, degraded }: { count: number; degraded: boolean }) {
+  if (degraded) {
+    return (
+      <span
+        aria-label="Open alert count unavailable"
+        title="Open alert count unavailable"
+        className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-amber-200 bg-amber-100 px-1.5 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+      >
+        !
+      </span>
+    );
+  }
+
+  if (count <= 0) return null;
+
+  return (
+    <span
+      aria-label={`${count} open alerts`}
+      className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground"
+    >
+      {count}
+    </span>
+  );
+}
+
 export default function TopNav() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAdmin } = useRbac();
+  const { isAdmin, isLoaded, isSignedIn } = useRbac();
   const queryClient = useQueryClient();
   // pagination.total off a one-row page — see useOpenAlertCount's own doc
   // comment for why this beats useAlertsList({ limit: 100 }).data?.length.
-  const { data: openAlertCount = 0 } = useOpenAlertCount();
+  const { data: openAlertCount = 0, error: openAlertCountError } = useOpenAlertCount();
+  // A failed fetch must never render as the all-clear (review finding A1): a
+  // 500, an expired session, or a Mongo timeout used to default straight to
+  // 0 via the destructure above, which is pixel-identical to "zero open
+  // alerts" on every page in the app. Gated on isLoaded && isSignedIn so the
+  // signed-out / still-loading render — where the query may legitimately
+  // 401 or simply hasn't resolved yet — never trips the degraded badge; only
+  // a fetch failure for an actually-authenticated viewer counts as degraded.
+  const openAlertCountDegraded = Boolean(isLoaded && isSignedIn && openAlertCountError);
 
   // Same invalidation AlertToaster performs, so the badge updates on the
   // same event that raises a toast. Memoized for a stable callback identity:
@@ -87,13 +132,8 @@ export default function TopNav() {
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
-                  {item.href === '/alerts' && openAlertCount > 0 && (
-                    <span
-                      aria-label={`${openAlertCount} open alerts`}
-                      className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground"
-                    >
-                      {openAlertCount}
-                    </span>
+                  {item.href === '/alerts' && (
+                    <AlertCountBadge count={openAlertCount} degraded={openAlertCountDegraded} />
                   )}
                 </Link>
               );
@@ -148,13 +188,8 @@ export default function TopNav() {
                   >
                     <Icon className="h-5 w-5" />
                     {item.label}
-                    {item.href === '/alerts' && openAlertCount > 0 && (
-                      <span
-                        aria-label={`${openAlertCount} open alerts`}
-                        className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground"
-                      >
-                        {openAlertCount}
-                      </span>
+                    {item.href === '/alerts' && (
+                      <AlertCountBadge count={openAlertCount} degraded={openAlertCountDegraded} />
                     )}
                   </Link>
                 );

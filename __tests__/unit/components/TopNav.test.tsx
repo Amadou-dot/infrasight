@@ -145,6 +145,106 @@ describe('TopNav', () => {
     });
   });
 
+  // --- A1: a failed count must render as visibly DEGRADED, never as the
+  // all-clear (no badge) — the two states must produce different output. ---
+  describe('open alert count failure (A1)', () => {
+    function setOpenAlertCountError() {
+      mockUseOpenAlertCount.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error('500'),
+      });
+    }
+
+    it('should render a visibly distinct degraded badge (not the zero/all-clear state) when the count fails to load', () => {
+      setOpenAlertCountError();
+
+      renderTopNav();
+
+      const link = screen.getByRole('link', { name: /alerts/i });
+      // Not the numeric "open alerts" badge — a failed fetch must not borrow
+      // that styling/semantics.
+      expect(link.querySelector('.bg-destructive')).not.toBeInTheDocument();
+      // A real, distinct affordance IS present — this is what makes the fix
+      // real: the zero state renders nothing at all here (see the "should
+      // NOT show a badge when there are no open alerts" test above), while
+      // the error state renders this.
+      const badge = screen.getByLabelText('Open alert count unavailable');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent('!');
+    });
+
+    it('should not present the degraded badge as if it were the numeric all-clear (zero) state', () => {
+      setOpenAlertCountError();
+
+      renderTopNav();
+
+      // The all-clear state shows no badge and no unavailable-affordance;
+      // proving both absences here is what makes this test able to fail if
+      // the two states were ever collapsed back into one rendering.
+      expect(screen.queryByText('0')).not.toBeInTheDocument();
+    });
+
+    it('should render the degraded badge in both desktop and mobile nav', () => {
+      setOpenAlertCountError();
+
+      renderTopNav();
+      fireEvent.click(screen.getByRole('button', { name: /open main menu/i }));
+
+      const badges = screen.getAllByLabelText('Open alert count unavailable');
+      expect(badges).toHaveLength(2); // desktop + mobile
+      for (const badge of badges) expect(badge).toHaveTextContent('!');
+    });
+
+    it('should NOT show the degraded badge while signed out, even if the count query errors', () => {
+      mockUseAuth.mockReturnValue({
+        isLoaded: true,
+        isSignedIn: false,
+        orgRole: null,
+        orgSlug: null,
+      });
+      setOpenAlertCountError();
+
+      renderTopNav();
+
+      expect(screen.queryByLabelText('Open alert count unavailable')).not.toBeInTheDocument();
+      // And it must not fall back to showing a numeric badge either.
+      expect(screen.getByRole('link', { name: /alerts/i }).querySelector('.bg-destructive')).not.toBeInTheDocument();
+    });
+
+    it('should NOT show the degraded badge while the auth state is still loading, even if the count query errors', () => {
+      mockUseAuth.mockReturnValue({
+        isLoaded: false,
+        isSignedIn: false,
+        orgRole: null,
+        orgSlug: null,
+      });
+      setOpenAlertCountError();
+
+      renderTopNav();
+
+      expect(screen.queryByLabelText('Open alert count unavailable')).not.toBeInTheDocument();
+    });
+
+    it('should prefer the degraded badge over a stale non-zero count when both are present', () => {
+      // A background refetch that fails after a prior success can leave a
+      // stale positive count sitting in `data` alongside a populated
+      // `error`. The degraded state must win — a fetch failure is not safe
+      // to paper over with whatever number happened to be cached.
+      mockUseOpenAlertCount.mockReturnValue({
+        data: 5,
+        isLoading: false,
+        error: new Error('500'),
+      });
+
+      renderTopNav();
+
+      const link = screen.getByRole('link', { name: /alerts/i });
+      expect(link.querySelector('.bg-destructive')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Open alert count unavailable')).toBeInTheDocument();
+    });
+  });
+
   describe('live updates via Pusher', () => {
     it('registers exactly one alert-event handler via usePusherAlerts', () => {
       renderTopNav();

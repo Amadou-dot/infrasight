@@ -103,6 +103,7 @@ beforeEach(() => {
     isLoading: false,
     error: null,
     refetch: mockRefetch,
+    isFetching: false,
   });
 });
 
@@ -281,6 +282,66 @@ describe('AlertRuleList', () => {
       fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
 
       expect(mockDeleteMutate).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- B1: a page transition in flight must disable BOTH controls, so a
+  // second click cannot skip a page — matches the fix applied to
+  // AlertList.tsx (same underlying cause: the global
+  // `placeholderData: keepPreviousData` keeps isLoading false and the
+  // previous page's rows visible during a page transition).
+  describe('pagination in-flight guard (B1)', () => {
+    function tenRules() {
+      return Array.from({ length: 10 }, (_, i) => makeRule({ _id: `rule_${i}` }));
+    }
+
+    it('should disable BOTH Previous and Next while a page transition is in flight (isFetching), even though page/count alone would leave them enabled', () => {
+      mockUseAlertRulesList.mockReturnValue({
+        data: tenRules(),
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+        isFetching: false,
+      });
+
+      const { rerender } = render(<AlertRuleList />);
+
+      // Reach page 2 via a real Next click, so page state is genuinely > 1
+      // (at page 1, Previous would be disabled regardless of isFetching,
+      // which would make that half of the assertion below vacuous).
+      fireEvent.click(screen.getByRole('button', { name: /next/i }));
+      expect(screen.getByText(/page 2/i)).toBeInTheDocument();
+
+      // Simulate the in-flight refetch a real page-2 request triggers —
+      // still a full page, so neither the page===1 guard nor the
+      // short-page guard would disable anything on their own.
+      mockUseAlertRulesList.mockReturnValue({
+        data: tenRules(),
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+        isFetching: true,
+      });
+      rerender(<AlertRuleList />);
+
+      expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+    });
+
+    it('should also disable the refresh control (and spin its icon) while isFetching', () => {
+      mockUseAlertRulesList.mockReturnValue({
+        data: [makeRule()],
+        isLoading: false, // isolates the spin to the refresh icon, not the isLoading spinner
+        error: null,
+        refetch: mockRefetch,
+        isFetching: true,
+      });
+
+      const { container } = render(<AlertRuleList />);
+
+      const spinningIcon = container.querySelector('.animate-spin');
+      expect(spinningIcon).toBeInTheDocument();
+      expect(spinningIcon?.closest('button')).toBeDisabled();
     });
   });
 });

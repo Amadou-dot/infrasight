@@ -27,8 +27,9 @@
  * recorded in the task report.
  */
 
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AlertList, formatRelativeTime } from '@/components/alerts/AlertList';
 import type { AlertV2Response } from '@/types/v2';
 
@@ -63,6 +64,75 @@ jest.mock('react-toastify', () => ({
     error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
+
+// --- D3: real-hook wiring for the "URL -> query integration" block below --
+//
+// `useAlertsList` and `useAlertFilterParams` stay mocked (as above) for
+// every OTHER describe block in this file — those `actual*` references
+// below let ONE block opt back into the real implementations via
+// `mockUseAlertsList.mockImplementation(actualAlertHooks.useAlertsList)`,
+// so that block exercises the real URL -> filters -> query wiring end to
+// end, instead of two mocks that describe each other's shape but never
+// actually meet (the review's exact D3 complaint). `next/navigation` and
+// `v2Api.alerts.list` are mocked instead — the network boundary, not the
+// hooks under test — mirroring AlertDetailPage.test.tsx's established
+// `jest.requireActual(...)` partial-mock idiom.
+const actualAlertHooks = jest.requireActual(
+  '@/lib/query/hooks'
+) as typeof import('@/lib/query/hooks');
+const actualUseAlertFilterParams = (
+  jest.requireActual('@/components/alerts/useAlertFilterParams') as typeof import('@/components/alerts/useAlertFilterParams')
+).useAlertFilterParams;
+
+const mockV2ApiAlertsList = jest.fn();
+jest.mock('@/lib/api/v2-client', () => {
+  const actual = jest.requireActual('@/lib/api/v2-client');
+  return {
+    ...actual,
+    v2Api: {
+      ...actual.v2Api,
+      alerts: {
+        ...actual.v2Api.alerts,
+        list: (...args: unknown[]) => mockV2ApiAlertsList(...args),
+      },
+    },
+  };
+});
+
+// Minimal but faithful next/navigation mock: `push` both records the call
+// AND updates what `useSearchParams` returns (via useSyncExternalStore), so
+// clicking a real pagination control drives a real re-render off the new
+// URL — exactly what AlertList.tsx experiences in the browser. Declared
+// once at file scope; inert for every other describe block below, since
+// nothing there calls a real next/navigation hook (useAlertFilterParams is
+// mocked away in those blocks).
+const mockNavState: { search: string; listeners: Set<() => void> } = {
+  search: '',
+  listeners: new Set(),
+};
+const mockRouterPush = jest.fn((url: string) => {
+  const query = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
+  mockNavState.search = query;
+  mockNavState.listeners.forEach(listener => listener());
+});
+
+jest.mock('next/navigation', () => {
+  const { useSyncExternalStore } = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: (...args: [string, unknown?]) => mockRouterPush(...args) }),
+    usePathname: () => '/alerts',
+    useSearchParams: () =>
+      new URLSearchParams(
+        useSyncExternalStore(
+          (onStoreChange: () => void) => {
+            mockNavState.listeners.add(onStoreChange);
+            return () => mockNavState.listeners.delete(onStoreChange);
+          },
+          () => mockNavState.search
+        )
+      ),
+  };
+});
 
 function signedInAs(orgRole: 'org:admin' | 'org:member', orgSlug = 'users') {
   mockUseAuth.mockReturnValue({ isLoaded: true, isSignedIn: true, orgRole, orgSlug });
@@ -131,6 +201,7 @@ beforeEach(() => {
     isLoading: false,
     error: null,
     refetch: mockRefetch,
+    isFetching: false,
   });
 });
 
@@ -372,6 +443,195 @@ describe('AlertList', () => {
       render(<AlertList />);
 
       expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+    });
+
+    // --- B1: a page transition in flight must disable BOTH controls, so a
+    // second click cannot skip a page (keepPreviousData keeps isLoading
+    // false and the previous page's rows visible during the transition —
+    // isFetching is the only signal a transition is in progress at all).
+    it('should disable BOTH Previous and Next while a page transition is in flight (isFetching), even though page/count alone would leave them enabled', () => {
+      mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), page: 2 });
+      mockUseAlertsList.mockReturnValue({
+        // A full page (== PAGE_SIZE) on page 2: neither the page===1 guard
+        // nor the short-page guard would disable anything on their own —
+        // isFetching must be the thing doing the work here.
+        data: Array.from({ length: 10 }, (_, i) => makeAlert({ _id: `alert_${i}` })),
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+        isFetching: true,
+      });
+
+      render(<AlertList />);
+
+      expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+    });
+
+    it('should also disable the refresh control (and spin its icon) while isFetching', () => {
+      mockUseAlertsList.mockReturnValue({
+        data: [makeAlert()],
+        isLoading: false, // isolates the spin to the refresh icon, not the isLoading spinner
+        error: null,
+        refetch: mockRefetch,
+        isFetching: true,
+      });
+
+      const { container } = render(<AlertList />);
+
+      const spinningIcon = container.querySelector('.animate-spin');
+      expect(spinningIcon).toBeInTheDocument();
+      expect(spinningIcon?.closest('button')).toBeDisabled();
+    });
+  });
+
+  // --- D3: mockUseAlertsList must actually be asserted against, and a
+  // filter change must be observable as a changed call argument — both
+  // still using the mocked hooks (this is about AlertList's OWN glue code
+  // that builds `filters`, not about the hooks it calls).
+  describe('query argument wiring (D3)', () => {
+    it('should call useAlertsList with the filter/pagination arguments the current URL state implies', () => {
+      mockUseAlertFilterParams.mockReturnValue({
+        ...defaultFilterParams(),
+        status: 'firing',
+        severity: 'critical',
+        page: 4,
+      });
+
+      render(<AlertList />);
+
+      expect(mockUseAlertsList).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'firing', severity: 'critical', page: 4, limit: 10 })
+      );
+    });
+
+    it('should produce a different useAlertsList argument when only the filter state changes', () => {
+      mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), status: 'open', page: 1 });
+      render(<AlertList />);
+      const firstArgs = mockUseAlertsList.mock.calls.at(-1)?.[0];
+
+      mockUseAlertFilterParams.mockReturnValue({
+        ...defaultFilterParams(),
+        status: 'acknowledged',
+        page: 1,
+      });
+      render(<AlertList />);
+      const secondArgs = mockUseAlertsList.mock.calls.at(-1)?.[0];
+
+      expect(secondArgs).not.toEqual(firstArgs);
+      expect(secondArgs).toMatchObject({ status: 'acknowledged' });
+      // 'open' is the server default, sent absent — not the literal string.
+      expect(firstArgs).not.toHaveProperty('status');
+    });
+
+    it('should omit status/severity from the useAlertsList call when both filters are at their defaults', () => {
+      mockUseAlertFilterParams.mockReturnValue(defaultFilterParams());
+
+      render(<AlertList />);
+
+      const args = mockUseAlertsList.mock.calls.at(-1)?.[0];
+      expect(args).not.toHaveProperty('status');
+      expect(args).not.toHaveProperty('severity');
+      expect(args).toMatchObject({ page: 1, limit: 10 });
+    });
+  });
+
+  // --- D3: the URL -> useAlertFilterParams -> filters -> useAlertsList ->
+  // v2Api.alerts.list chain, exercised with the real hooks (only the
+  // network boundary mocked) so a break anywhere in that chain — not just
+  // in AlertList's own glue code — would show up here.
+  describe('URL -> query integration (D3)', () => {
+    function renderWithRealHooks() {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return render(
+        <QueryClientProvider client={queryClient}>
+          <AlertList />
+        </QueryClientProvider>
+      );
+    }
+
+    beforeEach(() => {
+      mockNavState.search = '';
+      mockNavState.listeners.clear();
+      mockRouterPush.mockClear();
+      mockV2ApiAlertsList.mockReset();
+      mockV2ApiAlertsList.mockResolvedValue({
+        success: true,
+        data: [],
+        pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      });
+      mockUseAlertFilterParams.mockImplementation(
+        (...args: Parameters<typeof actualUseAlertFilterParams>) =>
+          actualUseAlertFilterParams(...args)
+      );
+      mockUseAlertsList.mockImplementation(
+        (...args: Parameters<typeof actualAlertHooks.useAlertsList>) =>
+          actualAlertHooks.useAlertsList(...args)
+      );
+    });
+
+    it('should request the default open/all/page-1 filters (status and severity both omitted) when the URL is bare', async () => {
+      renderWithRealHooks();
+
+      await waitFor(() => expect(mockV2ApiAlertsList).toHaveBeenCalled());
+
+      const args = mockV2ApiAlertsList.mock.calls[0][0];
+      expect(args).toMatchObject({ page: 1, limit: 10 });
+      expect(args).not.toHaveProperty('status');
+      expect(args).not.toHaveProperty('severity');
+    });
+
+    it('should request the status/severity the URL specifies', async () => {
+      mockNavState.search = 'status=firing&severity=critical';
+
+      renderWithRealHooks();
+
+      await waitFor(() => expect(mockV2ApiAlertsList).toHaveBeenCalled());
+
+      expect(mockV2ApiAlertsList).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'firing', severity: 'critical', page: 1, limit: 10 })
+      );
+    });
+
+    it('should request the page the URL specifies', async () => {
+      mockNavState.search = 'page=3';
+
+      renderWithRealHooks();
+
+      await waitFor(() => expect(mockV2ApiAlertsList).toHaveBeenCalled());
+
+      expect(mockV2ApiAlertsList).toHaveBeenCalledWith(expect.objectContaining({ page: 3 }));
+    });
+
+    it('should advance the query argument to page 2 (not skip to 3) after a single click on Next', async () => {
+      // A full page (== PAGE_SIZE) so Next starts enabled.
+      mockV2ApiAlertsList.mockResolvedValue({
+        success: true,
+        data: Array.from({ length: 10 }, (_, i) => makeAlert({ _id: `alert_${i}` })),
+        pagination: { page: 1, limit: 10, total: 25, totalPages: 3 },
+      });
+
+      renderWithRealHooks();
+
+      // Wait for the fetch to actually SETTLE (not just be called) — data
+      // must be in state and isFetching back to false, or the Next button is
+      // still disabled (no rows yet means alerts.length < PAGE_SIZE) and the
+      // click below would be a no-op that this test could pass vacuously.
+      await waitFor(() => expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled());
+      expect(mockV2ApiAlertsList).toHaveBeenCalledTimes(1);
+      expect(mockV2ApiAlertsList.mock.calls[0][0]).toMatchObject({ page: 1 });
+
+      fireEvent.click(screen.getByRole('button', { name: /next/i }));
+
+      // Reaches the real hook's setPage -> router.push with an ADVANCED (not
+      // skipped) page — a real click on a real page-1 view pushes to page 2.
+      expect(mockRouterPush).toHaveBeenCalledWith('/alerts?page=2', { scroll: false });
+
+      // ...and that URL change flows all the way through to a second,
+      // real network call carrying the advanced page — the full loop D3
+      // asks for, not just the outgoing push.
+      await waitFor(() => expect(mockV2ApiAlertsList).toHaveBeenCalledTimes(2));
+      expect(mockV2ApiAlertsList.mock.calls[1][0]).toMatchObject({ page: 2 });
     });
   });
 });
