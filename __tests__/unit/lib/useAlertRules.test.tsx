@@ -74,15 +74,16 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('useAlertRulesList', () => {
-  it('should return the rules array', async () => {
+  it('should return items and the server total', async () => {
     (v2Api.alertRules.list as jest.Mock).mockResolvedValue({
       data: [{ _id: 'r1', name: 'High temp' }],
+      pagination: { total: 1 },
     });
 
     const { result } = renderHook(() => useAlertRulesList({ enabled: true }), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([{ _id: 'r1', name: 'High temp' }]);
+    expect(result.current.data).toEqual({ items: [{ _id: 'r1', name: 'High temp' }], total: 1 });
     expect(v2Api.alertRules.list).toHaveBeenCalledWith({ enabled: true });
   });
 
@@ -178,6 +179,7 @@ function seedRuleServer(initial: FakeRule[]) {
 
   (v2Api.alertRules.list as jest.Mock).mockImplementation(async () => ({
     data: server.rules,
+    pagination: { total: server.rules.length },
   }));
   (v2Api.alertRules.getById as jest.Mock).mockImplementation(async (id: string) => {
     const rule = server.rules.find(candidate => candidate._id === id);
@@ -253,7 +255,7 @@ describe('mutations refresh the mounted rule surfaces', () => {
     });
 
     expect(listCalls()).toBe(before);
-    expect(result.current.list.data).toEqual([RULE_ONE]);
+    expect(result.current.list.data?.items).toEqual([RULE_ONE]);
   });
 
   it('should refetch the rules list after creating, showing the new rule', async () => {
@@ -266,7 +268,7 @@ describe('mutations refresh the mounted rule surfaces', () => {
 
     const result = await mountSettled();
     const before = listCalls();
-    expect(result.current.list.data).toEqual([RULE_ONE]);
+    expect(result.current.list.data?.items).toEqual([RULE_ONE]);
 
     await act(async () => {
       result.current.create.mutate({
@@ -280,7 +282,7 @@ describe('mutations refresh the mounted rule surfaces', () => {
     await waitFor(() => expect(result.current.create.isSuccess).toBe(true));
 
     await waitFor(() =>
-      expect(result.current.list.data).toEqual([
+      expect(result.current.list.data?.items).toEqual([
         RULE_ONE,
         { _id: 'r2', name: 'Low battery', enabled: true },
       ])
@@ -301,7 +303,7 @@ describe('mutations refresh the mounted rule surfaces', () => {
 
     const result = await mountSettled();
     const before = listCalls();
-    expect(result.current.list.data).toEqual([RULE_ONE]);
+    expect(result.current.list.data?.items).toEqual([RULE_ONE]);
 
     await act(async () => {
       result.current.update.mutate({ id: 'r1', data: { name: 'Very high temp' } });
@@ -309,7 +311,7 @@ describe('mutations refresh the mounted rule surfaces', () => {
     await waitFor(() => expect(result.current.update.isSuccess).toBe(true));
 
     await waitFor(() =>
-      expect(result.current.list.data).toEqual([
+      expect(result.current.list.data?.items).toEqual([
         { _id: 'r1', name: 'Very high temp', enabled: true },
       ])
     );
@@ -355,14 +357,14 @@ describe('mutations refresh the mounted rule surfaces', () => {
 
     const result = await mountSettled();
     const before = listCalls();
-    expect(result.current.list.data).toHaveLength(2);
+    expect(result.current.list.data?.items).toHaveLength(2);
 
     await act(async () => {
       result.current.remove.mutate('r2');
     });
     await waitFor(() => expect(result.current.remove.isSuccess).toBe(true));
 
-    await waitFor(() => expect(result.current.list.data).toEqual([RULE_ONE]));
+    await waitFor(() => expect(result.current.list.data?.items).toEqual([RULE_ONE]));
     expect(listCalls()).toBeGreaterThan(before);
   });
 
@@ -495,7 +497,7 @@ describe('updating a rule refreshes the mounted alert surfaces', () => {
     });
 
     expect(alertListCalls()).toBe(before);
-    expect(result.current.alerts.data).toHaveLength(2);
+    expect(result.current.alerts.data?.items).toHaveLength(2);
   });
 
   it('should refetch the alerts list after a rule update, dropping the episodes it closed', async () => {
@@ -505,7 +507,7 @@ describe('updating a rule refreshes the mounted alert surfaces', () => {
 
     const result = await mountSettled();
     const before = alertListCalls();
-    expect(result.current.alerts.data).toHaveLength(2);
+    expect(result.current.alerts.data?.items).toHaveLength(2);
 
     await act(async () => {
       result.current.update.mutate({
@@ -520,7 +522,7 @@ describe('updating a rule refreshes the mounted alert surfaces', () => {
     });
     await waitFor(() => expect(result.current.update.isSuccess).toBe(true));
 
-    await waitFor(() => expect(result.current.alerts.data).toEqual([]));
+    await waitFor(() => expect(result.current.alerts.data?.items).toEqual([]));
     expect(alertListCalls()).toBeGreaterThan(before);
   });
 });

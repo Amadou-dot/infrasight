@@ -12,3 +12,9 @@ export type MutationConfig<TData, TVariables, TError = Error> = Omit<
   UseMutationOptions<TData, TError, TVariables>,
   'mutationFn'
 >;
+
+/** List page plus the server's authoritative total for that filter. */
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+}

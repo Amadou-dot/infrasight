@@ -81,7 +81,7 @@ describe('ActiveAlertsWidget', () => {
   });
 
   it('should request the 5 highest-severity open alerts', () => {
-    mockUseAlertsList.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseAlertsList.mockReturnValue({ data: { items: [], total: 0 }, isLoading: false, error: null });
 
     render(<ActiveAlertsWidget />);
 
@@ -93,7 +93,7 @@ describe('ActiveAlertsWidget', () => {
   });
 
   it('should show an all-clear state when nothing is open', () => {
-    mockUseAlertsList.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseAlertsList.mockReturnValue({ data: { items: [], total: 0 }, isLoading: false, error: null });
 
     render(<ActiveAlertsWidget />);
 
@@ -104,7 +104,7 @@ describe('ActiveAlertsWidget', () => {
 
   it('should render alert rows with status, severity, device id, and time since fired', () => {
     mockUseAlertsList.mockReturnValue({
-      data: [makeAlert()],
+      data: { items: [makeAlert()], total: 1 },
       isLoading: false,
       error: null,
     });
@@ -121,10 +121,13 @@ describe('ActiveAlertsWidget', () => {
 
   it('should preserve server-provided order (critical first) rather than re-sorting client-side', () => {
     mockUseAlertsList.mockReturnValue({
-      data: [
-        makeAlert({ _id: 'a1', rule_name: 'Critical rule', severity: 'critical' }),
-        makeAlert({ _id: 'a2', rule_name: 'Info rule', severity: 'info' }),
-      ],
+      data: {
+        items: [
+          makeAlert({ _id: 'a1', rule_name: 'Critical rule', severity: 'critical' }),
+          makeAlert({ _id: 'a2', rule_name: 'Info rule', severity: 'info' }),
+        ],
+        total: 2,
+      },
       isLoading: false,
       error: null,
     });
@@ -141,7 +144,7 @@ describe('ActiveAlertsWidget', () => {
 
   it('should link each row to its alert page', () => {
     mockUseAlertsList.mockReturnValue({
-      data: [makeAlert()],
+      data: { items: [makeAlert()], total: 1 },
       isLoading: false,
       error: null,
     });
@@ -152,7 +155,7 @@ describe('ActiveAlertsWidget', () => {
   });
 
   it('should link "View all alerts" to /alerts', () => {
-    mockUseAlertsList.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseAlertsList.mockReturnValue({ data: { items: [], total: 0 }, isLoading: false, error: null });
 
     render(<ActiveAlertsWidget />);
 

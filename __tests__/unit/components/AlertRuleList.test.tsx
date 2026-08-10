@@ -99,7 +99,7 @@ beforeEach(() => {
   // and delete controls are visible+enabled unless a test says otherwise.
   signedInAs('org:admin');
   mockUseAlertRulesList.mockReturnValue({
-    data: [makeRule()],
+    data: { items: [makeRule()], total: 1 },
     isLoading: false,
     error: null,
     refetch: mockRefetch,
@@ -150,7 +150,7 @@ describe('AlertRuleList', () => {
 
     it('should show "No alert rules." when the list is empty', () => {
       mockUseAlertRulesList.mockReturnValue({
-        data: [],
+        data: { items: [], total: 0 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -173,7 +173,10 @@ describe('AlertRuleList', () => {
     // row rendered, taking down the whole page.
     it('should render a rule whose selector is entirely absent, without crashing', () => {
       mockUseAlertRulesList.mockReturnValue({
-        data: [makeRule({ name: 'Low battery', metric: 'battery_level', selector: undefined })],
+        data: {
+          items: [makeRule({ name: 'Low battery', metric: 'battery_level', selector: undefined })],
+          total: 1,
+        },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -295,9 +298,10 @@ describe('AlertRuleList', () => {
       return Array.from({ length: 10 }, (_, i) => makeRule({ _id: `rule_${i}` }));
     }
 
-    it('should disable BOTH Previous and Next while a page transition is in flight (isFetching), even though page/count alone would leave them enabled', () => {
+    it('should disable BOTH Previous and Next while a page transition is in flight (isFetching), even though page/total alone would leave them enabled', () => {
       mockUseAlertRulesList.mockReturnValue({
-        data: tenRules(),
+        // A full page well short of the total, so Next starts enabled.
+        data: { items: tenRules(), total: 25 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -313,10 +317,10 @@ describe('AlertRuleList', () => {
       expect(screen.getByText(/page 2/i)).toBeInTheDocument();
 
       // Simulate the in-flight refetch a real page-2 request triggers —
-      // still a full page, so neither the page===1 guard nor the
-      // short-page guard would disable anything on their own.
+      // still a full page well short of the total, so neither the page===1
+      // guard nor the total guard would disable anything on their own.
       mockUseAlertRulesList.mockReturnValue({
-        data: tenRules(),
+        data: { items: tenRules(), total: 25 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -330,7 +334,7 @@ describe('AlertRuleList', () => {
 
     it('should also disable the refresh control (and spin its icon) while isFetching', () => {
       mockUseAlertRulesList.mockReturnValue({
-        data: [makeRule()],
+        data: { items: [makeRule()], total: 1 },
         isLoading: false, // isolates the spin to the refresh icon, not the isLoading spinner
         error: null,
         refetch: mockRefetch,
@@ -342,6 +346,41 @@ describe('AlertRuleList', () => {
       const spinningIcon = container.querySelector('.animate-spin');
       expect(spinningIcon).toBeInTheDocument();
       expect(spinningIcon?.closest('button')).toBeDisabled();
+    });
+  });
+
+  // The regression this task fixes: a full/short page is not proof of
+  // whether a next page exists — only the server total is.
+  describe('pagination driven by the server total', () => {
+    it('should disable Next when the server total says this is the last page, even though the page is full', () => {
+      mockUseAlertRulesList.mockReturnValue({
+        data: {
+          items: Array.from({ length: 10 }, (_, i) => makeRule({ _id: `rule_${i}` })),
+          total: 10, // exact multiple of PAGE_SIZE: page 1 of 1
+        },
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+        isFetching: false,
+      });
+
+      render(<AlertRuleList />);
+
+      expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+    });
+
+    it('should enable Next when the server total says more pages remain, even though the page itself is short', () => {
+      mockUseAlertRulesList.mockReturnValue({
+        data: { items: [makeRule()], total: 15 },
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+        isFetching: false,
+      });
+
+      render(<AlertRuleList />);
+
+      expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled();
     });
   });
 });

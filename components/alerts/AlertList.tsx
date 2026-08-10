@@ -114,7 +114,9 @@ export function AlertList({
     limit: PAGE_SIZE,
   };
 
-  const { data: alerts, isLoading, error, refetch, isFetching } = useAlertsList(filters);
+  const { data, isLoading, error, refetch, isFetching } = useAlertsList(filters);
+  const alerts = data?.items;
+  const total = data?.total ?? 0;
   const acknowledge = useAcknowledgeAlert();
   const resolve = useResolveAlert();
 
@@ -246,11 +248,13 @@ export function AlertList({
             <ChevronLeft className="h-4 w-4" />
             Previous
           </Button>
-          <span className="text-sm text-muted-foreground">Page {page}</span>
+          <span className="text-sm text-muted-foreground">
+            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          </span>
           <Button
             variant="outline"
             size="sm"
-            disabled={(alerts?.length ?? 0) < PAGE_SIZE || isFetching}
+            disabled={page * PAGE_SIZE >= total || isFetching}
             onClick={() => setPage(page + 1)}
           >
             Next

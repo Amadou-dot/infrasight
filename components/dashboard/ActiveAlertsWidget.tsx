@@ -22,11 +22,12 @@ const WIDGET_ALERT_LIMIT = 5;
  * hold here.
  */
 export function ActiveAlertsWidget() {
-  const { data: alerts, isLoading, error } = useAlertsList({
+  const { data, isLoading, error } = useAlertsList({
     limit: WIDGET_ALERT_LIMIT,
     sortBy: 'severity',
     sortDirection: 'desc',
   });
+  const alerts = data?.items;
 
   const isEmpty = !isLoading && !error && (alerts?.length ?? 0) === 0;
   const hasRows = !isLoading && !error && (alerts?.length ?? 0) > 0;

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { v2Api } from '@/lib/api/v2-client';
 import { useRealtimeConnection } from '@/lib/pusher-context';
 import { queryKeys } from '../queryClient';
-import type { QueryConfig, MutationConfig } from '../types';
+import type { QueryConfig, MutationConfig, PagedResult } from '../types';
 import type { AlertV2Response, ListAlertsQueryParams } from '@/types/v2';
 
 // ============================================================================
@@ -52,7 +52,7 @@ function useRealtimeFallbackInterval(): number | false {
  */
 export function useAlertsList(
   filters: ListAlertsQueryParams = {},
-  config?: QueryConfig<AlertV2Response[]>
+  config?: QueryConfig<PagedResult<AlertV2Response>>
 ) {
   const refetchInterval = useRealtimeFallbackInterval();
 
@@ -60,7 +60,7 @@ export function useAlertsList(
     queryKey: queryKeys.alerts.list(filters as Record<string, unknown>),
     queryFn: async () => {
       const response = await v2Api.alerts.list(filters);
-      return response.data;
+      return { items: response.data, total: response.pagination.total };
     },
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
