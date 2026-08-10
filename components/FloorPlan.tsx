@@ -1,7 +1,8 @@
 'use client';
 
 import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
-import { v2Api } from '@/lib/api/v2-client';
+import { useDevicesList } from '@/lib/query/hooks';
+import { getDeviceStatusLevel, groupDevicesByFloor } from '@/lib/utils/floor-plan';
 import type { DeviceV2Response } from '@/types/v2';
 import {
   Activity,
@@ -35,9 +36,8 @@ export default function FloorPlan({
   onDeviceClick,
   onDeviceDetailClick,
 }: FloorPlanProps) {
-  const [devices, setDevices] = useState<DeviceV2Response[]>([]);
+  const { data: devices = [] } = useDevicesList();
   const [readings, setReadings] = useState<Record<string, Reading>>({});
-  const [, setLoading] = useState(true);
   const alertedDevices = useRef<Set<string>>(new Set());
 
   // UI State
@@ -53,21 +53,13 @@ export default function FloorPlan({
     setCollapsedFloors(newCollapsed);
   };
 
-  useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        setLoading(true);
-        // Fetch all devices (up to 100 per page)
-        const response = await v2Api.devices.list({ limit: 100 });
-        if (response.success) setDevices(response.data);
-      } catch (error) {
-        console.error('Error fetching devices:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDevices();
-  }, []);
+  const getFormattedValue = (device: DeviceV2Response, value: number) => {
+    if (device.type === 'temperature') return `${value}°F`;
+    if (device.type === 'humidity') return `${value}%`;
+    if (device.type === 'power') return `${value} kW`;
+    if (device.type === 'occupancy') return `${value}`;
+    return `${value}`;
+  };
 
   useEffect(() => {
     // Initial fetch - use v2 readings API
@@ -175,27 +167,17 @@ export default function FloorPlan({
     }
   };
 
-  const getFormattedValue = (device: DeviceV2Response, value: number) => {
-    if (device.type === 'temperature') return `${value}°F`;
-    if (device.type === 'humidity') return `${value}%`;
-    if (device.type === 'power') return `${value} kW`;
-    if (device.type === 'occupancy') return `${value}`;
-    return `${value}`;
-  };
-
   const getStatusInfo = (device: DeviceV2Response, value: number | undefined) => {
-    if (value === undefined)
+    const level = getDeviceStatusLevel(device, value);
+
+    if (level === 'offline')
       return {
         color: 'bg-gray-100 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700',
         icon: null,
         text: 'Offline',
       };
 
-    // Default thresholds if not temp (simplified logic)
-    const isCritical = value > (device.configuration?.threshold_critical || 9999);
-    const isWarning = value > (device.configuration?.threshold_warning || 9999);
-
-    if (isCritical)
+    if (level === 'critical')
       return {
         color:
           'bg-red-50 border-red-200 ring-1 ring-red-200 dark:bg-red-950 dark:border-red-900 dark:ring-red-900',
@@ -204,7 +186,7 @@ export default function FloorPlan({
         textColor: 'text-red-700 dark:text-red-200',
       };
 
-    if (isWarning)
+    if (level === 'warning')
       return {
         color:
           'bg-yellow-50 border-yellow-200 ring-1 ring-yellow-200 dark:bg-yellow-950 dark:border-yellow-900 dark:ring-yellow-900',
@@ -237,15 +219,7 @@ export default function FloorPlan({
         ? filtered
         : filtered.filter(d => d.location?.floor === selectedFloor);
 
-    const grouped: Record<number, DeviceV2Response[]> = {};
-    filtered.forEach(d => {
-      const floor = d.location?.floor;
-      if (floor) {
-        if (!grouped[floor]) grouped[floor] = [];
-        grouped[floor].push(d);
-      }
-    });
-    return grouped;
+    return groupDevicesByFloor(filtered);
   }, [devices, selectedFloor, selectedBuilding]);
 
   const sortedFloors = useMemo(
@@ -253,14 +227,15 @@ export default function FloorPlan({
     [groupedDevices]
   );
 
-  // Initialize collapsed floors (all except first)
-  useEffect(() => {
-    if (!initializedCollapse && sortedFloors.length > 0) {
-      const floorsToCollapse = sortedFloors.slice(1); // All floors except first
-      setCollapsedFloors(new Set(floorsToCollapse));
-      setInitializedCollapse(true);
-    }
-  }, [sortedFloors, initializedCollapse]);
+  // Initialize collapsed floors (all except first), once, as soon as floor data is
+  // available. Adjusted during render rather than in an effect (see
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // — pre-existing behavior, unrelated to this fix, just relocated out of a
+  // synchronous-setState-in-effect pattern the react-compiler lint pass now flags.
+  if (!initializedCollapse && sortedFloors.length > 0) {
+    setInitializedCollapse(true);
+    setCollapsedFloors(new Set(sortedFloors.slice(1))); // All floors except first
+  }
 
   return (
     <div className="w-full bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm min-h-125 h-[calc(100vh-16rem)] flex flex-col">
