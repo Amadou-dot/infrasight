@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import dbConnect from '@/lib/db';
 import { pusherServer } from '@/lib/pusher';
+import { READINGS_CHANNEL } from '@/lib/pusher-channels';
+import { chunkReadingsForBroadcast } from '@/lib/pusher-readings';
 import DeviceV2, { type IDeviceV2 } from '@/models/v2/DeviceV2';
 import ReadingV2 from '@/models/v2/ReadingV2';
 import { type NextRequest, NextResponse } from 'next/server';
@@ -100,19 +102,20 @@ export async function GET(request: NextRequest) {
 
     // 3. Trigger Real-time Update (The "Hot" Path). Broadcast only what was
     //    actually written — a rejected reading must never appear on a client
-    //    tile as though it were stored. toObject() strips the Mongoose
-    //    document wrapper; versionKey: false keeps `__v` out of a payload
-    //    that is already sized against Pusher's 10 KB cap.
+    //    tile as though it were stored. Readings are trimmed to the wire shape
+    //    and packed into byte-bounded chunks (one `new-readings` event each):
+    //    Pusher 413s any event over 10 KB, and at fleet scale a single
+    //    full-document payload is ~10x that cap (#120).
+    const chunks = chunkReadingsForBroadcast(insertedReadings);
     try {
-      await pusherServer.trigger(
-        'InfraSight',
-        'new-readings',
-        insertedReadings.map(r => r.toObject({ versionKey: false }))
-      );
+      for (const chunk of chunks)
+        await pusherServer.trigger(READINGS_CHANNEL, 'new-readings', chunk);
+
     } catch (pusherError) {
       logger.error('Pusher trigger failed after successful DB write', {
         error: pusherError instanceof Error ? pusherError.message : String(pusherError),
         readingsCount: insertedReadings.length,
+        chunkCount: chunks.length,
       });
     }
 
