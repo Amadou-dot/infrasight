@@ -36,13 +36,19 @@ export const scheduleStatusSchema = z.enum(['scheduled', 'completed', 'cancelled
 export const scheduleAuditSchema = z.object({
   created_at: z.date().default(() => new Date()),
   created_by: userIdentifierSchema,
-  updated_at: z.date().default(() => new Date()),
+  // No default of its own: two independent `new Date()` reads can land in different
+  // milliseconds, and consumers treat updated_at !== created_at as a real edit. The
+  // transform below pins an omitted updated_at to created_at — one clock read total.
+  updated_at: z.date().optional(),
   updated_by: userIdentifierSchema,
   completed_at: z.date().optional(),
   completed_by: userIdentifierSchema.optional(),
   cancelled_at: z.date().optional(),
   cancelled_by: userIdentifierSchema.optional(),
-});
+}).transform(audit => ({
+  ...audit,
+  updated_at: audit.updated_at ?? audit.created_at,
+}));
 
 // ============================================================================
 // SCHEDULE CREATION SCHEMA (POST)

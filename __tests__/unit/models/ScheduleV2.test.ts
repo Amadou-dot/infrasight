@@ -17,6 +17,7 @@ import {
   VALID_SERVICE_TYPES,
   VALID_SCHEDULE_STATUSES,
 } from '../../setup/factories';
+import { withDivergentClock } from '../../setup/divergent-clock';
 
 describe('ScheduleV2 Model', () => {
   beforeEach(() => {
@@ -460,6 +461,39 @@ describe('ScheduleV2 Model', () => {
       expect(schedule.audit.updated_at).toBeInstanceOf(Date);
       expect(schedule.audit.created_at.getTime()).toBeGreaterThanOrEqual(before.getTime());
       expect(schedule.audit.created_at.getTime()).toBeLessThanOrEqual(after.getTime());
+    });
+
+    it('should collapse defaulted created_at and updated_at onto a single instant', async () => {
+      const schedule = await withDivergentClock(() =>
+        ScheduleV2.create({
+          device_id: 'device_divergent_clock',
+          service_type: 'calibration',
+          scheduled_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          audit: {
+            created_by: 'test@example.com',
+            updated_by: 'test@example.com',
+          },
+        })
+      );
+
+      // Exact equality matters: consumers treat any difference between these two
+      // as a real edit, so a millisecond of drift would invent an "updated" entry
+      // for a schedule nobody has touched (same failure as DeviceV2's, see #118).
+      expect(schedule.audit.updated_at.getTime()).toBe(schedule.audit.created_at.getTime());
+    });
+
+    it('should preserve an explicitly supplied updated_at', async () => {
+      const created_at = new Date('2020-01-01T00:00:00.000Z');
+      const updated_at = new Date('2021-06-06T00:00:00.000Z');
+
+      const schedule = await ScheduleV2.create({
+        device_id: 'device_explicit_audit',
+        service_type: 'calibration',
+        scheduled_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        audit: { created_at, created_by: 'seed', updated_at, updated_by: 'seed' },
+      });
+
+      expect(schedule.audit.updated_at.getTime()).toBe(updated_at.getTime());
     });
   });
 

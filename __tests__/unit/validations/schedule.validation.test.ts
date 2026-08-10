@@ -13,6 +13,7 @@ import {
   getScheduleQuerySchema,
   scheduleIdParamSchema,
 } from '@/lib/validations/v2/schedule.validation';
+import { withDivergentClock } from '../../setup/divergent-clock';
 
 describe('Schedule Validation Schemas', () => {
   // ==========================================================================
@@ -443,6 +444,35 @@ describe('Schedule Validation Schemas', () => {
         updated_by: 'admin@example.com',
       });
       expect(result.success).toBe(false);
+    });
+
+    it('should collapse defaulted created_at and updated_at onto a single instant', async () => {
+      const { scheduleAuditSchema } = require('@/lib/validations/v2/schedule.validation');
+      const audit = await withDivergentClock(() =>
+        scheduleAuditSchema.parse({
+          created_by: 'admin@example.com',
+          updated_by: 'admin@example.com',
+        })
+      );
+
+      // Exact equality matters: consumers treat any difference between these two
+      // as a real edit, so drift between the two defaults would fabricate an
+      // "updated" audit entry for a schedule nobody has touched (#118).
+      expect(audit.updated_at.getTime()).toBe(audit.created_at.getTime());
+    });
+
+    it('should preserve an explicitly supplied updated_at', () => {
+      const { scheduleAuditSchema } = require('@/lib/validations/v2/schedule.validation');
+      const created_at = new Date('2020-01-01T00:00:00.000Z');
+      const updated_at = new Date('2021-06-06T00:00:00.000Z');
+      const audit = scheduleAuditSchema.parse({
+        created_at,
+        created_by: 'seed',
+        updated_at,
+        updated_by: 'seed',
+      });
+
+      expect(audit.updated_at.getTime()).toBe(updated_at.getTime());
     });
   });
 
