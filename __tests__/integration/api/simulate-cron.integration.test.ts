@@ -948,6 +948,52 @@ describe('Simulate Cron API Integration Tests', () => {
       bulkInsertSpy.mockRestore();
     });
 
+    // Pusher 413s any event over 10 KB and the route swallows the failure, so
+    // an oversized broadcast doesn't error — it silently kills the realtime
+    // feed (#120). The route must split a fleet-sized batch across events.
+    it('splits a fleet-sized broadcast into multiple events, each under the Pusher cap', async () => {
+      await DeviceV2.insertMany([
+        createDeviceInput({ _id: 'device_chunk_seed', type: 'temperature' }),
+      ]);
+
+      // Stand in for a 400-device fleet: far more than one 10 KB event holds.
+      const bigBatch = Array.from({ length: 400 }, (_, i) =>
+        createReadingV2Input(`device_chunk_${String(i).padStart(4, '0')}`, {
+          metadata: {
+            device_id: `device_chunk_${String(i).padStart(4, '0')}`,
+            type: 'temperature',
+            unit: 'celsius',
+            source: 'sensor',
+          },
+          value: 20 + i * 0.01,
+        })
+      );
+      const generateSpy = jest
+        .spyOn(simulationModule, 'generateSimulatedReadings')
+        .mockReturnValue(bigBatch);
+      const bulkInsertSpy = jest
+        .spyOn(ReadingV2, 'bulkInsertReadings')
+        .mockResolvedValue(bigBatch as unknown as IReadingV2[]);
+
+      const response = await GET_SIMULATE();
+      expect(response.status).toBe(200);
+
+      const readingCalls = (pusherServer.trigger as jest.Mock).mock.calls.filter(
+        call => call[1] === 'new-readings'
+      );
+      expect(readingCalls.length).toBeGreaterThan(1);
+      for (const call of readingCalls)
+        expect(JSON.stringify(call[2]).length).toBeLessThanOrEqual(10 * 1024);
+
+      // Every persisted reading is broadcast exactly once, in order.
+      expect(
+        readingCalls.flatMap(call => call[2].map((r: { metadata: { device_id: string } }) => r.metadata.device_id))
+      ).toEqual(bigBatch.map(r => r.metadata.device_id));
+
+      generateSpy.mockRestore();
+      bulkInsertSpy.mockRestore();
+    });
+
     it('must not count a reading bulkInsertReadings rejected toward the anomaly total', async () => {
       await DeviceV2.insertMany([
         createDeviceInput({ _id: 'device_anom_keep', type: 'temperature' }),
