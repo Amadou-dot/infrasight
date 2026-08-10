@@ -11,6 +11,7 @@
  */
 
 import { ZodError } from 'zod';
+import { unstable_rethrow } from 'next/navigation';
 import { ApiError, type ApiErrorMetadata } from './ApiError';
 import { ErrorCodes } from './errorCodes';
 
@@ -226,14 +227,20 @@ export function handleError(error: unknown, options: ErrorHandlerOptions = {}): 
     }
     // Connection errors
     else if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ETIMEDOUT')) {
-      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Database connection error',
+      apiError = new ApiError(
+        ErrorCodes.CONNECTION_ERROR,
+        500,
+        'Database connection error',
         process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
       );
       shouldLog = true;
     }
     // Other MongoDB errors
     else {
-      apiError = new ApiError(ErrorCodes.DATABASE_ERROR, 500, 'A database error occurred',
+      apiError = new ApiError(
+        ErrorCodes.DATABASE_ERROR,
+        500,
+        'A database error occurred',
         process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
       );
       shouldLog = true;
@@ -242,15 +249,24 @@ export function handleError(error: unknown, options: ErrorHandlerOptions = {}): 
   else if (error instanceof Error) {
     // Check for common error patterns
     if (error.message?.toLowerCase().includes('timeout'))
-      apiError = new ApiError(ErrorCodes.GATEWAY_TIMEOUT, 504, 'Request timed out',
+      apiError = new ApiError(
+        ErrorCodes.GATEWAY_TIMEOUT,
+        504,
+        'Request timed out',
         process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
       );
     else if (error.message?.toLowerCase().includes('network'))
-      apiError = new ApiError(ErrorCodes.CONNECTION_ERROR, 500, 'Network error occurred',
+      apiError = new ApiError(
+        ErrorCodes.CONNECTION_ERROR,
+        500,
+        'Network error occurred',
         process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
       );
     else
-      apiError = new ApiError(ErrorCodes.INTERNAL_ERROR, 500, 'An unexpected error occurred',
+      apiError = new ApiError(
+        ErrorCodes.INTERNAL_ERROR,
+        500,
+        'An unexpected error occurred',
         process.env.NODE_ENV !== 'production' ? { originalMessage: error.message } : {}
       );
 
@@ -305,6 +321,11 @@ export function withErrorHandler<T extends unknown[]>(
     try {
       return await handler(...args);
     } catch (error) {
+      // Next.js control-flow errors — redirect()/notFound() and, with
+      // cacheComponents, the prerender-abort rejection that runtime APIs like
+      // auth() surface at build time — must propagate to the framework, not be
+      // serialized into a 5xx JSON body.
+      unstable_rethrow(error);
       const { error: apiError } = handleError(error);
       return apiError.toResponse();
     }

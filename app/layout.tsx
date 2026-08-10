@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { ClerkThemeProvider } from '@/components/clerk-theme-provider';
@@ -58,8 +59,17 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <ClerkThemeProvider>
-              {/*
+            {/*
+              cacheComponents: ClerkProvider (inside ClerkThemeProvider) and
+              TopNav read usePathname(), and the [id] pages read useParams().
+              On routes with dynamic params those hooks suspend while the
+              static shell is prerendered, so a Suspense boundary must sit
+              above them or the build fails. Static routes prerender fully and
+              never show this fallback.
+            */}
+            <Suspense fallback={null}>
+              <ClerkThemeProvider>
+                {/*
                 PusherProvider stays an ancestor of {children}: DeviceGrid,
                 FloorPlan and AnomalyChart read live readings through its
                 context, and readings are public (they were before alerting
@@ -74,39 +84,40 @@ export default function RootLayout({
                 the private channel, whose /api/pusher/auth endpoint refuses a
                 signed-out socket outright.
               */}
-              <PusherProvider>
-                <DemoBanner />
-                <TopNav />
-                <SignedIn>
-                  <RealtimeStatusBanner />
-                </SignedIn>
-                <main className="min-h-screen">{children}</main>
-                {/*
+                <PusherProvider>
+                  <DemoBanner />
+                  <TopNav />
+                  <SignedIn>
+                    <RealtimeStatusBanner />
+                  </SignedIn>
+                  <main className="min-h-screen">{children}</main>
+                  {/*
                   autoClose={false} stays as the CONTAINER default so
                   user-initiated toasts raised elsewhere in the app keep the
                   behaviour they were written against. AlertToaster overrides it
                   per toast, and per-toast options win over container props.
                 */}
-                <ToastContainer
-                  position="bottom-center"
-                  autoClose={false}
-                  limit={MAX_VISIBLE_TOASTS}
-                  pauseOnFocusLoss
-                  pauseOnHover
-                  theme="colored"
-                />
-                {/*
+                  <ToastContainer
+                    position="bottom-center"
+                    autoClose={false}
+                    limit={MAX_VISIBLE_TOASTS}
+                    pauseOnFocusLoss
+                    pauseOnHover
+                    theme="colored"
+                  />
+                  {/*
                   Gated: AlertToaster is what turns an alert envelope into a
                   visible popup carrying rule_name, device_id and trigger_value.
                   /sign-in renders inside this layout, so before this gate a
                   signed-out visitor sitting on the login page was shown the
                   fleet's live alert traffic.
                 */}
-                <SignedIn>
-                  <AlertToaster />
-                </SignedIn>
-              </PusherProvider>
-            </ClerkThemeProvider>
+                  <SignedIn>
+                    <AlertToaster />
+                  </SignedIn>
+                </PusherProvider>
+              </ClerkThemeProvider>
+            </Suspense>
           </ThemeProvider>
           {/* Dev tools only in development */}
           {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
