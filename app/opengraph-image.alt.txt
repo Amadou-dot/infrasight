@@ -1,0 +1,1 @@
+Infrasight dashboard — system overview with open alerts, system health, critical issues, and maintenance schedule for a 500-sensor building fleet
