@@ -1,31 +1,8 @@
-'use client';
-
-import { Suspense } from 'react';
+import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { ClerkThemeProvider } from '@/components/clerk-theme-provider';
-import { ThemeProvider } from '@/components/theme-provider';
-import TopNav from '@/components/TopNav';
-import DemoBanner from '@/components/DemoBanner';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { queryClient } from '@/lib/query/queryClient';
-import { PusherProvider } from '@/lib/pusher-context';
-import { AlertToaster } from '@/components/alerts/AlertToaster';
-import { RealtimeStatusBanner } from '@/components/alerts/RealtimeStatusBanner';
-import { SignedIn } from '@clerk/nextjs';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-
-/**
- * Cap on simultaneously visible toasts.
- *
- * Alerts are produced by a background evaluator, not by a click: one ingest can
- * fire up to ALERT_EVENT_MAX (20) at once. Without a limit those stack past the
- * top of the viewport and cover the app. Overflow is queued by react-toastify
- * and shown as earlier toasts expire.
- */
-const MAX_VISIBLE_TOASTS = 4;
+import { Providers } from './providers';
+import { SITE_NAME, SITE_URL, TITLE_TEMPLATE } from '@/lib/seo';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -37,6 +14,48 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+const TITLE = `${SITE_NAME} — Real-time IoT building monitoring`;
+const DESCRIPTION =
+  'Real-time IoT sensor monitoring for building management: 500 sensors streamed ' +
+  'over WebSockets into a dashboard with threshold alerting, anomaly detection, ' +
+  'and predictive maintenance.';
+
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: TITLE,
+    template: TITLE_TEMPLATE,
+  },
+  description: DESCRIPTION,
+  keywords: [
+    'IoT monitoring',
+    'building management',
+    'sensor dashboard',
+    'real-time analytics',
+    'threshold alerting',
+    'anomaly detection',
+    'predictive maintenance',
+  ],
+  authors: [{ name: 'Amadou Seck', url: 'https://github.com/Amadou-dot' }],
+  creator: 'Amadou Seck',
+  // Root-page canonical. Child routes override this (and openGraph) through
+  // routeMetadata() in their own layouts — see lib/seo.ts for why it cannot
+  // be inherited from here.
+  alternates: { canonical: '/' },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: '/',
+    siteName: SITE_NAME,
+    type: 'website',
+  },
+  // Images come from the app/opengraph-image.png and app/twitter-image.png
+  // file conventions, which apply to every route.
+  twitter: {
+    card: 'summary_large_image',
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,84 +63,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <title>InfraSight</title>
-        <meta
-          name="description"
-          content="Real-time sensor data and analytics for infrastructure monitoring."
-        />
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {/*
-              cacheComponents: ClerkProvider (inside ClerkThemeProvider) and
-              TopNav read usePathname(), and the [id] pages read useParams().
-              On routes with dynamic params those hooks suspend while the
-              static shell is prerendered, so a Suspense boundary must sit
-              above them or the build fails. Static routes prerender fully and
-              never show this fallback.
-            */}
-            <Suspense fallback={null}>
-              <ClerkThemeProvider>
-                {/*
-                PusherProvider stays an ancestor of {children}: DeviceGrid,
-                FloorPlan and AnomalyChart read live readings through its
-                context, and readings are public (they were before alerting
-                existed). What is gated below is everything that receives or
-                renders ALERT data.
-
-                Note the provider is not itself wrapped in <SignedIn>: that
-                component renders nothing until Clerk has loaded, so gating the
-                provider would blank the whole app on every cold load and cut
-                the readings context off from the pages inside it. The alert
-                feed is gated twice instead — visibly here, and at the source by
-                the private channel, whose /api/pusher/auth endpoint refuses a
-                signed-out socket outright.
-              */}
-                <PusherProvider>
-                  <DemoBanner />
-                  <TopNav />
-                  <SignedIn>
-                    <RealtimeStatusBanner />
-                  </SignedIn>
-                  <main className="min-h-screen">{children}</main>
-                  {/*
-                  autoClose={false} stays as the CONTAINER default so
-                  user-initiated toasts raised elsewhere in the app keep the
-                  behaviour they were written against. AlertToaster overrides it
-                  per toast, and per-toast options win over container props.
-                */}
-                  <ToastContainer
-                    position="bottom-center"
-                    autoClose={false}
-                    limit={MAX_VISIBLE_TOASTS}
-                    pauseOnFocusLoss
-                    pauseOnHover
-                    theme="colored"
-                  />
-                  {/*
-                  Gated: AlertToaster is what turns an alert envelope into a
-                  visible popup carrying rule_name, device_id and trigger_value.
-                  /sign-in renders inside this layout, so before this gate a
-                  signed-out visitor sitting on the login page was shown the
-                  fleet's live alert traffic.
-                */}
-                  <SignedIn>
-                    <AlertToaster />
-                  </SignedIn>
-                </PusherProvider>
-              </ClerkThemeProvider>
-            </Suspense>
-          </ThemeProvider>
-          {/* Dev tools only in development */}
-          {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
-        </QueryClientProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

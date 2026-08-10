@@ -399,8 +399,12 @@ lib/
   middleware/                      # Request validation, body size, headers
   utils/                           # Correlation analysis, severity calculation
   auth/                            # RBAC utilities (requireAdmin, requireOrgMembership, useRbac)
+  seo.ts                           # SITE_URL, title template, routeMetadata() helper (canonical + og:url per route)
 app/
-  layout.tsx                       # Root layout with ClerkProvider
+  layout.tsx                       # Server-component root layout: fonts + Metadata API defaults, renders <Providers>
+  providers.tsx                    # 'use client' boundary: React Query, theme, Clerk, Pusher, app chrome, toasts
+  robots.ts, sitemap.ts            # Crawl guidance and route inventory (Metadata file conventions)
+  opengraph-image.png              # 1200x630 social preview (+ twitter-image.png and .alt.txt pairs)
   page.tsx                         # Dashboard home page
   not-found.tsx                    # 404 page
   global-error.tsx                 # Global error boundary
