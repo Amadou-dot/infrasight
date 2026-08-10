@@ -1,5 +1,16 @@
 # Codecov Configuration
 # https://docs.codecov.com/docs/codecov-yaml
+#
+# IMPORTANT: validate after editing —
+#   curl -s -X POST --data-binary @codecov.yml https://codecov.io/validate
+# An invalid file is not partially applied: Codecov silently discards ALL of it
+# and falls back to defaults (patch target becomes "auto" = the base commit's
+# project coverage, which is how a 75% target once turned into 87%).
+
+codecov:
+  notify:
+    after_n_builds: 1
+    wait_for_ci: true
 
 coverage:
   # Coverage thresholds (must match Jest config)
@@ -47,8 +58,3 @@ flags:
       - app/
       - models/
     carryforward: true
-
-# Notification settings (optional)
-notify:
-  after_n_builds: 1
-  wait_for_ci: true

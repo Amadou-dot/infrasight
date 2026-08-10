@@ -74,6 +74,8 @@ const config = {
     'models/v2/**/*.ts',
     'lib/**/*.ts',
     'app/api/v2/**/*.ts',
+    'app/robots.ts',
+    'app/sitemap.ts',
     'components/**/*.tsx',
     'app/devices/_components/**/*.tsx',
     '!**/*.d.ts',
