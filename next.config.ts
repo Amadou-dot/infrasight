@@ -2,6 +2,16 @@ import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
+  // Instant Navigations (Next.js 16.3): PPR via Cache Components + partial link prefetching
+  cacheComponents: true,
+  partialPrefetching: true,
+  experimental: {
+    // At build time Next attempts to prerender GET route handlers; every one of
+    // ours hits Clerk auth() and aborts to dynamic. Clerk surfaces that abort as
+    // its own timeout error, which withErrorHandler logs — this hides those
+    // after-abort logs so the build output stays readable.
+    hideLogsAfterAbort: true,
+  },
   images: {
     remotePatterns: [
       {
