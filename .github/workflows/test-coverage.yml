@@ -24,7 +24,11 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          # Must be able to read the repo's pnpm-lock.yaml (lockfileVersion 9,
+          # written by pnpm 11). pnpm 8 "Ignoring not compatible lockfile" and
+          # silently re-resolves every range fresh — CI then tests a different
+          # dependency tree than the one committed.
+          version: 11
           run_install: false
 
       - name: Setup Node.js
@@ -34,7 +38,8 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        # Fail loudly on any lockfile mismatch instead of resolving fresh
+        run: pnpm install --frozen-lockfile
 
       # ts-jest runs transpile-only, so a green test suite proves nothing about
       # types. Everything this repo encodes as a type-level guarantee — the
