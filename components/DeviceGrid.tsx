@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
-import { fetchLatestReadingsBatched } from '@/lib/api/latest-readings';
+import { fetchLatestReadingsBatched, type LatestReading } from '@/lib/api/latest-readings';
 import { useDevicesList } from '@/lib/query/hooks';
 import type { DeviceV2Response } from '@/types/v2';
 import {
@@ -50,13 +50,6 @@ interface DeviceGridProps {
   externalFilter?: { status?: string; hasIssues?: boolean } | null; // V2: External filtering
 }
 
-interface Reading {
-  _id: string; // device_id
-  value: number;
-  timestamp: string;
-  type: string;
-}
-
 export default function DeviceGrid({
   selectedFloor,
   selectedRoom = 'all',
@@ -65,7 +58,7 @@ export default function DeviceGrid({
   externalFilter = null,
 }: DeviceGridProps) {
   const { data: devices = [] } = useDevicesList();
-  const [readings, setReadings] = useState<Record<string, Reading>>({});
+  const [readings, setReadings] = useState<Record<string, LatestReading>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
 
@@ -179,7 +172,7 @@ export default function DeviceGrid({
     }
   };
 
-  const getStatusColor = (status: string, reading?: Reading, device?: DeviceV2Response) => {
+  const getStatusColor = (status: string, reading?: LatestReading, device?: DeviceV2Response) => {
     if (status === 'offline')
       return 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
 
@@ -196,7 +189,7 @@ export default function DeviceGrid({
     return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
   };
 
-  const getStatusLabel = (status: string, reading?: Reading, device?: DeviceV2Response) => {
+  const getStatusLabel = (status: string, reading?: LatestReading, device?: DeviceV2Response) => {
     if (status === 'offline') return 'Offline';
     if (reading && device) {
       const criticalThreshold = device.configuration?.threshold_critical;

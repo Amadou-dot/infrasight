@@ -205,7 +205,7 @@ export const deviceApi = {
     query: {
       startDate?: string;
       endDate?: string;
-      actionType?: string;
+      action?: string;
       limit?: number;
       page?: number;
     } = {}
