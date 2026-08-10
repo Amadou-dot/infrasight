@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
-import { v2Api } from '@/lib/api/v2-client';
+import { fetchLatestReadingsBatched } from '@/lib/api/latest-readings';
+import { useDevicesList } from '@/lib/query/hooks';
 import type { DeviceV2Response } from '@/types/v2';
 import {
   useReactTable,
@@ -63,11 +64,10 @@ export default function DeviceGrid({
   onDeviceClick,
   externalFilter = null,
 }: DeviceGridProps) {
-  const [data, setData] = useState<DeviceV2Response[]>([]);
+  const { data: devices = [] } = useDevicesList();
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [, setLoading] = useState(true);
 
   // Mobile state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -93,62 +93,28 @@ export default function DeviceGrid({
   // Metadata options
   const rooms = useMemo(() => {
     const filtered =
-      selectedFloor === 'all' ? data : data.filter(d => d.location?.floor === selectedFloor);
+      selectedFloor === 'all' ? devices : devices.filter(d => d.location?.floor === selectedFloor);
     return Array.from(new Set(filtered.map(d => d.location?.room_name).filter(Boolean))).sort();
-  }, [data, selectedFloor]);
+  }, [devices, selectedFloor]);
 
   const types = useMemo(() => {
     const filtered =
-      selectedFloor === 'all' ? data : data.filter(d => d.location?.floor === selectedFloor);
+      selectedFloor === 'all' ? devices : devices.filter(d => d.location?.floor === selectedFloor);
     return Array.from(new Set(filtered.map(d => d.type).filter(Boolean))).sort();
-  }, [data, selectedFloor]);
+  }, [devices, selectedFloor]);
 
   useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        setLoading(true);
-        const response = await v2Api.devices.list();
-        if (response.success) setData(response.data);
-      } catch (error) {
-        console.error('Error fetching devices:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDevices();
-  }, []);
-
-  useEffect(() => {
-    // Initial fetch using v2 API
+    // Initial fetch using the shared batched-readings helper
     const fetchReadings = async () => {
       try {
-        const deviceIds = data.map(d => d._id).join(',');
-        const response = await v2Api.readings.latest({ device_ids: deviceIds });
-        if (response.success && response.data?.readings) {
-          const readingMap = response.data.readings.reduce(
-            (
-              acc: Record<string, Reading>,
-              curr: { device_id: string; value: number; timestamp: string; type: string }
-            ) => {
-              acc[curr.device_id] = {
-                _id: curr.device_id,
-                value: curr.value,
-                timestamp: curr.timestamp,
-                type: curr.type,
-              };
-              return acc;
-            },
-            {} as Record<string, Reading>
-          );
-          setReadings(readingMap);
-        }
+        setReadings(await fetchLatestReadingsBatched(devices.map(d => d._id)));
       } catch (error) {
         console.error('Error fetching latest readings:', error);
       }
     };
 
-    if (data.length > 0) fetchReadings();
-  }, [data]);
+    if (devices.length > 0) fetchReadings();
+  }, [devices]);
 
   // Real-time updates via centralized Pusher context
   usePusherReadings(
@@ -170,7 +136,7 @@ export default function DeviceGrid({
   );
 
   const filteredData = useMemo(() => {
-    return data.filter(device => {
+    return devices.filter(device => {
       // Floor filter
       if (selectedFloor !== 'all' && device.location?.floor !== selectedFloor) return false;
 
@@ -188,7 +154,7 @@ export default function DeviceGrid({
 
       return true;
     });
-  }, [data, selectedFloor, filterRoom, filterType, filterStatus, externalFilter]);
+  }, [devices, selectedFloor, filterRoom, filterType, filterStatus, externalFilter]);
 
   const toggleCard = (id: string) => {
     const newExpanded = new Set(expandedCards);
@@ -329,6 +295,7 @@ export default function DeviceGrid({
     [readings]
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table's useReactTable() returns non-memoizable functions by design; `table` is consumed directly in JSX below, never passed to a memoized descendant, so the compiler's stale-UI caveat doesn't apply here.
   const table = useReactTable({
     data: filteredData,
     columns,

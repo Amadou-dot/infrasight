@@ -1,5 +1,6 @@
 'use client';
 
+import { fetchLatestReadingsBatched, type LatestReading } from '@/lib/api/latest-readings';
 import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
 import { useDevicesList } from '@/lib/query/hooks';
 import { getDeviceStatusLevel, groupDevicesByFloor } from '@/lib/utils/floor-plan';
@@ -16,13 +17,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-interface Reading {
-  _id: string; // device_id
-  value: number;
-  timestamp: string;
-  type: string;
-}
-
 interface FloorPlanProps {
   selectedFloor: number | 'all';
   selectedBuilding?: string | 'all';
@@ -37,7 +31,7 @@ export default function FloorPlan({
   onDeviceDetailClick,
 }: FloorPlanProps) {
   const { data: devices = [] } = useDevicesList();
-  const [readings, setReadings] = useState<Record<string, Reading>>({});
+  const [readings, setReadings] = useState<Record<string, LatestReading>>({});
   const alertedDevices = useRef<Set<string>>(new Set());
 
   // UI State
@@ -62,38 +56,10 @@ export default function FloorPlan({
   };
 
   useEffect(() => {
-    // Initial fetch - use v2 readings API
+    // Initial fetch - use the shared batched-readings helper
     const fetchReadings = async () => {
       try {
-        // Get device IDs for the v2 readings API
-        const deviceIds = devices.map(d => d._id);
-
-        // Fetch in batches of 50 to avoid URL length limits
-        const batchSize = 50;
-        const allReadings: Record<string, Reading> = {};
-
-        for (let i = 0; i < deviceIds.length; i += batchSize) {
-          const batch = deviceIds.slice(i, i + batchSize);
-          const params = new URLSearchParams();
-          batch.forEach(id => params.append('device_ids', id));
-
-          const res = await fetch(`/api/v2/readings/latest?${params.toString()}`);
-          const data = await res.json();
-
-          if (data.success && data.data?.readings)
-            data.data.readings.forEach(
-              (r: { device_id: string; value: number; timestamp: string; type: string }) => {
-                allReadings[r.device_id] = {
-                  _id: r.device_id,
-                  value: r.value,
-                  timestamp: r.timestamp,
-                  type: r.type,
-                };
-              }
-            );
-        }
-
-        setReadings(allReadings);
+        setReadings(await fetchLatestReadingsBatched(devices.map(d => d._id)));
       } catch (error) {
         console.error('Error fetching latest readings:', error);
       }
@@ -223,7 +189,10 @@ export default function FloorPlan({
   }, [devices, selectedFloor, selectedBuilding]);
 
   const sortedFloors = useMemo(
-    () => Object.keys(groupedDevices).map(Number).sort((a, b) => a - b),
+    () =>
+      Object.keys(groupedDevices)
+        .map(Number)
+        .sort((a, b) => a - b),
     [groupedDevices]
   );
 
