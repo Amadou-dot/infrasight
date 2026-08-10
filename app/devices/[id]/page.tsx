@@ -20,6 +20,7 @@ export default function DeviceDetailPage() {
     device,
     recentReadings,
     auditLog,
+    auditTotal,
     loading,
     error,
     notFound: missing,
@@ -68,7 +69,12 @@ export default function DeviceDetailPage() {
 
       {device && !loading && (
         <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-          <DeviceDetailView device={device} recentReadings={recentReadings} auditLog={auditLog} />
+          <DeviceDetailView
+            device={device}
+            recentReadings={recentReadings}
+            auditLog={auditLog}
+            auditTotal={auditTotal}
+          />
         </div>
       )}
     </div>

@@ -14,12 +14,15 @@ interface AuditLogViewerProps {
   deviceId: string;
   entries: AuditLogEntry[];
   loading?: boolean;
+  /** Server-reported total entry count, used to label "All" instead of the loaded page size. */
+  total?: number;
 }
 
 export default function AuditLogViewer({
   deviceId: _deviceId,
   entries,
   loading = false,
+  total,
 }: AuditLogViewerProps) {
   const [filter, setFilter] = useState<'all' | 'created' | 'updated' | 'deleted'>('all');
 
@@ -69,7 +72,7 @@ export default function AuditLogViewer({
               : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
           }`}
         >
-          All ({entries.length})
+          All ({total ?? entries.length})
         </button>
         <button
           onClick={() => setFilter('created')}

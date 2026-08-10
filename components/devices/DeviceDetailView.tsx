@@ -47,6 +47,8 @@ interface DeviceDetailViewProps {
   device: DeviceV2Response;
   recentReadings: ReadingV2Response[];
   auditLog: AuditLogEntry[];
+  /** Server-reported total audit entry count; passed through to AuditLogViewer. */
+  auditTotal?: number | null;
   /** Rendered next to the device id — used for the "open full page" link in the modal. */
   headerAction?: React.ReactNode;
 }
@@ -117,6 +119,7 @@ export default function DeviceDetailView({
   device,
   recentReadings,
   auditLog,
+  auditTotal,
   headerAction,
 }: DeviceDetailViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -503,7 +506,12 @@ export default function DeviceDetailView({
         {activeTab === 'audit' && (
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Audit Trail</h3>
-            <AuditLogViewer deviceId={device._id} entries={auditLog} loading={false} />
+            <AuditLogViewer
+              deviceId={device._id}
+              entries={auditLog}
+              loading={false}
+              total={auditTotal ?? undefined}
+            />
           </div>
         )}
       </div>

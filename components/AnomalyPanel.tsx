@@ -13,6 +13,7 @@ interface AnomalyPanelProps {
 
 export default function AnomalyPanel({ onDeviceClick, maxAlerts = 10 }: AnomalyPanelProps) {
   const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
+  const [totalAnomalies, setTotalAnomalies] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,7 @@ export default function AnomalyPanel({ onDeviceClick, maxAlerts = 10 }: AnomalyP
         });
         // Extract anomalies array from the response object
         setAnomalies(response.data.anomalies || []);
+        setTotalAnomalies(response.data.summary?.total_anomalies ?? 0);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load anomalies');
         console.error('Error fetching anomalies:', err);
@@ -137,7 +139,7 @@ export default function AnomalyPanel({ onDeviceClick, maxAlerts = 10 }: AnomalyP
           </span>
           {anomalies.length > 0 && (
             <Badge variant="destructive" className="ml-2">
-              {anomalies.length}
+              {totalAnomalies}
             </Badge>
           )}
         </CardTitle>
