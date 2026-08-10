@@ -15,10 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 const TITLE = `${SITE_NAME} — Real-time IoT building monitoring`;
+// Kept under 160 characters — Google truncates the snippet around there, and a
+// cut-off description reads worse than a shorter complete one.
 const DESCRIPTION =
-  'Real-time IoT sensor monitoring for building management: 500 sensors streamed ' +
-  'over WebSockets into a dashboard with threshold alerting, anomaly detection, ' +
-  'and predictive maintenance.';
+  'Real-time IoT monitoring for buildings: 500 sensors stream into a live ' +
+  'dashboard with threshold alerts, anomaly detection, and predictive maintenance.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
