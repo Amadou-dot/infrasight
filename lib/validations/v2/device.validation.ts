@@ -118,11 +118,17 @@ export const deviceMetadataSchema = z.object({
 export const deviceAuditSchema = z.object({
   created_at: z.date().default(() => new Date()),
   created_by: userIdentifierSchema.default('sys-migration-agent'),
-  updated_at: z.date().default(() => new Date()),
+  // No default of its own: two independent `new Date()` reads can land in different
+  // milliseconds, and consumers treat updated_at !== created_at as a real edit. The
+  // transform below pins an omitted updated_at to created_at — one clock read total.
+  updated_at: z.date().optional(),
   updated_by: userIdentifierSchema.default('sys-migration-agent'),
   deleted_at: z.date().optional().describe('Soft delete timestamp'),
   deleted_by: userIdentifierSchema.optional().describe('User who deleted the device'),
-}).strict();
+}).strict().transform(audit => ({
+  ...audit,
+  updated_at: audit.updated_at ?? audit.created_at,
+}));
 
 /**
  * Last error schema for health monitoring

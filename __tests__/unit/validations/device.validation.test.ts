@@ -15,7 +15,9 @@ import {
   deviceLocationSchema,
   deviceHealthSchema,
   deviceComplianceSchema,
+  deviceAuditSchema,
 } from '@/lib/validations/v2/device.validation';
+import { withDivergentClock } from '../../setup/divergent-clock';
 
 describe('Device Validation Schemas', () => {
   // ==========================================================================
@@ -665,6 +667,35 @@ describe('Device Validation Schemas', () => {
         const result = deviceIdParamSchema.safeParse({ id });
         expect(result.success).toBe(false);
       }
+    });
+  });
+
+  // ==========================================================================
+  // DEVICE AUDIT SCHEMA TESTS
+  // ==========================================================================
+
+  describe('deviceAuditSchema', () => {
+    it('should collapse defaulted created_at and updated_at onto a single instant', async () => {
+      const audit = await withDivergentClock(() => deviceAuditSchema.parse({}));
+
+      // Exact equality matters: the history and audit endpoints treat any
+      // difference between these two as a real edit, so drift between the two
+      // defaults would fabricate an "updated" entry for a device nobody has
+      // touched (#118).
+      expect(audit.updated_at.getTime()).toBe(audit.created_at.getTime());
+    });
+
+    it('should preserve an explicitly supplied updated_at', () => {
+      const created_at = new Date('2020-01-01T00:00:00.000Z');
+      const updated_at = new Date('2021-06-06T00:00:00.000Z');
+      const audit = deviceAuditSchema.parse({
+        created_at,
+        created_by: 'seed',
+        updated_at,
+        updated_by: 'seed',
+      });
+
+      expect(audit.updated_at.getTime()).toBe(updated_at.getTime());
     });
   });
 });

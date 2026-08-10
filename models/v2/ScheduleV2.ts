@@ -144,7 +144,17 @@ ScheduleV2Schema.index({ 'audit.created_at': 1 });
  * Pre-save middleware to update audit.updated_at
  */
 ScheduleV2Schema.pre('save', function () {
-  if (!this.isNew) this.audit.updated_at = new Date();
+  if (!this.isNew) {
+    this.audit.updated_at = new Date();
+    return;
+  }
+
+  // created_at and updated_at default to two separate `new Date()` calls, so under load
+  // they can land in different milliseconds. Consumers read any difference between the
+  // two as a real edit, which would invent an "updated" entry for a schedule nobody has
+  // touched. A schedule that has never been modified must report a single instant. Only
+  // collapse the defaults — an explicit updated_at is intentional. (Same fix as DeviceV2.)
+  if (this.$isDefault('audit.updated_at')) this.audit.updated_at = this.audit.created_at;
 });
 
 /**
