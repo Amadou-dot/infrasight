@@ -58,10 +58,11 @@ export default function Home() {
 
   // Calculate metrics
   const totalDevices = health?.summary?.total_devices ?? 0;
+  // Distinct devices with an issue (server-side dedup) + overdue maintenance.
+  // A device can appear in both terms — the endpoints don't share ids — which
+  // is accepted: they are different kinds of attention.
   const activeAlerts =
-    (health?.alerts?.offline_devices?.count ?? 0) +
-    (health?.alerts?.error_devices?.count ?? 0) +
-    (health?.alerts?.low_battery_devices?.count ?? 0) +
+    (health?.alerts?.devices_with_issues?.count ?? 0) +
     (forecast?.summary?.maintenance_overdue?.length ?? 0);
   const healthScore = health?.summary?.health_score ?? 0;
 

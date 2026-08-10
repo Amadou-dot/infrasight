@@ -409,6 +409,9 @@ export interface HealthMetrics {
         };
       }>;
     };
+    devices_with_issues: {
+      count: number;
+    };
   };
   filters_applied: {
     building_id: string | null;
