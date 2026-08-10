@@ -8,8 +8,7 @@ interface MaintenanceStatusCardsProps {
   criticalCount: number;
   dueForServiceCount: number;
   healthyCount: number;
-  criticalNew?: number;
-  daysForDue?: number;
+  daysForDue: number;
   uptimePercentage?: number;
   loading?: boolean;
 }
@@ -18,8 +17,7 @@ export default function MaintenanceStatusCards({
   criticalCount,
   dueForServiceCount,
   healthyCount,
-  criticalNew = 0,
-  daysForDue = 7,
+  daysForDue,
   uptimePercentage,
   loading = false,
 }: MaintenanceStatusCardsProps) {
@@ -52,11 +50,6 @@ export default function MaintenanceStatusCards({
                 <AlertTriangle className="h-5 w-5 text-red-500" />
               </div>
             </div>
-            {criticalNew > 0 && (
-              <Badge variant="destructive" className="text-xs">
-                +{criticalNew} New
-              </Badge>
-            )}
           </div>
           <div className="mt-4">
             <span className="text-4xl font-bold text-foreground">{criticalCount}</span>

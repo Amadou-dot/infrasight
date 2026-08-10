@@ -15,8 +15,8 @@ import { useAdminAction } from '@/lib/auth/rbac-client';
 // CONSTANTS
 // ============================================================================
 
-/** Maximum pages to fetch when loading all devices (100 per page = 2000 max devices) */
-const _MAX_PAGINATION_PAGES = 20;
+/** Forecast window; also labels the "Due for Service" card. */
+const FORECAST_DAYS_AHEAD = 30;
 
 /** Days after which a device needs recalibration (90 days) */
 const CALIBRATION_THRESHOLD_DAYS = 90;
@@ -34,7 +34,7 @@ export default function MaintenancePage() {
     data: forecast,
     isLoading: forecastLoading,
     error: forecastError,
-  } = useMaintenanceForecast({ days_ahead: 30 });
+  } = useMaintenanceForecast({ days_ahead: FORECAST_DAYS_AHEAD });
   const {
     data: allDevices = [],
     isLoading: devicesLoading,
@@ -197,7 +197,7 @@ export default function MaintenancePage() {
           criticalCount={criticalCount}
           dueForServiceCount={dueForServiceCount}
           healthyCount={healthyCount}
-          criticalNew={forecast?.critical.length ? Math.min(2, forecast.critical.length) : 0}
+          daysForDue={FORECAST_DAYS_AHEAD}
           uptimePercentage={uptimePercentage}
           loading={loading}
         />
