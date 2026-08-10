@@ -51,7 +51,7 @@ jest.mock('@/lib/api/v2-client', () => ({
   v2Api: { alertRules: { create: jest.fn().mockResolvedValue({ data: { _id: 'r1' } }) } },
 }));
 
-jest.mock('react-toastify', () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
+jest.mock('sonner', () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
@@ -353,7 +353,7 @@ describe('CreateAlertRuleModal', () => {
   it('should toast an error and stay open when the API call fails', async () => {
     (v2Api.alertRules.create as jest.Mock).mockRejectedValueOnce(new Error('boom'));
     const onClose = jest.fn();
-    const { toast } = jest.requireMock('react-toastify');
+    const { toast } = jest.requireMock('sonner');
 
     render(<CreateAlertRuleModal isOpen onClose={onClose} />, { wrapper });
 

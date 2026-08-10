@@ -12,16 +12,15 @@ import { PusherProvider } from '@/lib/pusher-context';
 import { AlertToaster } from '@/components/alerts/AlertToaster';
 import { RealtimeStatusBanner } from '@/components/alerts/RealtimeStatusBanner';
 import { SignedIn } from '@clerk/nextjs';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { Toaster } from '@/components/ui/sonner';
 
 /**
  * Cap on simultaneously visible toasts.
  *
  * Alerts are produced by a background evaluator, not by a click: one ingest can
  * fire up to ALERT_EVENT_MAX (20) at once. Without a limit those stack past the
- * top of the viewport and cover the app. Overflow is queued by react-toastify
- * and shown as earlier toasts expire.
+ * top of the viewport and cover the app. Sonner collapses the overflow into the
+ * stack behind the front toasts, expanded on hover.
  */
 const MAX_VISIBLE_TOASTS = 4;
 
@@ -75,18 +74,18 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
               </SignedIn>
               <main className="min-h-screen">{children}</main>
               {/*
-              autoClose={false} stays as the CONTAINER default so
+              duration={Infinity} stays as the CONTAINER default so
               user-initiated toasts raised elsewhere in the app keep the
-              behaviour they were written against. AlertToaster overrides it
-              per toast, and per-toast options win over container props.
+              behaviour they were written against (persist until dismissed —
+              hence closeButton). AlertToaster overrides it per toast, and
+              per-toast options win over Toaster props.
             */}
-              <ToastContainer
+              <Toaster
                 position="bottom-center"
-                autoClose={false}
-                limit={MAX_VISIBLE_TOASTS}
-                pauseOnFocusLoss
-                pauseOnHover
-                theme="colored"
+                duration={Infinity}
+                visibleToasts={MAX_VISIBLE_TOASTS}
+                closeButton
+                richColors
               />
               {/*
               Gated: AlertToaster is what turns an alert envelope into a

@@ -13,7 +13,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 
 interface Reading {
   _id: string; // device_id
@@ -149,7 +149,7 @@ export default function FloorPlan({
             !alertedDevices.current.has(device._id + '_warning') &&
             !alertedDevices.current.has(device._id + '_critical')
           ) {
-            toast.warn(`WARNING: ${roomName} is ${getFormattedValue(device, reading.value)}`);
+            toast.warning(`WARNING: ${roomName} is ${getFormattedValue(device, reading.value)}`);
             alertedDevices.current.add(device._id + '_warning');
           }
         } else {

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { CheckCircle, Eye, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

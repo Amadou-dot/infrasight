@@ -12,7 +12,7 @@ import {
   useCancelSchedule,
 } from '@/lib/query/hooks';
 import { useRbac } from '@/lib/auth/rbac-client';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import {
   Calendar,
   CheckCircle,

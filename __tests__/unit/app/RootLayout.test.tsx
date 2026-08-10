@@ -49,7 +49,6 @@ jest.mock('@clerk/nextjs', () => ({
 // Stylesheets: no transform is configured for .css, so these must not be
 // loaded for real.
 jest.mock('../../../app/globals.css', () => ({}));
-jest.mock('react-toastify/dist/ReactToastify.css', () => ({}));
 
 jest.mock('next/font/google', () => ({
   Geist: () => ({ variable: '--font-geist-sans' }),
@@ -87,8 +86,8 @@ jest.mock('@/components/alerts/RealtimeStatusBanner', () => ({
   RealtimeStatusBanner: () => <div data-testid="realtime-status-banner" />,
 }));
 
-jest.mock('react-toastify', () => ({
-  ToastContainer: () => <div data-testid="toast-container" />,
+jest.mock('@/components/ui/sonner', () => ({
+  Toaster: () => <div data-testid="toast-container" />,
 }));
 
 jest.mock('@tanstack/react-query-devtools', () => ({

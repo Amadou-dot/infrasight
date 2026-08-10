@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { CheckCircle, Eye, Flame, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AlertSeverityBadge } from './AlertSeverityBadge';

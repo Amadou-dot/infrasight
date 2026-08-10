@@ -18,7 +18,7 @@ import Pagination from '@/components/Pagination';
 import DeviceInventoryCard from '@/components/DeviceInventoryCard';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { CreateDeviceModal } from '@/components/devices/CreateDeviceModal';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { useDevicesList } from '@/lib/query/hooks';
 import { queryKeys } from '@/lib/query/queryClient';
 import { v2Api } from '@/lib/api/v2-client';
@@ -240,7 +240,7 @@ function DevicesPageContent() {
       // Only close dialog after list is refreshed
       setDeleteDialogOpen(false);
       setDeviceToDelete(null);
-      toast.success(`Device ${deletedDeviceId} deleted successfully`, { autoClose: 3000 });
+      toast.success(`Device ${deletedDeviceId} deleted successfully`, { duration: 3000 });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete device';
       toast.error(message);
