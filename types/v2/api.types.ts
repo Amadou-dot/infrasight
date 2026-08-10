@@ -172,9 +172,9 @@ export interface PaginatedResponse<T> {
     total: number;
     page: number;
     limit: number;
-    pages: number;
+    totalPages: number;
     hasNext: boolean;
-    hasPrev: boolean;
+    hasPrevious: boolean;
   };
   timestamp: string;
 }

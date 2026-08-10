@@ -83,7 +83,6 @@ export function ScheduleServiceModal({
   // Fetch all active devices for selection
   const { data: devices = [], isLoading: devicesLoading, error: devicesError } = useDevicesList({
     status: 'active',
-    limit: 500,
   });
 
   // Create schedule mutation
