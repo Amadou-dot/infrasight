@@ -14,10 +14,7 @@ export default function SystemHealthWidget({ onFilterClick }: SystemHealthWidget
   const healthScore = health?.summary?.health_score ?? 0;
   const _totalDevices = health?.summary?.total_devices ?? 0;
   const activeDevices = health?.summary?.active_devices ?? 0;
-  const issuesCount =
-    (health?.alerts?.offline_devices?.count ?? 0) +
-    (health?.alerts?.error_devices?.count ?? 0) +
-    (health?.alerts?.low_battery_devices?.count ?? 0);
+  const issuesCount = health?.alerts?.devices_with_issues?.count ?? 0;
 
   // Calculate circle parameters for progress
   const size = 160;

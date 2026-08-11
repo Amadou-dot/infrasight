@@ -202,7 +202,13 @@ export const deviceApi = {
    */
   async getHistory(
     id: string,
-    query: { startDate?: string; endDate?: string; actionType?: string } = {}
+    query: {
+      startDate?: string;
+      endDate?: string;
+      action?: string;
+      limit?: number;
+      page?: number;
+    } = {}
   ): Promise<ApiSuccessResponse<DeviceHistoryResponse>> {
     const queryString = buildQueryString(query as Record<string, unknown>);
     return apiCall(`/api/v2/devices/${id}/history${queryString}`);
@@ -408,6 +414,9 @@ export interface HealthMetrics {
           next_maintenance: string;
         };
       }>;
+    };
+    devices_with_issues: {
+      count: number;
     };
   };
   filters_applied: {

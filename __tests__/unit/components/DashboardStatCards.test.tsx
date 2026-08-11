@@ -12,17 +12,18 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import Home from '@/app/page';
 
 const mockUseEnergyAnalytics = jest.fn();
 const mockUseHealthAnalytics = jest.fn();
+const mockUseMaintenanceForecast = jest.fn();
 
 jest.mock('@/lib/query/hooks', () => ({
   useEnergyAnalytics: (...args: unknown[]) => mockUseEnergyAnalytics(...args),
   useHealthAnalytics: (...args: unknown[]) => mockUseHealthAnalytics(...args),
-  useMaintenanceForecast: () => ({ data: { summary: { maintenance_overdue: [] } } }),
+  useMaintenanceForecast: (...args: unknown[]) => mockUseMaintenanceForecast(...args),
   useAnomalies: () => ({ data: [] }),
 }));
 
@@ -82,9 +83,13 @@ describe('Dashboard stat cards', () => {
           offline_devices: { count: 3 },
           error_devices: { count: 1 },
           low_battery_devices: { count: 2 },
+          devices_with_issues: { count: 7 },
         },
       },
       isLoading: false,
+    });
+    mockUseMaintenanceForecast.mockReturnValue({
+      data: { summary: { maintenance_overdue: [] } },
     });
     mockUseEnergyAnalytics.mockReturnValue(energyResponse(29723.38, 11.27));
   });
@@ -125,6 +130,20 @@ describe('Dashboard stat cards', () => {
 
     expect(card).toHaveTextContent('-8.4%');
     expect(card.querySelector('.bg-green-500\\/10')).toBeInTheDocument();
+  });
+
+  it('should show Active Alerts as devices_with_issues.count plus overdue maintenance, not the sum of alert categories', () => {
+    mockUseMaintenanceForecast.mockReturnValue({
+      data: { summary: { maintenance_overdue: [{ device_id: 'device_042' }] } },
+    });
+
+    render(<Home />);
+    const card = statCard('Active Alerts');
+
+    // devices_with_issues.count (7) + maintenance_overdue.length (1) = 8. The mock's
+    // offline (3) + error (1) + low_battery (2) categories sum to 6, a different
+    // number, so a regression back to category-summing cannot coincidentally pass.
+    expect(within(card).getByText('8')).toBeInTheDocument();
   });
 
   it.each(['Total Devices', 'Active Alerts', 'Efficiency Score'])(

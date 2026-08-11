@@ -2,7 +2,7 @@
  * AlertToaster Tests
  *
  * AlertToaster's entire job is deciding which alert envelopes become popups
- * and which reconcile silently. `usePusherAlerts`, `react-toastify`, and
+ * and which reconcile silently. `usePusherAlerts`, `sonner`, and
  * `next/navigation` are all mocked so a test can hand the component an
  * envelope directly and inspect exactly what it did with it.
  *
@@ -16,7 +16,7 @@
 import { render, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { usePusherAlerts } from '@/lib/pusher-context';
 import { AlertToaster } from '@/components/alerts/AlertToaster';
 import { queryKeys } from '@/lib/query/queryClient';
@@ -28,7 +28,7 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
-jest.mock('react-toastify', () => ({
+jest.mock('sonner', () => ({
   toast: {
     error: jest.fn(),
     warning: jest.fn(),
@@ -131,7 +131,9 @@ describe('AlertToaster', () => {
     expect(toast.error).toHaveBeenCalledTimes(1);
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining('High temp'),
-      expect.objectContaining({ onClick: expect.any(Function) })
+      expect.objectContaining({
+        action: expect.objectContaining({ onClick: expect.any(Function) }),
+      })
     );
     expect(toast.info).toHaveBeenCalledTimes(1);
     expect(toast.info).toHaveBeenCalledWith(
@@ -177,7 +179,9 @@ describe('AlertToaster', () => {
     expect(toast.error).toHaveBeenCalledTimes(1);
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining('312'),
-      expect.objectContaining({ onClick: expect.any(Function) })
+      expect.objectContaining({
+        action: expect.objectContaining({ onClick: expect.any(Function) }),
+      })
     );
     expect(toast.warning).not.toHaveBeenCalled();
     expect(toast.info).not.toHaveBeenCalled();
@@ -212,26 +216,26 @@ describe('AlertToaster', () => {
 
 /**
  * Toast lifetime. These rows are about a config value whose meaning changed
- * underneath it: `autoClose={false}` was fine while every toast was raised by a
- * user, one at a time. Alerts come from a background evaluator that can emit up
- * to ALERT_EVENT_MAX (20) from one ingest, so a toast that never expires and
- * cannot be clicked away stacks past the top of the viewport and follows the
- * viewer across every route until they reload.
+ * underneath it: the container-default `duration={Infinity}` was fine while
+ * every toast was raised by a user, one at a time. Alerts come from a
+ * background evaluator that can emit up to ALERT_EVENT_MAX (20) from one
+ * ingest, so a toast that never expires stacks past the top of the viewport
+ * and follows the viewer across every route until they dismiss each one.
  *
- * Asserting `expect.any(Number)` is not enough on its own — `autoClose: false`
- * would fail that, but so would a `0`, which react-toastify treats as "never
- * close". Each row therefore checks the value is a positive finite number.
+ * Asserting `expect.any(Number)` is not enough on its own — `Infinity` is a
+ * number and would pass that. Each row therefore checks the value is a
+ * positive finite number.
  */
 describe('AlertToaster toast lifetime', () => {
   function optionsOf(mock: jest.Mock) {
     return mock.mock.calls.at(-1)?.[1] as {
-      autoClose?: number | false;
-      closeOnClick?: boolean;
-      toastId?: string;
+      duration?: number;
+      action?: { label: string; onClick: () => void };
+      id?: string;
     };
   }
 
-  it('gives every fired toast a finite dismissal, click-to-close, and a stable id', () => {
+  it('gives every fired toast a finite dismissal, a navigation action, and a stable id', () => {
     const { handleEvent } = renderToaster();
 
     act(() =>
@@ -242,11 +246,13 @@ describe('AlertToaster toast lifetime', () => {
     );
 
     const options = optionsOf(toast.error as jest.Mock);
-    expect(typeof options.autoClose).toBe('number');
-    expect(options.autoClose).toBeGreaterThan(0);
-    expect(Number.isFinite(options.autoClose as number)).toBe(true);
-    expect(options.closeOnClick).toBe(true);
-    expect(options.toastId).toBe('alert_42');
+    expect(typeof options.duration).toBe('number');
+    expect(options.duration).toBeGreaterThan(0);
+    expect(Number.isFinite(options.duration as number)).toBe(true);
+    expect(options.action).toEqual(
+      expect.objectContaining({ label: expect.any(String), onClick: expect.any(Function) })
+    );
+    expect(options.id).toBe('alert_42');
   });
 
   it('gives each severity a finite dismissal', () => {
@@ -265,24 +271,24 @@ describe('AlertToaster toast lifetime', () => {
 
     for (const mock of [toast.error, toast.warning, toast.info] as jest.Mock[]) {
       const options = optionsOf(mock);
-      expect(typeof options.autoClose).toBe('number');
-      expect(options.autoClose).toBeGreaterThan(0);
-      expect(options.closeOnClick).toBe(true);
+      expect(typeof options.duration).toBe('number');
+      expect(options.duration).toBeGreaterThan(0);
+      expect(Number.isFinite(options.duration as number)).toBe(true);
     }
   });
 
-  it('reuses the toastId when the same alert is re-broadcast, so it cannot stack', () => {
+  it('reuses the toast id when the same alert is re-broadcast, so it cannot stack', () => {
     const { handleEvent } = renderToaster();
 
     const event: AlertEvent = { kind: 'fired', alerts: [fired({ _id: 'alert_dupe' })] };
     act(() => handleEvent(event));
     act(() => handleEvent(event));
 
-    const ids = (toast.error as jest.Mock).mock.calls.map(call => call[1]?.toastId);
+    const ids = (toast.error as jest.Mock).mock.calls.map(call => call[1]?.id);
     expect(ids).toEqual(['alert_dupe', 'alert_dupe']);
   });
 
-  it('gives the storm toast a finite dismissal and click-to-close too', () => {
+  it('gives the storm toast a finite dismissal and a navigation action too', () => {
     const { handleEvent } = renderToaster();
 
     act(() =>
@@ -296,10 +302,13 @@ describe('AlertToaster toast lifetime', () => {
     );
 
     const options = optionsOf(toast.error as jest.Mock);
-    expect(typeof options.autoClose).toBe('number');
-    expect(options.autoClose).toBeGreaterThan(0);
-    expect(options.closeOnClick).toBe(true);
+    expect(typeof options.duration).toBe('number');
+    expect(options.duration).toBeGreaterThan(0);
+    expect(Number.isFinite(options.duration as number)).toBe(true);
+    expect(options.action).toEqual(
+      expect.objectContaining({ label: expect.any(String), onClick: expect.any(Function) })
+    );
     // Distinct storms stay distinct; a re-broadcast of the same one does not stack.
-    expect(options.toastId).toContain('2026-08-01T12:00:00.000Z');
+    expect(options.id).toContain('2026-08-01T12:00:00.000Z');
   });
 });

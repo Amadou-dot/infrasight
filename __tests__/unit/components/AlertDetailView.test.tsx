@@ -37,7 +37,7 @@ jest.mock('@clerk/nextjs', () => ({
 
 const mockToastSuccess = jest.fn();
 const mockToastError = jest.fn();
-jest.mock('react-toastify', () => ({
+jest.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),

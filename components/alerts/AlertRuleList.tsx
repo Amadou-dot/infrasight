@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { RefreshCw, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,7 +62,7 @@ export function AlertRuleList() {
   const [ruleToDelete, setRuleToDelete] = useState<AlertRuleV2Response | null>(null);
 
   const {
-    data: rules,
+    data,
     isLoading,
     error,
     refetch,
@@ -71,6 +71,8 @@ export function AlertRuleList() {
     page,
     limit: PAGE_SIZE,
   });
+  const rules = data?.items;
+  const total = data?.total ?? 0;
   const updateRule = useUpdateAlertRule();
   const deleteRule = useDeleteAlertRule();
 
@@ -183,11 +185,13 @@ export function AlertRuleList() {
             <ChevronLeft className="h-4 w-4" />
             Previous
           </Button>
-          <span className="text-sm text-muted-foreground">Page {page}</span>
+          <span className="text-sm text-muted-foreground">
+            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          </span>
           <Button
             variant="outline"
             size="sm"
-            disabled={(rules?.length ?? 0) < PAGE_SIZE || isFetching}
+            disabled={page * PAGE_SIZE >= total || isFetching}
             onClick={() => setPage(page + 1)}
           >
             Next

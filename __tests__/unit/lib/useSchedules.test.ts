@@ -37,6 +37,7 @@ jest.mock('@/lib/api/v2-client', () => ({
       list: jest.fn().mockResolvedValue({
         success: true,
         data: [{ _id: 'sched_001', status: 'scheduled' }],
+        pagination: { total: 1 },
       }),
       getById: jest.fn().mockResolvedValue({
         success: true,
@@ -129,7 +130,7 @@ describe('useSchedulesList', () => {
     const result = await queryFn();
 
     expect(v2Api.schedules.list).toHaveBeenCalledWith(filters);
-    expect(result).toEqual([{ _id: 'sched_001', status: 'scheduled' }]);
+    expect(result).toEqual({ items: [{ _id: 'sched_001', status: 'scheduled' }], total: 1 });
   });
 
   it('should set staleTime to 2 minutes', () => {

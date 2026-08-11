@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { ArchiveX, ShieldAlert } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDevicesList } from '@/lib/query/hooks';
 import { queryKeys } from '@/lib/query/queryClient';
@@ -77,7 +77,7 @@ export default function DeletedDevicesPage() {
     try {
       await v2Api.devices.restore(deviceId);
       await queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
-      toast.success(`Device ${deviceId} restored`, { autoClose: 3000 });
+      toast.success(`Device ${deviceId} restored`, { duration: 3000 });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to restore device';
       toast.error(message);

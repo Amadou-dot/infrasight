@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { usePusherAlerts } from '@/lib/pusher-context';
 import { queryKeys } from '@/lib/query/queryClient';
 import type { AlertEvent, AlertSeverity } from '@/types/v2';
@@ -18,7 +18,7 @@ const TOAST_TYPE: Record<AlertSeverity, 'error' | 'warning' | 'info'> = {
  * How long each severity stays on screen, in milliseconds.
  *
  * Every value is finite on purpose. The container's default is
- * `autoClose={false}`, which was survivable while every toast was raised by a
+ * `duration={Infinity}`, which was survivable while every toast was raised by a
  * user one at a time — but alerts come from a background evaluator that can
  * emit up to ALERT_EVENT_MAX (20) from a single ingest, and toasts that never
  * expire stack past the top of the viewport and stay there across every route
@@ -61,10 +61,14 @@ export function AlertToaster() {
               {
                 // Keyed on the alert id so a re-broadcast of the same episode
                 // replaces its own toast instead of stacking a second copy.
-                toastId: alert._id,
-                autoClose: TOAST_AUTO_CLOSE_MS[alert.severity],
-                closeOnClick: true,
-                onClick: () => router.push(`/alerts/${alert._id}`),
+                id: alert._id,
+                duration: TOAST_AUTO_CLOSE_MS[alert.severity],
+                // Sonner has no whole-body onClick; navigation moves to an
+                // explicit action button, which is also the accessible shape.
+                action: {
+                  label: 'View',
+                  onClick: () => router.push(`/alerts/${alert._id}`),
+                },
               }
             );
           queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
@@ -87,10 +91,12 @@ export function AlertToaster() {
               // Keyed on `since` rather than a fixed string: two separate storms
               // are two separate pieces of news and both deserve to be seen,
               // while a re-broadcast of the same one does not stack.
-              toastId: `alert-storm-${event.since}`,
-              autoClose: STORM_AUTO_CLOSE_MS,
-              closeOnClick: true,
-              onClick: () => router.push('/alerts'),
+              id: `alert-storm-${event.since}`,
+              duration: STORM_AUTO_CLOSE_MS,
+              action: {
+                label: 'View all',
+                onClick: () => router.push('/alerts'),
+              },
             });
           queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
           break;

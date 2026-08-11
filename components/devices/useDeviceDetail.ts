@@ -16,6 +16,8 @@ export interface DeviceDetail {
   device: DeviceV2Response | null;
   recentReadings: ReadingV2Response[];
   auditLog: AuditLogEntry[];
+  /** Server-reported total audit entry count; null until the audit fetch resolves. */
+  auditTotal: number | null;
   loading: boolean;
   error: string | null;
   /** True when the device id does not resolve, so callers can render a 404. */
@@ -36,6 +38,7 @@ export function useDeviceDetail(deviceId: string | null, enabled = true): Device
   const [device, setDevice] = useState<DeviceV2Response | null>(null);
   const [recentReadings, setRecentReadings] = useState<ReadingV2Response[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -45,6 +48,7 @@ export function useDeviceDetail(deviceId: string | null, enabled = true): Device
       setDevice(null);
       setRecentReadings([]);
       setAuditLog([]);
+      setAuditTotal(null);
       setError(null);
       setNotFound(false);
       return;
@@ -78,7 +82,7 @@ export function useDeviceDetail(deviceId: string | null, enabled = true): Device
         // Audit history is best-effort: it is admin-gated on some deployments, and a
         // missing audit panel should not fail the whole view.
         try {
-          const auditResponse = await v2Api.devices.getHistory(deviceId);
+          const auditResponse = await v2Api.devices.getHistory(deviceId, { limit: 100 });
           if (abortController.signal.aborted) return;
           if (auditResponse.success && auditResponse.data?.history) {
             const mappedEntries: AuditLogEntry[] = auditResponse.data.history.map(entry => ({
@@ -94,6 +98,7 @@ export function useDeviceDetail(deviceId: string | null, enabled = true): Device
               ),
             }));
             setAuditLog(mappedEntries);
+            setAuditTotal(auditResponse.data.pagination?.total ?? null);
           }
         } catch (err) {
           if (abortController.signal.aborted) return;
@@ -117,5 +122,5 @@ export function useDeviceDetail(deviceId: string | null, enabled = true): Device
     return () => abortController.abort();
   }, [deviceId, enabled]);
 
-  return { device, recentReadings, auditLog, loading, error, notFound };
+  return { device, recentReadings, auditLog, auditTotal, loading, error, notFound };
 }

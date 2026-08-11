@@ -23,7 +23,7 @@ jest.mock('@/lib/api/v2-client', () => ({
       list: jest.fn().mockResolvedValue({
         success: true,
         data: [{ _id: 'device_001', name: 'Test Device' }],
-        pagination: { pages: 1, total: 1, page: 1, limit: 100 },
+        pagination: { totalPages: 1, total: 1, page: 1, limit: 100 },
       }),
     },
   },
@@ -108,15 +108,15 @@ describe('useDevicesList', () => {
     (v2Api.devices.list as jest.Mock)
       .mockResolvedValueOnce({
         data: [{ _id: 'device_001' }],
-        pagination: { pages: 3, total: 250 },
+        pagination: { totalPages: 3, total: 250 },
       })
       .mockResolvedValueOnce({
         data: [{ _id: 'device_101' }],
-        pagination: { pages: 3, total: 250 },
+        pagination: { totalPages: 3, total: 250 },
       })
       .mockResolvedValueOnce({
         data: [{ _id: 'device_201' }],
-        pagination: { pages: 3, total: 250 },
+        pagination: { totalPages: 3, total: 250 },
       });
 
     useDevicesList();
@@ -156,7 +156,7 @@ describe('useDevicesList', () => {
   it('should cap at 20 pages maximum', async () => {
     (v2Api.devices.list as jest.Mock).mockResolvedValue({
       data: [{ _id: 'device_001' }],
-      pagination: { pages: 50, total: 5000 },
+      pagination: { totalPages: 50, total: 5000 },
     });
 
     useDevicesList();

@@ -107,6 +107,12 @@ export async function GET(request: NextRequest) {
           maintenanceDue,
           uptimeStats,
           predictiveMaintenanceDevices,
+          offlineCount,
+          lowBatteryCount,
+          errorCount,
+          maintenanceDueCount,
+          predictiveCount,
+          devicesWithIssuesCount,
         ] = await Promise.all([
           // Status breakdown
           DeviceV2.aggregate([
@@ -151,7 +157,7 @@ export async function GET(request: NextRequest) {
               status: 1,
             }
           )
-            .limit(50)
+            .limit(10)
             .maxTimeMS(5000)
             .lean(),
 
@@ -168,7 +174,7 @@ export async function GET(request: NextRequest) {
               'health.battery_level': 1,
             }
           )
-            .limit(50)
+            .limit(10)
             .maxTimeMS(5000)
             .lean(),
 
@@ -186,7 +192,7 @@ export async function GET(request: NextRequest) {
               'health.error_count': 1,
             }
           )
-            .limit(50)
+            .limit(10)
             .maxTimeMS(5000)
             .lean(),
 
@@ -204,7 +210,7 @@ export async function GET(request: NextRequest) {
               'metadata.last_maintenance': 1,
             }
           )
-            .limit(50)
+            .limit(10)
             .maxTimeMS(5000)
             .lean(),
 
@@ -246,9 +252,32 @@ export async function GET(request: NextRequest) {
               'metadata.next_maintenance': 1,
             }
           )
-            .limit(50)
+            .limit(10)
             .maxTimeMS(5000)
             .lean(),
+
+          DeviceV2.countDocuments({ ...baseFilter, 'health.last_seen': { $lt: offlineThreshold } }).maxTimeMS(5000),
+          DeviceV2.countDocuments({ ...baseFilter, 'health.battery_level': { $lt: query.battery_warning_threshold, $ne: null } }).maxTimeMS(5000),
+          DeviceV2.countDocuments({ ...baseFilter, status: 'error' }).maxTimeMS(5000),
+          DeviceV2.countDocuments({ ...baseFilter, 'metadata.next_maintenance': { $lte: maintenanceDueDate, $ne: null } }).maxTimeMS(5000),
+          DeviceV2.countDocuments({
+            ...baseFilter,
+            $or: [
+              { 'health.battery_level': { $lt: 15, $ne: null } },
+              { 'metadata.next_maintenance': { $lte: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000), $ne: null } },
+              { 'health.error_count': { $gt: 10 } },
+            ],
+          }).maxTimeMS(5000),
+          // Distinct devices with ANY of the three "issue" conditions — the
+          // number the dashboard adds up; $or dedups devices in two buckets.
+          DeviceV2.countDocuments({
+            ...baseFilter,
+            $or: [
+              { 'health.last_seen': { $lt: offlineThreshold } },
+              { 'health.battery_level': { $lt: query.battery_warning_threshold, $ne: null } },
+              { status: 'error' },
+            ],
+          }).maxTimeMS(5000),
         ]);
 
         // Calculate health score (percentage of active devices)
@@ -308,26 +337,29 @@ export async function GET(request: NextRequest) {
           status_breakdown: statusBreakdown,
           alerts: {
             offline_devices: {
-              count: offlineDevices.length,
-              devices: offlineDevices.slice(0, 10),
+              count: offlineCount,
+              devices: offlineDevices,
               threshold_minutes: query.offline_threshold_minutes,
             },
             low_battery_devices: {
-              count: lowBatteryDevices.length,
-              devices: lowBatteryDevices.slice(0, 10),
+              count: lowBatteryCount,
+              devices: lowBatteryDevices,
               threshold_percent: query.battery_warning_threshold,
             },
             error_devices: {
-              count: errorDevices.length,
-              devices: errorDevices.slice(0, 10),
+              count: errorCount,
+              devices: errorDevices,
             },
             maintenance_due: {
-              count: maintenanceDue.length,
-              devices: maintenanceDue.slice(0, 10),
+              count: maintenanceDueCount,
+              devices: maintenanceDue,
             },
             predictive_maintenance: {
-              count: predictiveMaintenanceDevices.length,
-              devices: predictiveMaintenanceItems.slice(0, 10),
+              count: predictiveCount,
+              devices: predictiveMaintenanceItems,
+            },
+            devices_with_issues: {
+              count: devicesWithIssuesCount,
             },
           },
           filters_applied: {

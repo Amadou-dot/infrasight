@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,

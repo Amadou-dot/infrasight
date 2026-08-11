@@ -12,7 +12,7 @@ import {
   useCancelSchedule,
 } from '@/lib/query/hooks';
 import { useRbac } from '@/lib/auth/rbac-client';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import {
   Calendar,
   CheckCircle,
@@ -87,13 +87,8 @@ export function ScheduleList({
   };
 
   // Fetch schedules
-  const {
-    data: schedules = [],
-    isLoading,
-    error,
-    refetch,
-    isFetching,
-  } = useSchedulesList(queryFilters);
+  const { data, isLoading, error, refetch, isFetching } = useSchedulesList(queryFilters);
+  const schedules = data?.items ?? [];
 
   // Mutations
   const completeSchedule = useCompleteSchedule({
@@ -151,7 +146,8 @@ export function ScheduleList({
   };
 
   // Pagination helpers
-  const hasMorePages = schedules.length === PAGE_SIZE;
+  const total = data?.total ?? 0;
+  const hasMorePages = page * PAGE_SIZE < total;
   const hasPrevPage = page > 1;
 
   return (
@@ -332,7 +328,9 @@ export function ScheduleList({
         {/* Pagination */}
         {!isLoading && !error && (schedules.length > 0 || page > 1) && (
           <div className="flex items-center justify-between pt-2">
-            <span className="text-sm text-muted-foreground">Page {page}</span>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"

@@ -16,7 +16,7 @@ export function useDevicesList(
         // Fetch first page to get total pages
         const firstResponse = await v2Api.devices.list({ ...filters, limit: 100, page: 1 });
         const allDevices: DeviceV2Response[] = [...firstResponse.data];
-        const totalPages = Math.min(firstResponse.pagination?.pages ?? 1, 20);
+        const totalPages = Math.min(firstResponse.pagination?.totalPages ?? 1, 20);
 
         if (totalPages > 1) {
           // Fetch remaining pages in parallel

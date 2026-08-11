@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { Calendar, Loader2, Search, X } from 'lucide-react';
 import { useDevicesList, useCreateSchedule } from '@/lib/query/hooks';
 import { ApiClientError } from '@/lib/api/v2-client';
@@ -83,7 +83,6 @@ export function ScheduleServiceModal({
   // Fetch all active devices for selection
   const { data: devices = [], isLoading: devicesLoading, error: devicesError } = useDevicesList({
     status: 'active',
-    limit: 500,
   });
 
   // Create schedule mutation

@@ -65,7 +65,7 @@ jest.mock('@/components/alerts/useAlertFilterParams', () => ({
 
 const mockToastSuccess = jest.fn();
 const mockToastError = jest.fn();
-jest.mock('react-toastify', () => ({
+jest.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
@@ -211,7 +211,7 @@ beforeEach(() => {
   signedInAs('org:admin');
   mockUseAlertFilterParams.mockReturnValue(defaultFilterParams());
   mockUseAlertsList.mockReturnValue({
-    data: [makeAlert()],
+    data: { items: [makeAlert()], total: 1 },
     isLoading: false,
     error: null,
     refetch: mockRefetch,
@@ -250,7 +250,10 @@ describe('AlertList', () => {
 
     it('should fall back to breached_since for the relative timestamp when fired_at is absent', () => {
       mockUseAlertsList.mockReturnValue({
-        data: [makeAlert({ fired_at: undefined, breached_since: '2026-08-01T10:00:00.000Z' })],
+        data: {
+          items: [makeAlert({ fired_at: undefined, breached_since: '2026-08-01T10:00:00.000Z' })],
+          total: 1,
+        },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -316,7 +319,7 @@ describe('AlertList', () => {
 
     it('should show "No open alerts." when the list is empty', () => {
       mockUseAlertsList.mockReturnValue({
-        data: [],
+        data: { items: [], total: 0 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -376,7 +379,7 @@ describe('AlertList', () => {
     it('should not render Acknowledge for an alert that is not firing, regardless of role', () => {
       signedInAs('org:admin');
       mockUseAlertsList.mockReturnValue({
-        data: [makeAlert({ status: 'acknowledged', is_open: true })],
+        data: { items: [makeAlert({ status: 'acknowledged', is_open: true })], total: 1 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -391,7 +394,7 @@ describe('AlertList', () => {
     it('should not render Resolve for an alert that is already resolved (not open)', () => {
       signedInAs('org:admin');
       mockUseAlertsList.mockReturnValue({
-        data: [makeAlert({ status: 'resolved', is_open: false })],
+        data: { items: [makeAlert({ status: 'resolved', is_open: false })], total: 1 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -437,6 +440,10 @@ describe('AlertList', () => {
   });
 
   describe('pagination', () => {
+    function tenAlerts() {
+      return Array.from({ length: 10 }, (_, i) => makeAlert({ _id: `alert_${i}` }));
+    }
+
     it('should disable the previous-page control on page 1, discoverable by its accessible name', () => {
       mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), page: 1 });
 
@@ -445,10 +452,11 @@ describe('AlertList', () => {
       expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
     });
 
-    it('should disable the next-page control when a page comes back short of PAGE_SIZE, discoverable by its accessible name', () => {
+    it('should disable the next-page control when the server total says this is the last page, discoverable by its accessible name', () => {
       mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), page: 2 });
       mockUseAlertsList.mockReturnValue({
-        data: [makeAlert()], // 1 alert, well under PAGE_SIZE (10)
+        // page 2 * PAGE_SIZE (10) = 20 >= total (11) -> last page.
+        data: { items: [makeAlert()], total: 11 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -459,17 +467,59 @@ describe('AlertList', () => {
       expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
     });
 
+    // The regression this whole task fixes: a full page is NOT proof there's
+    // a next page — only the server total is. 20 alerts total, page 2 of 2.
+    it('disables Next exactly when the last page is reached, using the server total', () => {
+      mockUseAlertsList.mockReturnValue({
+        data: { items: tenAlerts(), total: 20 },
+        isLoading: false,
+        error: null,
+        refetch: jest.fn(),
+        isFetching: false,
+      });
+      mockUseAlertFilterParams.mockReturnValue({
+        status: 'open',
+        setStatus: jest.fn(),
+        severity: 'all',
+        setSeverity: jest.fn(),
+        page: 2,
+        setPage: jest.fn(),
+      });
+
+      render(<AlertList />);
+
+      expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+      expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+    });
+
+    it('should enable Next when the server total says more pages remain, even though the page itself is short', () => {
+      mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), page: 1 });
+      mockUseAlertsList.mockReturnValue({
+        // Only 1 row on this page (e.g. a filtered subset), but the total
+        // says a second page exists.
+        data: { items: [makeAlert()], total: 15 },
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+        isFetching: false,
+      });
+
+      render(<AlertList />);
+
+      expect(screen.getByRole('button', { name: /next/i })).not.toBeDisabled();
+    });
+
     // --- B1: a page transition in flight must disable BOTH controls, so a
     // second click cannot skip a page (keepPreviousData keeps isLoading
     // false and the previous page's rows visible during the transition —
     // isFetching is the only signal a transition is in progress at all).
-    it('should disable BOTH Previous and Next while a page transition is in flight (isFetching), even though page/count alone would leave them enabled', () => {
+    it('should disable BOTH Previous and Next while a page transition is in flight (isFetching), even though page/total alone would leave them enabled', () => {
       mockUseAlertFilterParams.mockReturnValue({ ...defaultFilterParams(), page: 2 });
       mockUseAlertsList.mockReturnValue({
-        // A full page (== PAGE_SIZE) on page 2: neither the page===1 guard
-        // nor the short-page guard would disable anything on their own —
-        // isFetching must be the thing doing the work here.
-        data: Array.from({ length: 10 }, (_, i) => makeAlert({ _id: `alert_${i}` })),
+        // A full page on page 2, with a total well beyond it: neither the
+        // page===1 guard nor the total guard would disable anything on
+        // their own — isFetching must be the thing doing the work here.
+        data: { items: tenAlerts(), total: 25 },
         isLoading: false,
         error: null,
         refetch: mockRefetch,
@@ -484,7 +534,7 @@ describe('AlertList', () => {
 
     it('should also disable the refresh control (and spin its icon) while isFetching', () => {
       mockUseAlertsList.mockReturnValue({
-        data: [makeAlert()],
+        data: { items: [makeAlert()], total: 1 },
         isLoading: false, // isolates the spin to the refresh icon, not the isLoading spinner
         error: null,
         refetch: mockRefetch,

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select } from '@/components/ui/select';
 import { v2Api } from '@/lib/api/v2-client';
 import { useMetadata } from '@/lib/query/hooks';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { FileText, Download, Loader2 } from 'lucide-react';
 
 interface GenerateReportModalProps {

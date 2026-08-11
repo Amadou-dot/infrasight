@@ -76,13 +76,16 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('useAlertsList', () => {
-  it('should return the alerts array', async () => {
-    (v2Api.alerts.list as jest.Mock).mockResolvedValue({ data: [{ _id: 'a1', status: 'firing' }] });
+  it('should return items and the server total', async () => {
+    (v2Api.alerts.list as jest.Mock).mockResolvedValue({
+      data: [{ _id: 'a1', status: 'firing' }],
+      pagination: { total: 1 },
+    });
 
     const { result } = renderHook(() => useAlertsList({ status: 'firing' }), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([{ _id: 'a1', status: 'firing' }]);
+    expect(result.current.data).toEqual({ items: [{ _id: 'a1', status: 'firing' }], total: 1 });
     expect(v2Api.alerts.list).toHaveBeenCalledWith({ status: 'firing' });
   });
 
@@ -250,7 +253,7 @@ describe('mutations refresh the mounted alert surfaces', () => {
     });
 
     expect(listCalls()).toBe(before);
-    expect(result.current.list.data).toEqual([{ _id: 'a1', status: 'firing' }]);
+    expect(result.current.list.data?.items).toEqual([{ _id: 'a1', status: 'firing' }]);
   });
 
   it('should refetch the alert list after acknowledging, showing the new server rows', async () => {
@@ -264,7 +267,7 @@ describe('mutations refresh the mounted alert surfaces', () => {
 
     const result = await mountSettled();
     const before = listCalls();
-    expect(result.current.list.data).toEqual([{ _id: 'a1', status: 'firing' }]);
+    expect(result.current.list.data?.items).toEqual([{ _id: 'a1', status: 'firing' }]);
 
     await act(async () => {
       result.current.acknowledge.mutate({ id: 'a1' });
@@ -272,7 +275,7 @@ describe('mutations refresh the mounted alert surfaces', () => {
     await waitFor(() => expect(result.current.acknowledge.isSuccess).toBe(true));
 
     await waitFor(() =>
-      expect(result.current.list.data).toEqual([{ _id: 'a1', status: 'acknowledged' }])
+      expect(result.current.list.data?.items).toEqual([{ _id: 'a1', status: 'acknowledged' }])
     );
     expect(listCalls()).toBeGreaterThan(before);
   });
@@ -329,14 +332,14 @@ describe('mutations refresh the mounted alert surfaces', () => {
 
     const result = await mountSettled();
     const before = listCalls();
-    expect(result.current.list.data).toEqual([{ _id: 'a1', status: 'firing' }]);
+    expect(result.current.list.data?.items).toEqual([{ _id: 'a1', status: 'firing' }]);
 
     await act(async () => {
       result.current.resolve.mutate({ id: 'a1', note: 'fixed' });
     });
     await waitFor(() => expect(result.current.resolve.isSuccess).toBe(true));
 
-    await waitFor(() => expect(result.current.list.data).toEqual([]));
+    await waitFor(() => expect(result.current.list.data?.items).toEqual([]));
     expect(listCalls()).toBeGreaterThan(before);
   });
 

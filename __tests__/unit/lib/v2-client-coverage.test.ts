@@ -56,14 +56,14 @@ describe('deviceApi.getHistory', () => {
     await deviceApi.getHistory('device_001', {
       startDate: '2024-01-01',
       endDate: '2024-01-31',
-      actionType: 'update',
+      action: 'update',
     });
 
     const calledUrl = mockFetch.mock.calls[0][0] as string;
     expect(calledUrl).toContain('/api/v2/devices/device_001/history?');
     expect(calledUrl).toContain('startDate=2024-01-01');
     expect(calledUrl).toContain('endDate=2024-01-31');
-    expect(calledUrl).toContain('actionType=update');
+    expect(calledUrl).toContain('action=update');
   });
 });
 

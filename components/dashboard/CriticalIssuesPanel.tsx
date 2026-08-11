@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useHealthAnalytics, useMaintenanceForecast } from '@/lib/query/hooks';
 import {
   AlertTriangle,
@@ -19,7 +19,7 @@ interface CriticalIssue {
   title: string;
   location: string;
   severity: 'critical' | 'warning';
-  timestamp: Date;
+  timestamp: Date | null;
   type: 'offline' | 'error' | 'overheating' | 'battery' | 'maintenance' | 'memory';
 }
 
@@ -42,9 +42,6 @@ export default function CriticalIssuesPanel({
   const isLoading = healthLoading || forecastLoading;
   const error = healthError || forecastError ? 'Failed to load issues' : null;
 
-  // Stable reference time for fallback timestamps - initialized lazily
-  const [fallbackTime] = useState(() => Date.now());
-
   // Calculate issues using useMemo (only recalculate when data changes)
   const issues = useMemo(() => {
     if (!health || !forecast) return [];
@@ -58,7 +55,7 @@ export default function CriticalIssuesPanel({
         title: `Sensor #${d.serial_number?.slice(-4) || d._id.slice(-4)} Offline`,
         location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
         severity: 'critical',
-        timestamp: new Date(d.health?.last_seen || fallbackTime),
+        timestamp: d.health?.last_seen ? new Date(d.health.last_seen) : null,
         type: 'offline',
       });
     });
@@ -70,7 +67,7 @@ export default function CriticalIssuesPanel({
         title: `Sensor #${d.serial_number?.slice(-4) || d._id.slice(-4)} Error`,
         location: d.location?.room_name || 'Unknown Location',
         severity: 'critical',
-        timestamp: new Date(fallbackTime),
+        timestamp: null,
         type: 'error',
       });
     });
@@ -82,7 +79,7 @@ export default function CriticalIssuesPanel({
         title: `Low Battery (${d.health?.battery_level}%)`,
         location: d.location?.room_name || 'Unknown Location',
         severity: 'warning',
-        timestamp: new Date(fallbackTime),
+        timestamp: null,
         type: 'battery',
       });
     });
@@ -94,7 +91,7 @@ export default function CriticalIssuesPanel({
         title: `Maintenance Overdue`,
         location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
         severity: 'critical',
-        timestamp: new Date(d.metadata?.next_maintenance || fallbackTime),
+        timestamp: d.metadata?.next_maintenance ? new Date(d.metadata.next_maintenance) : null,
         type: 'maintenance',
       });
     });
@@ -107,19 +104,21 @@ export default function CriticalIssuesPanel({
           title: `Critical Maintenance Needed`,
           location: `${d.location?.room_name || 'Unknown'} • Floor ${d.location?.floor || 'N/A'}`,
           severity: 'critical',
-          timestamp: new Date(d.metadata?.next_maintenance || fallbackTime),
+          timestamp: d.metadata?.next_maintenance ? new Date(d.metadata.next_maintenance) : null,
           type: 'maintenance',
         });
     });
 
-    // Sort by severity (critical first) then by timestamp
+    // Sort by severity (critical first) then by timestamp (null last)
     collectedIssues.sort((a, b) => {
       if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1;
+      if (!a.timestamp) return b.timestamp ? 1 : 0;
+      if (!b.timestamp) return -1;
       return b.timestamp.getTime() - a.timestamp.getTime();
     });
 
     return collectedIssues.slice(0, maxItems);
-  }, [health, forecast, maxItems, fallbackTime]);
+  }, [health, forecast, maxItems]);
 
   const getIssueIcon = (type: CriticalIssue['type']) => {
     switch (type) {
@@ -241,9 +240,11 @@ export default function CriticalIssuesPanel({
                 >
                   {issue.severity === 'critical' ? 'CRITICAL' : 'WARNING'}
                 </span>
-                <span className="text-xs text-muted-foreground hidden sm:block">
-                  {formatTimeAgo(issue.timestamp)}
-                </span>
+                {issue.timestamp && (
+                  <span className="text-xs text-muted-foreground hidden sm:block">
+                    {formatTimeAgo(issue.timestamp)}
+                  </span>
+                )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </div>
             </button>

@@ -1360,6 +1360,59 @@ describe('Analytics API Integration Tests', () => {
         expect(stats.total_errors).toBe(0);
       });
     });
+
+    // --- True counts (beyond the 50-row document cap) ---
+
+    describe('True counts', () => {
+      it('reports category counts beyond the 50-row document cap and a distinct issue count', async () => {
+        // Isolate from the outer beforeEach's 3 seeded devices so counts are exact.
+        await DeviceV2.deleteMany({});
+
+        // 60 error devices, 30 of which also have low battery
+        const devices = Array.from({ length: 60 }, (_, i) =>
+          createDeviceInput({
+            _id: `device_err_${i}`,
+            serial_number: `SN-ERR-${i}`,
+            type: 'temperature',
+            status: 'error',
+            location: {
+              building_id: 'bldg_a',
+              floor: 1,
+              room_name: `R${i}`,
+              zone: 'Zone A',
+            },
+            health: {
+              battery_level: i < 30 ? 10 : 90,
+              uptime_percentage: 99,
+              error_count: 0,
+              last_seen: new Date(),
+              signal_strength: 80,
+            },
+          })
+        );
+        await DeviceV2.insertMany(devices);
+
+        const request = createMockGetRequest('health');
+        const response = await GET_HEALTH(request);
+        const data = await parseResponse<{
+          success: boolean;
+          data: {
+            alerts: {
+              error_devices: { count: number; devices: unknown[] };
+              low_battery_devices: { count: number };
+              devices_with_issues: { count: number };
+            };
+          };
+        }>(response);
+
+        expect(response.status).toBe(200);
+        expect(data.data.alerts.error_devices.count).toBe(60); // not 50
+        expect(data.data.alerts.low_battery_devices.count).toBe(30);
+        expect(data.data.alerts.error_devices.devices.length).toBeLessThanOrEqual(10);
+        // 60 distinct devices have at least one issue — NOT 60 + 30
+        expect(data.data.alerts.devices_with_issues.count).toBe(60);
+      });
+    });
   });
 
   // ==========================================================================

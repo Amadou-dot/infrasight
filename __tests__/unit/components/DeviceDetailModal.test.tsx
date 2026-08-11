@@ -12,6 +12,7 @@ const detail: DeviceDetail = {
   device: null,
   recentReadings: [],
   auditLog: [],
+  auditTotal: null,
   loading: false,
   error: null,
   notFound: false,

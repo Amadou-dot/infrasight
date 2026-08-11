@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { v2Api } from '@/lib/api/v2-client';
 import { queryKeys } from '../queryClient';
-import type { QueryConfig, MutationConfig } from '../types';
+import type { QueryConfig, MutationConfig, PagedResult } from '../types';
 import type {
   ScheduleV2Response,
   ListSchedulesQuery,
@@ -19,13 +19,13 @@ import type {
  */
 export function useSchedulesList(
   filters: ListSchedulesQuery = {},
-  config?: QueryConfig<ScheduleV2Response[]>
+  config?: QueryConfig<PagedResult<ScheduleV2Response>>
 ) {
   return useQuery({
     queryKey: queryKeys.schedules.list(filters as Record<string, unknown>),
     queryFn: async () => {
       const response = await v2Api.schedules.list(filters);
-      return response.data;
+      return { items: response.data, total: response.pagination.total };
     },
     staleTime: 2 * 60 * 1000, // 2 minutes (schedules change more frequently)
     gcTime: 5 * 60 * 1000, // 5 minutes

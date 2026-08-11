@@ -41,7 +41,6 @@ export default function DeviceStatusCards({
             <div className="text-4xl font-bold text-foreground mb-1">
               {loading ? '—' : totalCount}
             </div>
-            <span className="text-xs text-emerald-500">↗ +4 new this week</span>
           </CardContent>
         </Card>
 
