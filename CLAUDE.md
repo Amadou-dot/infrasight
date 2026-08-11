@@ -467,7 +467,6 @@ components/                        # React components (all use 'use client')
   AnomalyChart.tsx                 # Anomaly chart component
   AuditLogViewer.tsx               # Audit log viewer
   DeviceDetailModal.tsx            # Device detail modal (wraps DeviceDetailView)
-  DeviceGrid.tsx                   # Device grid view
   DeviceHealthWidget.tsx           # Device health widget
   DeviceInventoryCard.tsx          # Device inventory card
   FloorPlan.tsx                    # Floor plan component
@@ -475,7 +474,6 @@ components/                        # React components (all use 'use client')
   MaintenanceStatusCards.tsx       # Maintenance status cards
   MaintenanceTimeline.tsx          # Maintenance timeline
   Pagination.tsx                   # Pagination component
-  PrioritySummaryCards.tsx         # Priority summary cards
   ScheduleList.tsx                 # Paginated schedule list with filters
   ScheduleServiceModal.tsx         # Schedule creation modal (multi-device, bulk)
   ScheduleStatusBadge.tsx          # Status badge (scheduled/completed/cancelled)
