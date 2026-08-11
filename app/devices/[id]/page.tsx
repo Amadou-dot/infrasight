@@ -21,6 +21,7 @@ export default function DeviceDetailPage() {
     recentReadings,
     auditLog,
     auditTotal,
+    readingsTotal,
     loading,
     error,
     notFound: missing,
@@ -74,6 +75,7 @@ export default function DeviceDetailPage() {
             recentReadings={recentReadings}
             auditLog={auditLog}
             auditTotal={auditTotal}
+            readingsTotal={readingsTotal}
           />
         </div>
       )}

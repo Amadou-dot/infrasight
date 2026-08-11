@@ -453,6 +453,7 @@ components/                        # React components (all use 'use client')
   devices/CreateDeviceModal.tsx    # Device creation form (admin only)
   devices/DeviceDetailView.tsx     # Shared device detail presentation (modal + page)
   devices/useDeviceDetail.ts       # Shared device detail data loading
+  devices/ReadingsPanel.tsx        # Type-aware readings chart + stats (registry-driven, live appends)
   devices/TagInput.tsx             # Tag input component for device metadata
   alerts/AlertDetailView.tsx       # Shared alert detail presentation (page)
   alerts/AlertList.tsx             # Paginated alert list with filters (/alerts)

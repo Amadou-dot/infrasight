@@ -5,6 +5,7 @@ import type { DeviceV2Response, ReadingV2Response } from '@/types/v2';
 import { Badge } from '@/components/ui/badge';
 import AuditLogViewer from '@/components/AuditLogViewer';
 import TemperatureCorrelationPanel from '@/components/TemperatureCorrelationPanel';
+import ReadingsPanel from './ReadingsPanel';
 import type { AuditLogEntry } from './useDeviceDetail';
 import {
   MapPin,
@@ -24,15 +25,6 @@ import {
   Lock,
   Shield,
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 
 type TabType = 'overview' | 'readings' | 'config' | 'audit';
 
@@ -49,6 +41,8 @@ interface DeviceDetailViewProps {
   auditLog: AuditLogEntry[];
   /** Server-reported total audit entry count; passed through to AuditLogViewer. */
   auditTotal?: number | null;
+  /** Server total for the 24h readings window; passed through to ReadingsPanel. */
+  readingsTotal?: number | null;
   /** Rendered next to the device id — used for the "open full page" link in the modal. */
   headerAction?: React.ReactNode;
 }
@@ -96,19 +90,6 @@ export function formatDate(date: string | Date | undefined) {
   });
 }
 
-function formatReadingsForChart(recentReadings: ReadingV2Response[]) {
-  // Callers render an empty state instead of an empty chart, so there is no length guard here.
-  return recentReadings
-    .map((reading: ReadingV2Response) => ({
-      time: new Date(reading.timestamp).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      value: reading.value,
-    }))
-    .reverse();
-}
-
 /**
  * Presentational device detail: header, tabs, and tab content.
  *
@@ -120,6 +101,7 @@ export default function DeviceDetailView({
   recentReadings,
   auditLog,
   auditTotal,
+  readingsTotal,
   headerAction,
 }: DeviceDetailViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -439,33 +421,11 @@ export default function DeviceDetailView({
             {/* Temperature Correlation Panel for temperature devices */}
             {device.type === 'temperature' && <TemperatureCorrelationPanel deviceId={device._id} />}
 
-            {/* Standard Readings Chart */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900 dark:text-white">
-                Recent Readings (Last 24 Hours)
-              </h3>
-              {recentReadings.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                  No recent readings available
-                </p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={formatReadingsForChart(recentReadings)}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" tick={{ fontSize: 12 }} stroke="#888" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="#888" />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={{ r: 2 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+            <ReadingsPanel
+              device={device}
+              recentReadings={recentReadings}
+              readingsTotal={readingsTotal ?? null}
+            />
           </div>
         )}
 
