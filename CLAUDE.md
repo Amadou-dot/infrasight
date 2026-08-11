@@ -747,10 +747,11 @@ Device types and reading types are **one list**: a device of type X emits readin
 | [types/v2/reading.types.ts](types/v2/reading.types.ts) | `ReadingType` (client-safe copy) | `tsc` error, via the conformance assertions |
 | [types/v2/device.types.ts](types/v2/device.types.ts) | `DeviceType` (client-safe copy) | `tsc` error, via the conformance assertions |
 | [lib/simulation/readings.ts](lib/simulation/readings.ts) | `TYPE_SENSITIVITY` **and** a `case` in `generateReading`'s switch | `tsc` error both times (`Record<ReadingType, …>`; definite assignment on `value`/`unit`) |
+| [lib/utils/reading-display.ts](lib/utils/reading-display.ts) | `READING_DISPLAY` entry (chart shape, stats kind, label) | `tsc` error — total `Record<ReadingType, …>` |
 
 `ReadingTypeName` in [types/v2/alert.types.ts](types/v2/alert.types.ts) is now an **alias** of `ReadingType`, not a copy — nothing to change there.
 
-**2. Units.** Add any new `ReadingUnit` values (35 today) to *all three* copies: `models/v2/ReadingV2.ts` (union + schema enum), `lib/validations/v2/reading.validation.ts` (`readingUnitSchema`), `types/v2/reading.types.ts`.
+**2. Units.** Add any new `ReadingUnit` values (35 today) to *all four* copies: `models/v2/ReadingV2.ts` (union + schema enum), `lib/validations/v2/reading.validation.ts` (`readingUnitSchema`), `types/v2/reading.types.ts`, and `lib/utils/reading-display.ts` (`UNIT_SYMBOL` — this one is a total `Record`, so `tsc` catches an omission).
 
 **3. Silent fallbacks — nothing fails, the behaviour is just wrong.**
 
