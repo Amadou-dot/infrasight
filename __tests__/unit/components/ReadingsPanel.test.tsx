@@ -3,10 +3,15 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { DeviceV2Response, ReadingV2Response } from '@/types/v2';
 import ReadingsPanel from '@/components/devices/ReadingsPanel';
+import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
+
+jest.mock('@/lib/pusher-context', () => ({
+  usePusherReadings: jest.fn(),
+}));
 
 /**
  * Recharts renders nothing measurable in jsdom, so each mock surfaces the
@@ -14,18 +19,18 @@ import ReadingsPanel from '@/components/devices/ReadingsPanel';
  * their props for direct inspection (chart data, the dot renderer).
  */
 let capturedLineProps: Record<string, unknown> = {};
-let _capturedChartData: unknown[] = [];
+let capturedChartData: unknown[] = [];
 
 jest.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="chart-container">{children}</div>
   ),
   LineChart: (props: { children: React.ReactNode; data: unknown[] }) => {
-    _capturedChartData = props.data;
+    capturedChartData = props.data;
     return <div data-testid="line-chart">{props.children}</div>;
   },
   BarChart: (props: { children: React.ReactNode; data: unknown[] }) => {
-    _capturedChartData = props.data;
+    capturedChartData = props.data;
     return <div data-testid="bar-chart">{props.children}</div>;
   },
   Line: (props: Record<string, unknown>) => {
@@ -88,7 +93,7 @@ function createReading(overrides: {
 beforeEach(() => {
   jest.clearAllMocks(); // mock call counts must not leak between tests (Task 4 asserts them)
   capturedLineProps = {};
-  _capturedChartData = [];
+  capturedChartData = [];
 });
 
 describe('ReadingsPanel chart shapes', () => {
@@ -292,5 +297,77 @@ describe('ReadingsPanel heading honesty', () => {
     render(<ReadingsPanel device={createDevice()} recentReadings={[]} readingsTotal={0} />);
     expect(screen.getByText('No recent readings available')).toBeInTheDocument();
     expect(screen.queryByTestId('chart-container')).not.toBeInTheDocument();
+  });
+});
+
+describe('ReadingsPanel live updates', () => {
+  function lastHandler(): (readings: PusherReading[]) => void {
+    return (usePusherReadings as jest.Mock).mock.calls.at(-1)?.[0];
+  }
+
+  function liveReading(overrides: Partial<PusherReading['metadata']> = {}, value = 30): PusherReading {
+    return {
+      metadata: { device_id: 'device_001', type: 'temperature', ...overrides },
+      timestamp: '2026-08-11T13:00:00.000Z',
+      value,
+    };
+  }
+
+  it('subscribes exactly once through usePusherReadings', () => {
+    render(
+      <ReadingsPanel device={createDevice()} recentReadings={[createReading()]} readingsTotal={1} />
+    );
+    expect(usePusherReadings).toHaveBeenCalledTimes(1);
+    expect(typeof lastHandler()).toBe('function');
+  });
+
+  it('appends a matching live reading to the chart and updates Current', () => {
+    render(
+      <ReadingsPanel
+        device={createDevice()}
+        recentReadings={[createReading({ value: 21.5, timestamp: '2026-08-11T10:00:00.000Z' })]}
+        readingsTotal={1}
+      />
+    );
+    expect(capturedChartData).toHaveLength(1);
+
+    act(() => lastHandler()([liveReading({}, 30)]));
+
+    expect(capturedChartData).toHaveLength(2);
+    // Current tracks live. getAllByText because 30 is also the window max, so
+    // the same formatted string appears in both the Current and Max cells.
+    expect(screen.getAllByText('30.0 °C').length).toBeGreaterThan(0);
+  });
+
+  // The negative case is the point: the public channel carries the whole
+  // fleet, and every other device's readings must be ignored.
+  it('ignores readings for other devices', () => {
+    render(
+      <ReadingsPanel device={createDevice()} recentReadings={[createReading()]} readingsTotal={1} />
+    );
+    act(() => lastHandler()([liveReading({ device_id: 'device_999' }, 30)]));
+    expect(capturedChartData).toHaveLength(1);
+  });
+
+  it('ignores readings whose type does not match the device', () => {
+    render(
+      <ReadingsPanel device={createDevice()} recentReadings={[createReading()]} readingsTotal={1} />
+    );
+    act(() => lastHandler()([liveReading({ type: 'humidity' }, 30)]));
+    expect(capturedChartData).toHaveLength(1);
+  });
+
+  it('trims the merged series to MAX_CHART_POINTS', () => {
+    const fetched = Array.from({ length: 500 }, (_, i) =>
+      createReading({ value: i, timestamp: `2026-08-11T00:${String(i % 60).padStart(2, '0')}:00.000Z` })
+    );
+    render(<ReadingsPanel device={createDevice()} recentReadings={fetched} readingsTotal={500} />);
+    expect(capturedChartData).toHaveLength(500);
+
+    act(() => lastHandler()([liveReading({}, 30)]));
+
+    expect(capturedChartData).toHaveLength(500); // oldest dropped, newest appended
+    const values = (capturedChartData as Array<{ value: number }>).map(d => d.value);
+    expect(values[values.length - 1]).toBe(30);
   });
 });

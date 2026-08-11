@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DeviceV2Response, ReadingV2Response } from '@/types/v2';
+import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
 import {
   formatReadingValue,
   getReadingDisplay,
+  MAX_CHART_POINTS,
   summarizeReadings,
   toChartPoint,
   unitSymbol,
@@ -74,11 +76,53 @@ function Stat({ label, value }: { label: string; value: string }) {
  */
 export default function ReadingsPanel({ device, recentReadings, readingsTotal }: ReadingsPanelProps) {
   const display = getReadingDisplay(device.type);
-  // The hook returns newest-first; the chart and stats want ascending time.
-  const points = useMemo(
-    () => recentReadings.map(toChartPoint).reverse(),
-    [recentReadings]
+
+  const [livePoints, setLivePoints] = useState<ChartPoint[]>([]);
+
+  // A new device or a fresh fetch invalidates the live buffer — without this,
+  // live points from the previously viewed device leak into the next chart.
+  // The functional updater bails out (same reference) when the buffer is
+  // already empty, so mount does not force a wasted extra render/subscribe
+  // cycle.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronizing the local live-reading buffer to prop identity (device._id, recentReadings) is what this Effect is for; it cannot be derived during render because it depends on the *previous* buffer contents from the prior identity. The functional updater bails (same reference) when already empty, so a normal mount is a no-op.
+    setLivePoints(previous => (previous.length === 0 ? previous : []));
+  }, [device._id, recentReadings]);
+
+  usePusherReadings(
+    useCallback(
+      (incoming: PusherReading[]) => {
+        // The public channel carries the whole fleet; keep only this device's
+        // own readings (and only its own type, defensively).
+        const mine = incoming.filter(
+          reading =>
+            reading.metadata.device_id === device._id && reading.metadata.type === device.type
+        );
+        if (mine.length === 0) return;
+        setLivePoints(previous =>
+          [
+            ...previous,
+            // Live payloads carry no quality object, so anomaly dots appear
+            // only on fetched readings (accepted in the design spec).
+            ...mine.map(reading => ({
+              timestamp: reading.timestamp,
+              value: reading.value,
+              isAnomaly: false,
+            })),
+          ].slice(-MAX_CHART_POINTS)
+        );
+      },
+      [device._id, device.type]
+    )
   );
+
+  // The hook returns newest-first; the chart and stats want ascending time.
+  // Live points are appended after the fetched window and the merged series is
+  // trimmed from the FRONT so the newest MAX_CHART_POINTS always win.
+  const points = useMemo(() => {
+    const fetched = recentReadings.map(toChartPoint).reverse();
+    return [...fetched, ...livePoints].slice(-MAX_CHART_POINTS);
+  }, [recentReadings, livePoints]);
   const summary = useMemo(() => summarizeReadings(points), [points]);
 
   const symbol = unitSymbol(recentReadings[0]?.metadata.unit ?? '');
