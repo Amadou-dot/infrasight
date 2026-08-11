@@ -8,17 +8,19 @@ import '@testing-library/jest-dom';
 import type { DeviceV2Response, ReadingV2Response } from '@/types/v2';
 import DeviceDetailView from '@/components/devices/DeviceDetailView';
 
-jest.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="readings-chart">{children}</div>
-  ),
-  LineChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Line: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  CartesianGrid: () => null,
-  Tooltip: () => null,
-}));
+jest.mock('@/components/devices/ReadingsPanel', () => {
+  const ReadingsPanel = (props: {
+    device: { _id: string };
+    recentReadings: unknown[];
+    readingsTotal: number | null;
+  }) => (
+    <div data-testid="readings-panel" data-total={String(props.readingsTotal)}>
+      {props.recentReadings.length} readings
+    </div>
+  );
+  ReadingsPanel.displayName = 'ReadingsPanel';
+  return ReadingsPanel;
+});
 
 jest.mock('@/components/AuditLogViewer', () => {
   const AuditLogViewer = ({ entries }: { entries: Array<{ action: string }> }) => (
@@ -312,21 +314,30 @@ describe('DeviceDetailView', () => {
     expect(screen.getByText('-62')).toBeInTheDocument();
   });
 
-  it('should chart recent readings on the readings tab', () => {
-    render(<DeviceDetailView device={createDevice()} recentReadings={readings} auditLog={[]} />);
+  it('hands the readings tab to ReadingsPanel with the server total', () => {
+    render(
+      <DeviceDetailView
+        device={createDevice()}
+        recentReadings={readings}
+        auditLog={[]}
+        readingsTotal={2880}
+      />
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /readings/i }));
 
-    expect(screen.getByTestId('readings-chart')).toBeInTheDocument();
+    const panel = screen.getByTestId('readings-panel');
+    expect(panel).toHaveAttribute('data-total', '2880');
+    expect(panel).toHaveTextContent('1 readings');
     expect(screen.getByTestId('temperature-correlation')).toHaveTextContent('device_001');
   });
 
-  it('should say so when there are no readings to chart', () => {
+  it('defaults ReadingsPanel to a null total when the caller does not pass one', () => {
     render(<DeviceDetailView device={createDevice()} recentReadings={[]} auditLog={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: /readings/i }));
 
-    expect(screen.getByText('No recent readings available')).toBeInTheDocument();
+    expect(screen.getByTestId('readings-panel')).toHaveAttribute('data-total', 'null');
   });
 
   it('should only show temperature correlation for temperature devices', () => {

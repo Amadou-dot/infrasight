@@ -17,7 +17,7 @@ interface DeviceDetailModalProps {
  * at the canonical `/devices/[id]` route, which this modal links out to.
  */
 export default function DeviceDetailModal({ deviceId, isOpen, onClose }: DeviceDetailModalProps) {
-  const { device, recentReadings, auditLog, auditTotal, loading, error, notFound } =
+  const { device, recentReadings, auditLog, auditTotal, readingsTotal, loading, error, notFound } =
     useDeviceDetail(deviceId, isOpen);
 
   if (!isOpen) return null;
@@ -53,6 +53,7 @@ export default function DeviceDetailModal({ deviceId, isOpen, onClose }: DeviceD
             recentReadings={recentReadings}
             auditLog={auditLog}
             auditTotal={auditTotal}
+            readingsTotal={readingsTotal}
             headerAction={
               <Link
                 href={`/devices/${device._id}`}

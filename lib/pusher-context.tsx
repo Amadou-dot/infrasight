@@ -12,6 +12,7 @@ import {
 import { getPusherClient } from '@/lib/pusher-client';
 import { ALERT_CHANNEL, READINGS_CHANNEL } from '@/lib/pusher-channels';
 import type { AlertEvent } from '@/types/v2/alert.types';
+import type { ReadingType } from '@/types/v2/reading.types';
 
 /**
  * Shape of a reading received from Pusher on the 'new-readings' event.
@@ -21,7 +22,7 @@ import type { AlertEvent } from '@/types/v2/alert.types';
 export interface PusherReading {
   metadata: {
     device_id: string;
-    type: 'temperature' | 'humidity' | 'occupancy' | 'power';
+    type: ReadingType;
   };
   timestamp: string;
   value: number;

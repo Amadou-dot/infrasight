@@ -53,10 +53,10 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
           <ClerkThemeProvider>
             {/*
             PusherProvider stays an ancestor of {children}: DeviceGrid,
-            FloorPlan and AnomalyChart read live readings through its
-            context, and readings are public (they were before alerting
-            existed). What is gated below is everything that receives or
-            renders ALERT data.
+            FloorPlan, AnomalyChart and ReadingsPanel read live readings
+            through its context, and readings are public (they were before
+            alerting existed). What is gated below is everything that
+            receives or renders ALERT data.
 
             Note the provider is not itself wrapped in <SignedIn>: that
             component renders nothing until Clerk has loaded, so gating the
