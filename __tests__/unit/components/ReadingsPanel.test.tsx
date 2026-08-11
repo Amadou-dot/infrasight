@@ -370,4 +370,33 @@ describe('ReadingsPanel live updates', () => {
     const values = (capturedChartData as Array<{ value: number }>).map(d => d.value);
     expect(values[values.length - 1]).toBe(30);
   });
+
+  // A non-empty buffer must reset when the fetched window itself changes —
+  // otherwise stale live points from before the refetch would linger
+  // alongside (or ahead of) the new fetched series.
+  it('resets a non-empty live buffer when recentReadings changes', () => {
+    const { rerender } = render(
+      <ReadingsPanel
+        device={createDevice()}
+        recentReadings={[createReading({ value: 21.5, timestamp: '2026-08-11T10:00:00.000Z' })]}
+        readingsTotal={1}
+      />
+    );
+    expect(capturedChartData).toHaveLength(1);
+
+    act(() => lastHandler()([liveReading({}, 30)]));
+    expect(capturedChartData).toHaveLength(2);
+
+    const nextFetched = [
+      createReading({ value: 41, timestamp: '2026-08-11T12:00:00.000Z' }),
+      createReading({ value: 40, timestamp: '2026-08-11T11:00:00.000Z' }),
+    ];
+    rerender(
+      <ReadingsPanel device={createDevice()} recentReadings={nextFetched} readingsTotal={2} />
+    );
+
+    expect(capturedChartData).toHaveLength(2);
+    const values = (capturedChartData as Array<{ value: number }>).map(d => d.value);
+    expect(values).toEqual([40, 41]); // ascending; the live 30 is gone, not just appended past it
+  });
 });

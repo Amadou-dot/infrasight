@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { DeviceV2Response, ReadingV2Response } from '@/types/v2';
 import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
 import {
@@ -81,13 +81,24 @@ export default function ReadingsPanel({ device, recentReadings, readingsTotal }:
 
   // A new device or a fresh fetch invalidates the live buffer — without this,
   // live points from the previously viewed device leak into the next chart.
-  // The functional updater bails out (same reference) when the buffer is
-  // already empty, so mount does not force a wasted extra render/subscribe
-  // cycle.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronizing the local live-reading buffer to prop identity (device._id, recentReadings) is what this Effect is for; it cannot be derived during render because it depends on the *previous* buffer contents from the prior identity. The functional updater bails (same reference) when already empty, so a normal mount is a no-op.
-    setLivePoints(previous => (previous.length === 0 ? previous : []));
-  }, [device._id, recentReadings]);
+  // Reset during render (React's documented "adjusting state when props
+  // change" idiom) rather than in an Effect: this is CONDITIONAL setState —
+  // it only fires when the reset key actually changed — so it doesn't trip
+  // react-hooks/set-state-in-render (which flags unconditional render-time
+  // setState) and needs no suppression comment. The lazy initializer seeds
+  // `prevResetKey` from the *current* props (rather than a null sentinel),
+  // so a normal mount never takes the reset branch — only a genuine
+  // device/recentReadings change does — which keeps mount from causing an
+  // extra render pass/re-subscribe. `livePoints.length > 0` further skips
+  // resetting an already-empty buffer.
+  const [prevResetKey, setPrevResetKey] = useState(() => ({
+    id: device._id,
+    readings: recentReadings,
+  }));
+  if (prevResetKey.id !== device._id || prevResetKey.readings !== recentReadings) {
+    setPrevResetKey({ id: device._id, readings: recentReadings });
+    if (livePoints.length > 0) setLivePoints([]);
+  }
 
   usePusherReadings(
     useCallback(
