@@ -15,6 +15,7 @@ import { validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess } from '@/lib/api/response';
 import { requireOrgMembership } from '@/lib/auth';
+import { getOrSet, latestReadingsKey, CACHE_TTL } from '@/lib/cache';
 
 // ============================================================================
 // GET /api/v2/readings/latest - Get Latest Readings
@@ -22,8 +23,7 @@ import { requireOrgMembership } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   return withErrorHandler(async () => {
-    await requireOrgMembership();
-    await dbConnect();
+    const { orgId } = await requireOrgMembership();
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -38,103 +38,122 @@ export async function GET(request: NextRequest) {
       );
 
     const query = validationResult.data as LatestReadingsQuery;
+    const cacheKey = latestReadingsKey({
+      orgId,
+      deviceIds: query.device_ids
+        ? Array.isArray(query.device_ids)
+          ? query.device_ids
+          : [query.device_ids]
+        : undefined,
+      types: query.type ? (Array.isArray(query.type) ? query.type : [query.type]) : undefined,
+      includeInvalid: query.include_invalid,
+      includeQualityMetrics: query.include_quality_metrics,
+    });
+    const response = await getOrSet(cacheKey, () => fetchLatestReadings(query), {
+      ttl: CACHE_TTL.READINGS_LATEST,
+    });
+    return jsonSuccess(response);
+  })();
+}
 
-    // Build match stage
-    const matchStage: Record<string, unknown> = {};
+async function fetchLatestReadings(query: LatestReadingsQuery): Promise<Record<string, unknown>> {
+  await dbConnect();
 
-    // Device IDs filter
-    if (query.device_ids) {
-      const deviceIds = Array.isArray(query.device_ids) ? query.device_ids : [query.device_ids];
-      matchStage['metadata.device_id'] = { $in: deviceIds };
-    }
+  // Build match stage
+  const matchStage: Record<string, unknown> = {};
 
-    // Type filter
-    if (query.type) {
-      const types = Array.isArray(query.type) ? query.type : [query.type];
-      matchStage['metadata.type'] = types.length === 1 ? types[0] : { $in: types };
-    }
+  // Device IDs filter
+  if (query.device_ids) {
+    const deviceIds = Array.isArray(query.device_ids) ? query.device_ids : [query.device_ids];
+    matchStage['metadata.device_id'] = { $in: deviceIds };
+  }
 
-    // Quality filter
-    if (!query.include_invalid) matchStage['quality.is_valid'] = true;
+  // Type filter
+  if (query.type) {
+    const types = Array.isArray(query.type) ? query.type : [query.type];
+    matchStage['metadata.type'] = types.length === 1 ? types[0] : { $in: types };
+  }
 
-    // Aggregation pipeline to get latest reading per device
-    const pipeline = [
-      { $match: matchStage },
-      { $sort: { timestamp: -1 as const } },
+  // Quality filter
+  if (!query.include_invalid) matchStage['quality.is_valid'] = true;
+
+  // Aggregation pipeline to get latest reading per device
+  const pipeline = [
+    { $match: matchStage },
+    { $sort: { timestamp: -1 as const } },
+    {
+      $group: {
+        _id: {
+          device_id: '$metadata.device_id',
+          type: '$metadata.type',
+        },
+        latest_reading: { $first: '$$ROOT' },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        device_id: '$_id.device_id',
+        type: '$_id.type',
+        value: '$latest_reading.value',
+        unit: '$latest_reading.metadata.unit',
+        timestamp: '$latest_reading.timestamp',
+        quality: '$latest_reading.quality',
+        context: '$latest_reading.context',
+      },
+    },
+  ];
+
+  const latestReadings = await ReadingV2.aggregate(pipeline);
+
+  // Include quality metrics if requested
+  const response: Record<string, unknown> = {
+    readings: latestReadings,
+    count: latestReadings.length,
+  };
+
+  if (query.include_quality_metrics && query.device_ids) {
+    const deviceIds = Array.isArray(query.device_ids) ? query.device_ids : [query.device_ids];
+
+    // Calculate quality metrics
+    const qualityPipeline = [
+      {
+        $match: {
+          'metadata.device_id': { $in: deviceIds },
+          timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
+        },
+      },
       {
         $group: {
-          _id: {
-            device_id: '$metadata.device_id',
-            type: '$metadata.type',
+          _id: '$metadata.device_id',
+          total_readings: { $sum: 1 },
+          valid_readings: {
+            $sum: { $cond: ['$quality.is_valid', 1, 0] },
           },
-          latest_reading: { $first: '$$ROOT' },
+          anomaly_count: {
+            $sum: { $cond: ['$quality.is_anomaly', 1, 0] },
+          },
+          avg_confidence: { $avg: '$quality.confidence_score' },
         },
       },
       {
         $project: {
           _id: 0,
-          device_id: '$_id.device_id',
-          type: '$_id.type',
-          value: '$latest_reading.value',
-          unit: '$latest_reading.metadata.unit',
-          timestamp: '$latest_reading.timestamp',
-          quality: '$latest_reading.quality',
-          context: '$latest_reading.context',
+          device_id: '$_id',
+          total_readings: 1,
+          valid_readings: 1,
+          validity_percentage: {
+            $multiply: [{ $divide: ['$valid_readings', { $max: ['$total_readings', 1] }] }, 100],
+          },
+          anomaly_count: 1,
+          avg_confidence: { $round: ['$avg_confidence', 3] },
         },
       },
     ];
 
-    const latestReadings = await ReadingV2.aggregate(pipeline);
+    const qualityMetrics = await ReadingV2.aggregate(qualityPipeline);
+    response.quality_metrics = qualityMetrics;
+  }
 
-    // Include quality metrics if requested
-    const response: Record<string, unknown> = {
-      readings: latestReadings,
-      count: latestReadings.length,
-    };
-
-    if (query.include_quality_metrics && query.device_ids) {
-      const deviceIds = Array.isArray(query.device_ids) ? query.device_ids : [query.device_ids];
-
-      // Calculate quality metrics
-      const qualityPipeline = [
-        {
-          $match: {
-            'metadata.device_id': { $in: deviceIds },
-            timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
-          },
-        },
-        {
-          $group: {
-            _id: '$metadata.device_id',
-            total_readings: { $sum: 1 },
-            valid_readings: {
-              $sum: { $cond: ['$quality.is_valid', 1, 0] },
-            },
-            anomaly_count: {
-              $sum: { $cond: ['$quality.is_anomaly', 1, 0] },
-            },
-            avg_confidence: { $avg: '$quality.confidence_score' },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            device_id: '$_id',
-            total_readings: 1,
-            valid_readings: 1,
-            validity_percentage: {
-              $multiply: [{ $divide: ['$valid_readings', { $max: ['$total_readings', 1] }] }, 100],
-            },
-            anomaly_count: 1,
-            avg_confidence: { $round: ['$avg_confidence', 3] },
-          },
-        },
-      ];
-
-      const qualityMetrics = await ReadingV2.aggregate(qualityPipeline);
-      response.quality_metrics = qualityMetrics;
-    }
-
-    return jsonSuccess(response);
-  })();
+  return response;
 }
