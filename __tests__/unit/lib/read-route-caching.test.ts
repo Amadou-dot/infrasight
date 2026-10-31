@@ -2,7 +2,9 @@ import { NextRequest } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import dbConnect from '@/lib/db';
 import ReadingV2 from '@/models/v2/ReadingV2';
+import DeviceV2 from '@/models/v2/DeviceV2';
 import { GET as latest } from '@/app/api/v2/readings/latest/route';
+import { GET as metadata } from '@/app/api/v2/metadata/route';
 
 jest.mock('@/lib/db', () => ({
   __esModule: true,
@@ -38,14 +40,12 @@ jest.mock('@/lib/redis/client', () => ({
 }));
 
 function authenticate(orgId = 'org_default') {
-  jest
-    .mocked(auth)
-    .mockResolvedValue({
-      userId: 'user_test_default',
-      orgId,
-      orgSlug: 'users',
-      orgRole: 'org:admin',
-    } as Awaited<ReturnType<typeof auth>>);
+  jest.mocked(auth).mockResolvedValue({
+    userId: 'user_test_default',
+    orgId,
+    orgSlug: 'users',
+    orgRole: 'org:admin',
+  } as Awaited<ReturnType<typeof auth>>);
 }
 
 function request(params: Record<string, string> = {}) {
@@ -58,16 +58,14 @@ describe('latest readings cache boundary', () => {
     authenticate();
     mockStore.clear();
     mockRedisAvailable = true;
-    aggregate = jest
-      .spyOn(ReadingV2, 'aggregate')
-      .mockResolvedValue([
-        {
-          device_id: 'device_001',
-          type: 'temperature',
-          value: 21,
-          timestamp: new Date('2026-10-31T10:00:00Z'),
-        },
-      ]);
+    aggregate = jest.spyOn(ReadingV2, 'aggregate').mockResolvedValue([
+      {
+        device_id: 'device_001',
+        type: 'temperature',
+        value: 21,
+        timestamp: new Date('2026-10-31T10:00:00Z'),
+      },
+    ]);
   });
   afterEach(() => {
     aggregate.mockRestore();
@@ -140,7 +138,74 @@ describe('latest readings cache boundary', () => {
     expect((await latest(request())).status).toBe(200);
     expect(aggregate).toHaveBeenCalledTimes(2);
     jest.mocked(dbConnect).mockClear();
-    expect((await latest(new NextRequest('http://localhost/api/v2/readings/latest?type=not-a-type&type=also-invalid'))).status).toBe(400);
+    expect(
+      (
+        await latest(
+          new NextRequest(
+            'http://localhost/api/v2/readings/latest?type=not-a-type&type=also-invalid'
+          )
+        )
+      ).status
+    ).toBe(400);
     expect(dbConnect).not.toHaveBeenCalled();
+  });
+});
+
+describe('metadata fetching', () => {
+  let aggregate: jest.SpiedFunction<typeof DeviceV2.aggregate>;
+  const metadataRequest = () => new NextRequest('http://localhost/api/v2/metadata');
+  beforeEach(() => {
+    authenticate();
+    mockStore.clear();
+    mockRedisAvailable = true;
+    aggregate = jest.spyOn(DeviceV2, 'aggregate').mockResolvedValue([]);
+  });
+  afterEach(() => {
+    aggregate.mockRestore();
+  });
+
+  it('starts all five independent aggregates before awaiting any result', async () => {
+    const pending = Array.from({ length: 5 }, () => {
+      let resolve!: (value: unknown[]) => void;
+      const promise = new Promise<unknown[]>(done => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    });
+    pending.forEach(item =>
+      aggregate.mockImplementationOnce(jest.fn().mockReturnValue(item.promise))
+    );
+    const result = metadata(metadataRequest());
+    await new Promise(resolve => setImmediate(resolve));
+    try {
+      expect(aggregate).toHaveBeenCalledTimes(5);
+    } finally {
+      pending[0].resolve([{ name: 'Maker' }]);
+      pending[1].resolve([{ name: 'Operations' }]);
+      pending[2].resolve([{ type: 'temperature' }]);
+      pending[3].resolve([{ building: 'Building-A' }]);
+      pending[4].resolve([{ tag: 'test' }]);
+    }
+    const body = await (await result).json();
+    expect(body.data).toMatchObject({
+      manufacturers: [{ name: 'Maker' }],
+      departments: [{ name: 'Operations' }],
+      device_types: [{ type: 'temperature' }],
+      buildings: [{ building: 'Building-A' }],
+      tags: [{ tag: 'test' }],
+    });
+  });
+
+  it('serves cached metadata without reconnecting to MongoDB', async () => {
+    const first = await (await metadata(metadataRequest())).json();
+    expect((await (await metadata(metadataRequest())).json()).data).toEqual(first.data);
+    expect(aggregate).toHaveBeenCalledTimes(5);
+    expect(dbConnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a failed metadata aggregate', async () => {
+    aggregate.mockRejectedValueOnce(new Error('metadata unavailable'));
+    expect((await metadata(metadataRequest())).status).toBe(500);
+    expect((await metadata(metadataRequest())).status).toBe(200);
   });
 });

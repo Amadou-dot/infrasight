@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
 
   return withErrorHandler(async () => {
     const authContext = await requireOrgMembership();
-    await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;
     const includeStats = searchParams.get('include_stats') === 'true';
@@ -49,6 +48,7 @@ export async function GET(request: NextRequest) {
     const response = await getOrSet(
       cacheKey,
       async () => {
+        await dbConnect();
         // Base match for devices (exclude soft-deleted by default)
         const deviceMatch: Record<string, unknown> = includeDeleted
           ? {}
@@ -78,7 +78,7 @@ async function fetchMetadata(
   includeStats: boolean
 ): Promise<Record<string, unknown>> {
   // Get unique manufacturers with device counts
-  const manufacturers = await DeviceV2.aggregate([
+  const manufacturersQuery = DeviceV2.aggregate([
     { $match: { ...deviceMatch, manufacturer: { $exists: true, $ne: null } } },
     {
       $group: {
@@ -104,7 +104,7 @@ async function fetchMetadata(
   ]);
 
   // Get unique departments with device counts
-  const departments = await DeviceV2.aggregate([
+  const departmentsQuery = DeviceV2.aggregate([
     { $match: { ...deviceMatch, 'metadata.department': { $exists: true, $ne: null } } },
     {
       $group: {
@@ -130,7 +130,7 @@ async function fetchMetadata(
   ]);
 
   // Get device type statistics
-  const deviceTypes = await DeviceV2.aggregate([
+  const deviceTypesQuery = DeviceV2.aggregate([
     { $match: deviceMatch },
     {
       $group: {
@@ -157,7 +157,7 @@ async function fetchMetadata(
   ]);
 
   // Get building/floor/room hierarchy
-  const locationHierarchy = await DeviceV2.aggregate([
+  const locationHierarchyQuery = DeviceV2.aggregate([
     { $match: { ...deviceMatch, 'location.building_id': { $exists: true } } },
     {
       $group: {
@@ -211,7 +211,7 @@ async function fetchMetadata(
   ]);
 
   // Get unique tags
-  const tags = await DeviceV2.aggregate([
+  const tagsQuery = DeviceV2.aggregate([
     { $match: deviceMatch },
     { $unwind: '$metadata.tags' },
     {
@@ -228,6 +228,14 @@ async function fetchMetadata(
       },
     },
     { $sort: { device_count: -1 } },
+  ]);
+
+  const [manufacturers, departments, deviceTypes, locationHierarchy, tags] = await Promise.all([
+    manufacturersQuery,
+    departmentsQuery,
+    deviceTypesQuery,
+    locationHierarchyQuery,
+    tagsQuery,
   ]);
 
   // Basic response
