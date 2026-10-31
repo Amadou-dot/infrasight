@@ -43,8 +43,10 @@ describe('Floor Plan loading', () => {
   function deviceResponse(url: URL) {
     const filtered = rows.filter(
       row =>
-        !url.searchParams.has('building_id') ||
-        row.location.building_id === url.searchParams.get('building_id')
+        (!url.searchParams.has('building_id') ||
+          row.location.building_id === url.searchParams.get('building_id')) &&
+        (!url.searchParams.has('floor') ||
+          row.location.floor === Number(url.searchParams.get('floor')))
     );
     const page = Number(url.searchParams.get('page') || 1);
     return response({
@@ -212,6 +214,28 @@ describe('Floor Plan loading', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry devices' }));
     expect(await screen.findByText('21°F')).toBeInTheDocument();
   });
+
+  it.each(['building', 'floor'] as const)(
+    'preserves the newest reading across overlapping %s selections',
+    async scope => {
+      const second = device('device_002', scope === 'building' ? 'Building-B' : 'Building-A');
+      second.location.floor = 1;
+      rows = [device('device_001'), second];
+      const view = render(<FloorPlan selectedBuilding="all" selectedFloor="all" />, { wrapper });
+      await screen.findByText('21°F');
+      view.rerender(
+        <FloorPlan selectedBuilding="Building-A" selectedFloor={scope === 'floor' ? 0 : 'all'} />
+      );
+      await waitFor(() => expect(latestCalls()).toHaveLength(2));
+      push(40, '2026-10-31T10:00:10Z');
+      await screen.findByText('40°F');
+      view.rerender(<FloorPlan selectedBuilding="all" selectedFloor="all" />);
+      expect(screen.getByText('40°F')).toBeInTheDocument();
+      expect(latestCalls()).toHaveLength(2);
+      push(30, '2026-10-31T10:00:05Z');
+      expect(screen.getByText('40°F')).toBeInTheDocument();
+    }
+  );
 
   it('does not request readings for an empty building', async () => {
     rows = [];

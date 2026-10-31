@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchLatestReadingsBatched, type LatestReadings } from '@/lib/api/latest-readings';
 import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
@@ -27,6 +27,22 @@ function mergeReadings({
 
 export function useLatestReadings(deviceIds: string[]) {
   const client = useQueryClient();
+  // Selections have independent request/freshness state, but a device has one
+  // timestamp history. Observe this cache while the page is open to retain it.
+  const values = useQuery<LatestReadings>({
+    queryKey: queryKeys.readings.values,
+    enabled: false,
+    initialData: EMPTY_READINGS,
+    gcTime: 5 * 60 * 1000,
+  });
+  const remember = useCallback(
+    (incoming: LatestReadings) => {
+      client.setQueryData<LatestReadings>(queryKeys.readings.values, current =>
+        mergeReadings({ current, incoming })
+      );
+    },
+    [client]
+  );
   const ids = useMemo(() => [...new Set(deviceIds)].sort(), [deviceIds]);
   const selectedIds = useMemo(() => new Set(ids), [ids]);
   const queryKey = useMemo(() => queryKeys.readings.latest({ device_ids: ids }), [ids]);
@@ -43,11 +59,13 @@ export function useLatestReadings(deviceIds: string[]) {
       try {
         const readings = await fetchLatestReadingsBatched(ids, {
           signal,
-          onBatch: incoming =>
+          onBatch: incoming => {
+            remember(incoming);
             client.setQueryData<Snapshot>(queryKey, previous => ({
               readings: mergeReadings({ current: previous?.readings, incoming }),
               state: 'partial',
-            })),
+            }));
+          },
         });
         signal.throwIfAborted();
         return { readings, state: 'complete', completedAt: Date.now() };
@@ -72,6 +90,11 @@ export function useLatestReadings(deviceIds: string[]) {
     },
   });
 
+  // Seed from retained snapshots too if the shared cache was collected first.
+  useEffect(() => {
+    if (query.data) remember(query.data.readings);
+  }, [query.data, remember]);
+
   usePusherReadings(
     useCallback(
       (readings: PusherReading[]) => {
@@ -89,18 +112,26 @@ export function useLatestReadings(deviceIds: string[]) {
             incoming[id] = candidate;
         }
         if (Object.keys(incoming).length === 0) return;
+        remember(incoming);
         client.setQueryData<Snapshot>(queryKey, previous => ({
           ...(previous ?? { state: 'partial' }),
           readings: mergeReadings({ current: previous?.readings, incoming }),
         }));
       },
-      [client, queryKey, selectedIds]
+      [client, queryKey, selectedIds, remember]
     )
   );
 
+  const visibleReadings = useMemo(() => {
+    const newest = mergeReadings({ current: query.data?.readings, incoming: values.data });
+    const visible: LatestReadings = {};
+    for (const id of ids) if (newest[id]) visible[id] = newest[id];
+    return visible;
+  }, [ids, query.data, values.data]);
+
   return {
     ...query,
-    data: query.data?.readings ?? EMPTY_READINGS,
+    data: visibleReadings,
     isError: query.isError || query.data?.state === 'failed',
   };
 }
