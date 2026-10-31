@@ -395,6 +395,17 @@ export interface DeviceV2Response {
   compliance: DeviceCompliance;
 }
 
+/** The projected wire shape used by Floor Plan tiles, not a full device record. */
+export type FloorPlanDevice = Pick<DeviceV2Response, '_id' | 'type'> & {
+  location: Pick<DeviceLocation, 'building_id' | 'floor' | 'room_name'>;
+  configuration: Pick<DeviceConfiguration, 'threshold_warning' | 'threshold_critical'>;
+};
+
+export interface FloorPlanDeviceFilters {
+  building_id?: string;
+  floor?: number;
+}
+
 /**
  * Paginated device list response
  */

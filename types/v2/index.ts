@@ -35,6 +35,8 @@ export type {
   DeviceHistoryQuery,
   // Response types
   DeviceV2Response,
+  FloorPlanDevice,
+  FloorPlanDeviceFilters,
   DeviceListResponse,
   DeviceHistoryEntry,
   DeviceHistoryResponse,

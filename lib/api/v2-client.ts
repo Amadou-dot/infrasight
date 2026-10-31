@@ -10,6 +10,8 @@ import type {
   ApiErrorResponse,
   PaginatedResponse,
   DeviceV2Response,
+  FloorPlanDevice,
+  FloorPlanDeviceFilters,
   DeviceHistoryResponse,
   ListDevicesQuery,
   CreateDeviceInput,
@@ -169,6 +171,27 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}, retry = t
 // ============================================================================
 
 export const deviceApi = {
+  /** A typed projection: callers cannot mistake tile data for a full device. */
+  async listFloorPlan({
+    filters,
+    page,
+    signal,
+  }: {
+    filters: FloorPlanDeviceFilters;
+    page: number;
+    signal: AbortSignal;
+  }): Promise<PaginatedResponse<FloorPlanDevice>> {
+    const queryString = buildQueryString({
+      ...filters,
+      page,
+      limit: 100,
+      fields:
+        '_id,type,location.building_id,location.floor,location.room_name,configuration.threshold_warning,configuration.threshold_critical',
+    });
+    // React Query owns retries for this abortable request.
+    return apiCall(`/api/v2/devices${queryString}`, { signal }, false);
+  },
+
   /**
    * List devices with optional filters
    */
@@ -180,9 +203,7 @@ export const deviceApi = {
   /**
    * Create a new device
    */
-  async create(
-    data: CreateDeviceInput
-  ): Promise<ApiSuccessResponse<DeviceV2Response>> {
+  async create(data: CreateDeviceInput): Promise<ApiSuccessResponse<DeviceV2Response>> {
     return apiCall('/api/v2/devices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -539,7 +560,8 @@ export const analyticsApi = {
     if (deviceId ?? device_id) serverParams.device_id = deviceId ?? device_id;
     if (aggregationType ?? aggregation) serverParams.aggregation = aggregationType ?? aggregation;
     if (deviceType ?? type) serverParams.type = deviceType ?? type;
-    if (includeInvalid ?? include_invalid) serverParams.include_invalid = includeInvalid ?? include_invalid;
+    if (includeInvalid ?? include_invalid)
+      serverParams.include_invalid = includeInvalid ?? include_invalid;
     if (groupBy ?? group_by) serverParams.group_by = groupBy ?? group_by;
 
     const queryString = buildQueryString(serverParams);
@@ -759,9 +781,7 @@ export const schedulesApi = {
   /**
    * Create new schedule(s) - supports bulk creation via device_ids array
    */
-  async create(
-    data: CreateScheduleInput
-  ): Promise<ApiSuccessResponse<BulkCreateScheduleResponse>> {
+  async create(data: CreateScheduleInput): Promise<ApiSuccessResponse<BulkCreateScheduleResponse>> {
     return apiCall('/api/v2/schedules', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -797,7 +817,9 @@ export const schedulesApi = {
   /**
    * Cancel a schedule
    */
-  async cancel(id: string): Promise<ApiSuccessResponse<{ _id: string; cancelled: boolean; cancelled_at?: string }>> {
+  async cancel(
+    id: string
+  ): Promise<ApiSuccessResponse<{ _id: string; cancelled: boolean; cancelled_at?: string }>> {
     return apiCall(`/api/v2/schedules/${id}`, {
       method: 'DELETE',
     });
