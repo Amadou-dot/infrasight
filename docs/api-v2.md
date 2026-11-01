@@ -727,11 +727,16 @@ Get the most recent reading for each device.
 GET /api/v2/readings/latest
 ```
 
+When Redis is available and `CACHE_ENABLED` is not `false`, responses are cached
+for up to 10 seconds per organization and query (including validity and quality
+options). Every request still checks membership. Without Redis, the endpoint reads
+MongoDB directly. Pusher updates remain independent of this HTTP snapshot cache.
+
 #### Query Parameters
 
 | Parameter                 | Type    | Required | Description                               |
 | ------------------------- | ------- | -------- | ----------------------------------------- |
-| `device_ids`              | string  | Yes      | Comma-separated device IDs                |
+| `device_ids`              | string  | No       | Comma-separated device IDs; omit for all   |
 | `type`                    | string  | No       | Filter by reading type                    |
 | `include_invalid`         | boolean | No       | Include invalid readings (default: false) |
 | `include_quality_metrics` | boolean | No       | Include 24-hour quality metrics           |

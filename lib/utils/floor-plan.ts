@@ -1,4 +1,4 @@
-import type { DeviceV2Response } from '@/types/v2';
+import type { FloorPlanDevice } from '@/types/v2';
 
 export type DeviceStatusLevel = 'offline' | 'critical' | 'warning' | 'normal';
 
@@ -10,7 +10,7 @@ export type DeviceStatusLevel = 'offline' | 'critical' | 'warning' | 'normal';
  * 9999 — under which a device with no thresholds could never leave "Normal".
  */
 export function getDeviceStatusLevel(
-  device: Pick<DeviceV2Response, 'configuration'>,
+  device: Pick<FloorPlanDevice, 'configuration'>,
   value: number | undefined
 ): DeviceStatusLevel {
   if (value === undefined) return 'offline';
@@ -22,10 +22,10 @@ export function getDeviceStatusLevel(
 }
 
 /** Groups by floor keeping floor 0; devices without a floor are omitted. */
-export function groupDevicesByFloor(
-  devices: DeviceV2Response[]
-): Record<number, DeviceV2Response[]> {
-  const grouped: Record<number, DeviceV2Response[]> = {};
+export function groupDevicesByFloor<TDevice extends Pick<FloorPlanDevice, 'location'>>(
+  devices: TDevice[]
+): Record<number, TDevice[]> {
+  const grouped: Record<number, TDevice[]> = {};
   for (const d of devices) {
     const floor = d.location?.floor;
     if (floor == null) continue;

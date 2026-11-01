@@ -1,10 +1,9 @@
 'use client';
 
-import { fetchLatestReadingsBatched, type LatestReading } from '@/lib/api/latest-readings';
-import { usePusherReadings, type PusherReading } from '@/lib/pusher-context';
-import { useDevicesList } from '@/lib/query/hooks';
+import { useFloorPlanDevices } from '@/lib/query/hooks/useFloorPlanDevices';
+import { useLatestReadings } from '@/lib/query/hooks/useLatestReadings';
 import { getDeviceStatusLevel, groupDevicesByFloor } from '@/lib/utils/floor-plan';
-import type { DeviceV2Response } from '@/types/v2';
+import type { FloorPlanDevice } from '@/types/v2';
 import {
   Activity,
   AlertTriangle,
@@ -14,10 +13,11 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface FloorPlanProps {
+  enabled?: boolean;
   selectedFloor: number | 'all';
   selectedBuilding?: string | 'all';
   onDeviceClick?: (roomName: string) => void;
@@ -25,13 +25,23 @@ interface FloorPlanProps {
 }
 
 export default function FloorPlan({
+  enabled = true,
   selectedFloor,
   selectedBuilding = 'all',
   onDeviceClick,
   onDeviceDetailClick,
 }: FloorPlanProps) {
-  const { data: devices = [] } = useDevicesList();
-  const [readings, setReadings] = useState<Record<string, LatestReading>>({});
+  const devicesQuery = useFloorPlanDevices(
+    {
+      building_id: selectedBuilding === 'all' ? undefined : selectedBuilding,
+      floor: selectedFloor === 'all' ? undefined : selectedFloor,
+    },
+    { enabled }
+  );
+  const devices = useMemo(() => devicesQuery.data ?? [], [devicesQuery.data]);
+  const deviceIds = useMemo(() => devices.map(device => device._id), [devices]);
+  const readingsQuery = useLatestReadings(deviceIds);
+  const readings = readingsQuery.data;
   const alertedDevices = useRef<Set<string>>(new Set());
 
   // UI State
@@ -47,45 +57,13 @@ export default function FloorPlan({
     setCollapsedFloors(newCollapsed);
   };
 
-  const getFormattedValue = (device: DeviceV2Response, value: number) => {
+  const getFormattedValue = (device: FloorPlanDevice, value: number) => {
     if (device.type === 'temperature') return `${value}°F`;
     if (device.type === 'humidity') return `${value}%`;
     if (device.type === 'power') return `${value} kW`;
     if (device.type === 'occupancy') return `${value}`;
     return `${value}`;
   };
-
-  useEffect(() => {
-    // Initial fetch - use the shared batched-readings helper
-    const fetchReadings = async () => {
-      try {
-        setReadings(await fetchLatestReadingsBatched(devices.map(d => d._id)));
-      } catch (error) {
-        console.error('Error fetching latest readings:', error);
-      }
-    };
-
-    if (devices && devices.length > 0) fetchReadings();
-  }, [devices]);
-
-  // Real-time updates via centralized Pusher context
-  usePusherReadings(
-    useCallback((newReadings: PusherReading[]) => {
-      setReadings(prev => {
-        const next = { ...prev };
-        newReadings.forEach(reading => {
-          const deviceId = reading.metadata.device_id;
-          next[deviceId] = {
-            _id: deviceId,
-            value: reading.value,
-            timestamp: reading.timestamp,
-            type: reading.metadata.type,
-          };
-        });
-        return next;
-      });
-    }, [])
-  );
 
   // Check for alerts when readings change
   useEffect(() => {
@@ -133,7 +111,7 @@ export default function FloorPlan({
     }
   };
 
-  const getStatusInfo = (device: DeviceV2Response, value: number | undefined) => {
+  const getStatusInfo = (device: FloorPlanDevice, value: number | undefined) => {
     const level = getDeviceStatusLevel(device, value);
 
     if (level === 'offline')
@@ -225,10 +203,30 @@ export default function FloorPlan({
           </label>
         </div>
         <span className="text-xs text-gray-400 dark:text-gray-300">
-          {Object.keys(readings).length > 0 ? 'Live' : 'Connecting...'}
+          {readingsQuery.isFetching
+            ? 'Updating readings…'
+            : Object.keys(readings).length > 0
+              ? 'Live'
+              : 'Connecting...'}
         </span>
       </div>
 
+      {devicesQuery.isError && (
+        <div role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">
+          Could not load devices.{' '}
+          <button className="underline" onClick={() => devicesQuery.refetch()}>
+            Retry devices
+          </button>
+        </div>
+      )}
+      {readingsQuery.isError && (
+        <div role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">
+          Some readings could not be loaded. Displayed values may be out of date.{' '}
+          <button className="underline" onClick={() => readingsQuery.refetch()}>
+            Retry readings
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
         {sortedFloors.map(floor => {
           const floorDevices = groupedDevices[floor].filter(d => {
@@ -311,7 +309,12 @@ export default function FloorPlan({
           );
         })}
 
-        {sortedFloors.length === 0 && (
+        {(!enabled || devicesQuery.isPending) && (
+          <div role="status" className="flex items-center justify-center h-full text-gray-400">
+            Loading devices…
+          </div>
+        )}
+        {enabled && devicesQuery.isSuccess && sortedFloors.length === 0 && (
           <div className="flex items-center justify-center h-full text-gray-400">
             No devices found.
           </div>

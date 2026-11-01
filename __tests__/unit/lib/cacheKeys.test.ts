@@ -118,34 +118,47 @@ describe('Cache Keys', () => {
 
   describe('latestReadingsKey()', () => {
     it('should generate key with no device IDs or types', () => {
-      const key = latestReadingsKey(TEST_ORG);
+      const key = latestReadingsKey({ orgId: TEST_ORG });
 
-      expect(key).toBe(`org:${TEST_ORG}:readings:latest:devices:all:types:all`);
+      expect(key).toBe(
+        `org:${TEST_ORG}:readings:latest:{"devices":null,"types":null,"includeInvalid":false,"includeQualityMetrics":false}`
+      );
     });
 
     it('should generate key with device IDs', () => {
-      const key = latestReadingsKey(TEST_ORG, ['device_001', 'device_002']);
+      const key = latestReadingsKey({ orgId: TEST_ORG, deviceIds: ['device_001', 'device_002'] });
 
-      expect(key).toContain('devices:device_001,device_002');
+      expect(key).toContain('"devices":["device_001","device_002"]');
     });
 
     it('should generate key with types', () => {
-      const key = latestReadingsKey(TEST_ORG, [], ['temperature', 'humidity']);
+      const key = latestReadingsKey({ orgId: TEST_ORG, types: ['temperature', 'humidity'] });
 
-      expect(key).toContain('types:humidity,temperature');
+      expect(key).toContain('"types":["humidity","temperature"]');
     });
 
     it('should sort device IDs and types for consistency', () => {
-      const key1 = latestReadingsKey(TEST_ORG, ['b', 'a'], ['temp', 'co2']);
-      const key2 = latestReadingsKey(TEST_ORG, ['a', 'b'], ['co2', 'temp']);
+      const deviceIds = ['b', 'a'];
+      const types = ['temp', 'co2'];
+      const key1 = latestReadingsKey({ orgId: TEST_ORG, deviceIds, types });
+      const key2 = latestReadingsKey({
+        orgId: TEST_ORG,
+        deviceIds: ['a', 'b', 'a'],
+        types: ['co2', 'temp'],
+      });
 
       expect(key1).toBe(key2);
+      expect(deviceIds).toEqual(['b', 'a']);
+      expect(types).toEqual(['temp', 'co2']);
     });
 
     it('should handle empty arrays', () => {
-      const key = latestReadingsKey(TEST_ORG, [], []);
+      const key = latestReadingsKey({ orgId: TEST_ORG, deviceIds: [], types: [] });
 
-      expect(key).toBe(`org:${TEST_ORG}:readings:latest:devices:all:types:all`);
+      expect(key).not.toBe(latestReadingsKey({ orgId: TEST_ORG }));
+      expect(latestReadingsKey({ orgId: TEST_ORG, deviceIds: [''] })).not.toBe(
+        latestReadingsKey({ orgId: TEST_ORG })
+      );
     });
   });
 
@@ -157,7 +170,10 @@ describe('Cache Keys', () => {
     });
 
     it('should generate key with endpoint and params', () => {
-      const key = analyticsKey(TEST_ORG, 'energy', { startTime: '2024-01-01', endTime: '2024-01-31' });
+      const key = analyticsKey(TEST_ORG, 'energy', {
+        startTime: '2024-01-01',
+        endTime: '2024-01-31',
+      });
 
       expect(key).toContain(`org:${TEST_ORG}:analytics:energy:`);
       expect(key).toContain('endTime:2024-01-31');

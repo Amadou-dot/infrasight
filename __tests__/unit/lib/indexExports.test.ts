@@ -83,7 +83,9 @@ describe('Cache Index Exports', () => {
     expect(devicesListKey(orgId)).toBe(`org:${orgId}:devices:list:default`);
     expect(metadataKey(orgId)).toBe(`org:${orgId}:metadata:default`);
     expect(healthKey(orgId)).toBe(`org:${orgId}:health:default`);
-    expect(latestReadingsKey(orgId)).toBe(`org:${orgId}:readings:latest:devices:all:types:all`);
+    expect(latestReadingsKey({ orgId })).toBe(
+      `org:${orgId}:readings:latest:{"devices":null,"types":null,"includeInvalid":false,"includeQualityMetrics":false}`
+    );
     expect(analyticsKey(orgId, 'test')).toBe(`org:${orgId}:analytics:test:default`);
   });
 

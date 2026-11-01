@@ -49,6 +49,7 @@ export const queryKeys = {
       ['analytics', 'temperature-correlation', params] as const,
   },
   readings: {
+    values: ['readings', 'values'] as const,
     latest: (params?: Record<string, unknown>) => ['readings', 'latest', params] as const,
     list: (params?: Record<string, unknown>) => ['readings', 'list', params] as const,
   },

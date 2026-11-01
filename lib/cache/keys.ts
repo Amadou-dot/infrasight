@@ -66,18 +66,36 @@ export function healthKey(orgId: string, filters: Record<string, unknown> = {}):
 /**
  * Generate cache key for latest readings
  */
-export function latestReadingsKey(orgId: string, deviceIds: string[] = [], types: string[] = []): string {
+export function latestReadingsKey({
+  orgId,
+  deviceIds,
+  types,
+  includeInvalid = false,
+  includeQualityMetrics = false,
+}: {
+  orgId: string;
+  deviceIds?: readonly string[];
+  types?: readonly string[];
+  includeInvalid?: boolean;
+  includeQualityMetrics?: boolean;
+}): string {
   const params = {
-    devices: deviceIds.sort().join(',') || 'all',
-    types: types.sort().join(',') || 'all',
+    devices: deviceIds ? [...new Set(deviceIds)].sort() : null,
+    types: types ? [...new Set(types)].sort() : null,
+    includeInvalid,
+    includeQualityMetrics,
   };
-  return `${orgPrefix(orgId)}:${CACHE_PREFIXES.READINGS_LATEST}:${serializeParams(params)}`;
+  return `${orgPrefix(orgId)}:${CACHE_PREFIXES.READINGS_LATEST}:${JSON.stringify(params)}`;
 }
 
 /**
  * Generate cache key for analytics data
  */
-export function analyticsKey(orgId: string, endpoint: string, params: Record<string, unknown> = {}): string {
+export function analyticsKey(
+  orgId: string,
+  endpoint: string,
+  params: Record<string, unknown> = {}
+): string {
   return `${orgPrefix(orgId)}:${CACHE_PREFIXES.ANALYTICS}:${endpoint}:${serializeParams(params)}`;
 }
 

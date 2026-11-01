@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import FloorPlan from '@/components/FloorPlan';
 import DeviceDetailModal from '@/components/DeviceDetailModal';
 import { Select } from '@/components/ui/select';
@@ -9,20 +9,17 @@ import { useMetadata } from '@/lib/query/hooks';
 
 export default function FloorPlanPage() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
-  const [selectedBuilding, setSelectedBuilding] = useState<string | 'all'>('all');
+  const [buildingSelection, setSelectedBuilding] = useState<string | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
 
   // Fetch metadata with React Query
-  const { data: metadata } = useMetadata();
+  const metadataQuery = useMetadata();
+  const metadata = metadataQuery.data;
   const buildings = useMemo(() => metadata?.buildings || [], [metadata?.buildings]);
 
-  // Auto-select first building if available - intentional initialization
-  useEffect(() => {
-    if (buildings.length > 0 && selectedBuilding === 'all')
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: auto-select first building on load
-      setSelectedBuilding(buildings[0].building);
-  }, [buildings, selectedBuilding]);
+  // Null means initial selection; an explicit 'all' must remain selectable.
+  const selectedBuilding = buildingSelection ?? buildings[0]?.building ?? 'all';
 
   // Get floors for the selected building
   const availableFloors = useMemo(() => {
@@ -96,11 +93,22 @@ export default function FloorPlanPage() {
 
       {/* Floor Plan - Full Width */}
       <div className="grid grid-cols-1 gap-6">
-        <FloorPlan
-          selectedFloor={selectedFloor}
-          selectedBuilding={selectedBuilding}
-          onDeviceDetailClick={handleDeviceClick}
-        />
+        {metadataQuery.isError && (
+          <div role="alert" className="text-sm text-red-600 dark:text-red-400">
+            Could not load buildings.{' '}
+            <button className="underline" onClick={() => metadataQuery.refetch()}>
+              Retry buildings
+            </button>
+          </div>
+        )}
+        {(!metadataQuery.isError || metadata) && (
+          <FloorPlan
+            enabled={metadata !== undefined}
+            selectedFloor={selectedFloor}
+            selectedBuilding={selectedBuilding}
+            onDeviceDetailClick={handleDeviceClick}
+          />
+        )}
       </div>
 
       {/* Device Detail Modal */}
