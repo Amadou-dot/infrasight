@@ -2,7 +2,8 @@
  * @jest-environment jsdom
  */
 
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { ApiClientError, v2Api } from '@/lib/api/v2-client';
 import { useDeviceDetail } from '@/components/devices/useDeviceDetail';
 
@@ -77,6 +78,102 @@ describe('useDeviceDetail', () => {
     renderHook(() => useDeviceDetail('device_001', false));
 
     expect(getById).not.toHaveBeenCalled();
+  });
+
+  it('commits the loading state before an active request resolves', () => {
+    getById.mockReturnValue(new Promise(() => {}));
+    const committedLoading: boolean[] = [];
+
+    renderHook(function useObservedDetail() {
+      const detail = useDeviceDetail('device_001');
+      useLayoutEffect(() => {
+        committedLoading.push(detail.loading);
+      }, [detail.loading]);
+      return detail;
+    });
+
+    expect(committedLoading[0]).toBe(true);
+  });
+
+  it('stops loading when disabled and ignores the pending response', async () => {
+    let resolveDevice!: (value: unknown) => void;
+    getById.mockReturnValue(
+      new Promise(resolve => {
+        resolveDevice = resolve;
+      })
+    );
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useDeviceDetail('device_001', enabled),
+      { initialProps: { enabled: true } }
+    );
+
+    rerender({ enabled: false });
+    expect(result.current).toEqual({
+      device: null,
+      recentReadings: [],
+      auditLog: [],
+      auditTotal: null,
+      readingsTotal: null,
+      loading: false,
+      error: null,
+      notFound: false,
+    });
+
+    await act(async () => {
+      resolveDevice({ success: true, data: device });
+    });
+    expect(result.current.device).toBeNull();
+    expect(listReadings).not.toHaveBeenCalled();
+  });
+
+  it('clears loaded details on close and fetches again on reopen', async () => {
+    mockHappyPath();
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useDeviceDetail('device_001', enabled),
+      { initialProps: { enabled: true } }
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.device).toEqual(device);
+
+    rerender({ enabled: false });
+    expect(result.current).toEqual({
+      device: null,
+      recentReadings: [],
+      auditLog: [],
+      auditTotal: null,
+      readingsTotal: null,
+      loading: false,
+      error: null,
+      notFound: false,
+    });
+
+    rerender({ enabled: true });
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.device).toEqual(device));
+    expect(getById).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores the previous device response after the device id changes', async () => {
+    mockHappyPath();
+    let resolveOldDevice!: (value: unknown) => void;
+    getById.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveOldDevice = resolve;
+        })
+    );
+    const { result, rerender } = renderHook(({ id }) => useDeviceDetail(id), {
+      initialProps: { id: 'device_old' },
+    });
+
+    rerender({ id: 'device_001' });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      resolveOldDevice({ success: true, data: { ...device, _id: 'device_old' } });
+    });
+
+    expect(result.current.device?._id).toBe('device_001');
+    expect(listReadings).toHaveBeenCalledTimes(1);
   });
 
   it('should load the device, its readings, and its audit history', async () => {

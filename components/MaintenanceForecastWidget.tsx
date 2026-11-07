@@ -45,25 +45,28 @@ export default function MaintenanceForecastWidget({
   const [expandedSections, setExpandedSections] = useState<Set<Section>>(
     new Set(['critical', 'warning'])
   );
+  const [previousDaysAhead, setPreviousDaysAhead] = useState(daysAhead);
+
+  // Reset request state before committing a different range, not from its effect.
+  if (previousDaysAhead !== daysAhead) {
+    setPreviousDaysAhead(daysAhead);
+    setLoading(true);
+    setError(null);
+  }
 
   // Fetch forecast data
   const fetchForecast = useCallback(
-    async (showLoading = false) => {
-      try {
-        if (showLoading) setLoading(true);
-
-        setError(null);
-        const response = await v2Api.analytics.maintenanceForecast({
-          days_ahead: daysAhead,
-        });
-        setForecast(response.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load forecast');
-        console.error('Maintenance forecast error:', err);
-      } finally {
-        if (showLoading) setLoading(false);
-      }
-    },
+    (showLoading = false) =>
+      v2Api.analytics
+        .maintenanceForecast({ days_ahead: daysAhead })
+        .then(response => setForecast(response.data))
+        .catch(err => {
+          setError(err instanceof Error ? err.message : 'Failed to load forecast');
+          console.error('Maintenance forecast error:', err);
+        })
+        .finally(() => {
+          if (showLoading) setLoading(false);
+        }),
     [daysAhead]
   );
 
@@ -74,9 +77,18 @@ export default function MaintenanceForecastWidget({
 
   // Auto-refresh every 60 seconds without loading indicator
   useEffect(() => {
-    const interval = setInterval(() => fetchForecast(false), 60000);
+    const interval = setInterval(() => {
+      setError(null);
+      fetchForecast(false);
+    }, 60000);
     return () => clearInterval(interval);
   }, [fetchForecast]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    fetchForecast(true);
+  };
 
   // Toggle section expansion
   const toggleSection = (section: Section) => {
@@ -238,7 +250,7 @@ export default function MaintenanceForecastWidget({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchForecast(true)}
+              onClick={handleRetry}
               className="mt-4"
             >
               Retry

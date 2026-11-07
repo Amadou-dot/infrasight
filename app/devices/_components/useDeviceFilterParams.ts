@@ -90,7 +90,6 @@ export function useDeviceFilterParams(): DeviceFilterParams {
   useEffect(() => {
     if (q === committedSearchRef.current) return;
     committedSearchRef.current = q;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: the URL is the source of truth for the committed search term
     setSearchInput(q);
   }, [q]);
 
