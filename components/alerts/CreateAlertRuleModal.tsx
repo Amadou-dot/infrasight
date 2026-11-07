@@ -235,13 +235,16 @@ export function CreateAlertRuleModal({ isOpen, onClose }: CreateAlertRuleModalPr
   const [form, setForm] = React.useState<RuleFormState>(INITIAL_FORM_STATE);
   const [errors, setErrors] = React.useState<FormErrors>({});
   const createRule = useCreateAlertRule();
+  const [previousIsOpen, setPreviousIsOpen] = React.useState(isOpen);
 
-  React.useEffect(() => {
+  // Preserve the mounted mutation while resetting a parent-driven close.
+  if (previousIsOpen !== isOpen) {
+    setPreviousIsOpen(isOpen);
     if (!isOpen) {
       setForm(INITIAL_FORM_STATE);
       setErrors({});
     }
-  }, [isOpen]);
+  }
 
   const update = <K extends keyof RuleFormState>(key: K, value: RuleFormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));

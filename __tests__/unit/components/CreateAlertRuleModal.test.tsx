@@ -103,6 +103,21 @@ describe('CreateAlertRuleModal', () => {
     jest.clearAllMocks();
   });
 
+  it('resets fields and validation errors after the parent closes and reopens it', () => {
+    const onClose = jest.fn();
+    const { rerender } = render(<CreateAlertRuleModal isOpen onClose={onClose} />, { wrapper });
+    fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: 'Unfinished rule' } });
+    submitForm();
+    expect(screen.getByText('Threshold is required')).toBeInTheDocument();
+
+    rerender(<CreateAlertRuleModal isOpen={false} onClose={onClose} />);
+    rerender(<CreateAlertRuleModal isOpen onClose={onClose} />);
+
+    expect(screen.getByLabelText(/^name/i)).toHaveValue('');
+    expect(screen.queryByText('Threshold is required')).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("should block submit when metric is 'value' and no type is selected", async () => {
     render(<CreateAlertRuleModal isOpen onClose={jest.fn()} />, { wrapper });
 

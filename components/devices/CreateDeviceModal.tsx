@@ -170,15 +170,17 @@ export function CreateDeviceModal({
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [generalError, setGeneralError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [previousIsOpen, setPreviousIsOpen] = React.useState(isOpen);
 
-  // Reset form when modal opens/closes
-  React.useEffect(() => {
+  // Reset parent-driven closes without remounting an in-flight submission.
+  if (previousIsOpen !== isOpen) {
+    setPreviousIsOpen(isOpen);
     if (!isOpen) {
       setFormData(INITIAL_FORM_DATA);
       setErrors({});
       setGeneralError(null);
     }
-  }, [isOpen]);
+  }
 
   // Form update helpers
   const updateField = <K extends keyof typeof formData>(

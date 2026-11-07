@@ -36,26 +36,39 @@ export default function TemperatureCorrelationPanel({
   const [correlation, setCorrelation] = useState<TemperatureCorrelationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previousDeviceId, setPreviousDeviceId] = useState(deviceId);
+
+  // Do not commit the previous device's status while the new request starts.
+  if (previousDeviceId !== deviceId) {
+    setPreviousDeviceId(deviceId);
+    setLoading(true);
+    setError(null);
+  }
 
   // Fetch correlation data
-  const fetchCorrelation = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await v2Api.analytics.temperatureCorrelation({ device_id: deviceId });
-      setCorrelation(response.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load temperature data');
-      console.error('Temperature correlation error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [deviceId]);
+  const fetchCorrelation = useCallback(
+    () =>
+      v2Api.analytics
+        .temperatureCorrelation({ device_id: deviceId })
+        .then(response => setCorrelation(response.data))
+        .catch(err => {
+          setError(err instanceof Error ? err.message : 'Failed to load temperature data');
+          console.error('Temperature correlation error:', err);
+        })
+        .finally(() => setLoading(false)),
+    [deviceId]
+  );
 
   // Fetch on mount
   useEffect(() => {
     fetchCorrelation();
   }, [fetchCorrelation]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    fetchCorrelation();
+  };
 
   // Get diagnosis icon and color
   const getDiagnosisStyle = (diagnosis: string) => {
@@ -153,7 +166,7 @@ export default function TemperatureCorrelationPanel({
             <p className="text-sm text-muted-foreground">
               {error || 'Insufficient temperature data for correlation analysis'}
             </p>
-            <Button variant="outline" size="sm" onClick={fetchCorrelation} className="mt-4">
+            <Button variant="outline" size="sm" onClick={handleRetry} className="mt-4">
               Retry
             </Button>
           </div>

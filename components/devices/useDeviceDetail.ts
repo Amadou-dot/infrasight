@@ -47,30 +47,33 @@ export function useDeviceDetail(deviceId: string | null, enabled = true): Device
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [auditTotal, setAuditTotal] = useState<number | null>(null);
   const [readingsTotal, setReadingsTotal] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(deviceId && enabled));
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [previousRequest, setPreviousRequest] = useState({ deviceId, enabled });
 
-  useEffect(() => {
+  // Adjust input-dependent state before commit; the effect only owns the request.
+  if (previousRequest.deviceId !== deviceId || previousRequest.enabled !== enabled) {
+    setPreviousRequest({ deviceId, enabled });
+    setLoading(Boolean(deviceId && enabled));
+    setError(null);
+    setNotFound(false);
     if (!deviceId || !enabled) {
       setDevice(null);
       setRecentReadings([]);
       setAuditLog([]);
       setAuditTotal(null);
       setReadingsTotal(null);
-      setError(null);
-      setNotFound(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!deviceId || !enabled) return;
 
     const abortController = new AbortController();
 
     const fetchDeviceData = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        setNotFound(false);
-
         const deviceResponse = await v2Api.devices.getById(deviceId);
         if (abortController.signal.aborted) return;
         setDevice(deviceResponse.data);
