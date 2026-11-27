@@ -139,6 +139,13 @@ export function readDevices(context: ReadContext, query: ListDevicesQuery) {
   );
 }
 
+export function readActiveDeviceIds(context: ReadContext, ids: readonly string[]) {
+  const options = readOptions(context);
+  return DeviceV2.find({ _id: { $in: ids }, 'audit.deleted_at': { $exists: false } }, { _id: 1 })
+    .setOptions(options)
+    .lean();
+}
+
 /** Every lookup for the device itself applies the active predicate before projection. */
 export async function readDevice(context: ReadContext, id: string, query: GetDeviceQuery) {
   const options = readOptions(context);

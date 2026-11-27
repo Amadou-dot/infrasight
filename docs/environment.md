@@ -17,6 +17,7 @@ Complete guide for configuring environment variables and setting up the Infrasig
   - [Sentry Error Tracking](#sentry-error-tracking)
   - [Alerting](#alerting)
   - [Public Read-Only Demo](#public-read-only-demo)
+  - [Assistant Pilot Eligibility](#assistant-pilot-eligibility)
   - [Development Options](#development-options)
 - [Environment-Specific Configuration](#environment-specific-configuration)
 - [Service Setup Guides](#service-setup-guides)
@@ -324,6 +325,21 @@ Writes stay blocked: the synthetic demo context carries the `org:member` role an
 DEMO_MODE=true
 NEXT_PUBLIC_DEMO_MODE=true
 ```
+
+---
+
+### Assistant Pilot Eligibility
+
+The pilot accepts signed-in Clerk members and admins in one approved organization. It applies the existing organization slug and role checks, then verifies current membership with Clerk when opening a session and before and after each tool read.
+
+| Variable                     | Description                                                   | Default |
+| ---------------------------- | ------------------------------------------------------------- | ------- |
+| `ASSISTANT_ENABLED`          | Requires the literal value `true` to enable pilot eligibility | `false` |
+| `ASSISTANT_ALLOWED_ORG_ID`   | Exact Clerk organization ID                                   | None    |
+| `ASSISTANT_ALLOWED_USER_IDS` | Comma-separated list of exact Clerk user IDs                  | None    |
+| `ASSISTANT_DATASET_ID`       | Deployment-owned identifier for the connected pilot dataset   | None    |
+
+Enable the pilot only on a deployment whose entire database belongs to the approved organization. `ASSISTANT_DATASET_ID` identifies that connected database.
 
 ---
 

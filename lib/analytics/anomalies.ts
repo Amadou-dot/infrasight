@@ -4,7 +4,12 @@ import {
   MAX_ANALYTICS_PAGE_SIZE,
 } from '@/lib/api/pagination';
 import { anomaliesKey, CACHE_TTL } from '@/lib/cache';
-import { type ReadContext, readCachedSnapshot, readOptions } from '@/lib/data/read-context';
+import {
+  type ReadContext,
+  fieldProjection,
+  readCachedSnapshot,
+  readOptions,
+} from '@/lib/data/read-context';
 import type { AnomalyAnalyticsQuery } from '@/lib/validations/v2/reading.validation';
 import ReadingV2 from '@/models/v2/ReadingV2';
 
@@ -25,9 +30,17 @@ function getDateFormat(granularity: string): string {
   }
 }
 
-export async function readAnomalies(context: ReadContext, query: AnomalyAnalyticsQuery) {
+export class InvalidAnomalyResultError extends Error {}
+
+const isNonFinite = (value: unknown) => typeof value === 'number' && !Number.isFinite(value);
+
+export async function readAnomalies(
+  context: ReadContext,
+  query: AnomalyAnalyticsQuery,
+  { fields, tieBreakById }: { fields?: string[]; tieBreakById?: boolean } = {}
+) {
   const snapshot = await readCachedSnapshot(
-    anomaliesKey(context, query),
+    anomaliesKey(context, { ...query, fields, tieBreakById }),
     CACHE_TTL.ANOMALIES,
     context,
     async () => {
@@ -84,10 +97,11 @@ export async function readAnomalies(context: ReadContext, query: AnomalyAnalytic
       const sort: Record<string, 1 | -1> = {
         [sortFieldMap[sortField] || sortField]: sortOrder,
       };
+      if (tieBreakById) sort._id = sortOrder;
 
       // Get total count and paginated anomalies
       const [anomalies, total] = await Promise.all([
-        ReadingV2.find(matchStage)
+        ReadingV2.find(matchStage, fieldProjection(fields))
           .sort(sort)
           .skip(pagination.skip)
           .limit(pagination.limit)
@@ -178,6 +192,16 @@ export async function readAnomalies(context: ReadContext, query: AnomalyAnalytic
         { $sort: { count: -1 } },
         { $limit: 10 },
       ]).option(options);
+
+      // JSON serialization would turn these malformed scores into plausible nulls.
+      if (
+        fields &&
+        (anomalies.some(row =>
+          [row.value, row.quality?.anomaly_score, row.quality?.confidence_score].some(isNonFinite)
+        ) ||
+          deviceBreakdown.some(row => isNonFinite(row.avg_score)))
+      )
+        throw new InvalidAnomalyResultError();
 
       return {
         anomalies,
