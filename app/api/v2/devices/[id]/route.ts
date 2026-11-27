@@ -9,12 +9,12 @@
 import type { NextRequest } from 'next/server';
 import dbConnect from '@/lib/db';
 import DeviceV2 from '@/models/v2/DeviceV2';
-import ReadingV2 from '@/models/v2/ReadingV2';
+import { createReadContext, readOptions } from '@/lib/data/read-context';
+import { readDevice } from '@/lib/data/device-reads';
 import {
   updateDeviceSchema,
   getDeviceQuerySchema,
   deviceIdParamSchema,
-  type GetDeviceQuery,
 } from '@/lib/validations/v2/device.validation';
 import { validateInput, validateQuery } from '@/lib/validations/validator';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
@@ -30,9 +30,8 @@ import { invalidateDevice } from '@/lib/cache';
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     // Require org membership
-    await requireOrgMembership();
-
-    await dbConnect();
+    const { orgId } = await requireOrgMembership();
+    const context = await createReadContext(orgId, request.signal);
 
     const { id } = await params;
 
@@ -58,40 +57,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         { errors: queryValidation.errors }
       );
 
-    const query = queryValidation.data as GetDeviceQuery;
+    const device = await readDevice(context, id, queryValidation.data);
+    if (device) return jsonSuccess(device);
 
-    // Build field projection
-    let projection: Record<string, 1> | undefined;
-    if (query.fields) {
-      projection = {};
-      for (const field of query.fields) projection[field] = 1;
-    }
-
-    // Find device
-    const device = await DeviceV2.findById(id, projection).lean();
-
-    if (!device) throw ApiError.notFound('Device', id);
-
-    // Check if device is soft-deleted
-    if (device.audit?.deleted_at)
+    // Only the public HTTP contract includes deletion metadata on a 410.
+    const deleted = await DeviceV2.findOne(
+      { _id: id, 'audit.deleted_at': { $exists: true } },
+      { 'audit.deleted_at': 1, 'audit.deleted_by': 1 },
+      readOptions(context)
+    ).lean();
+    if (deleted)
       throw new ApiError(ErrorCodes.NOT_FOUND, 410, `Device '${id}' has been deleted`, {
-        deleted_at: device.audit.deleted_at,
-        deleted_by: device.audit.deleted_by,
+        deleted_at: deleted.audit.deleted_at,
+        deleted_by: deleted.audit.deleted_by,
       });
-
-    // Include recent readings if requested
-    const response: Record<string, unknown> = { ...device };
-
-    if (query.include_recent_readings) {
-      const readings = await ReadingV2.find({ 'metadata.device_id': id })
-        .sort({ timestamp: -1 })
-        .limit(query.readings_limit || 10)
-        .lean();
-
-      response.recent_readings = readings;
-    }
-
-    return jsonSuccess(response);
+    throw ApiError.notFound('Device', id);
   })();
 }
 

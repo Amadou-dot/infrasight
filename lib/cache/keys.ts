@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * Cache Key Generators
  *
@@ -35,6 +37,35 @@ function orgPrefix(orgId: string): string {
   return `org:${orgId}`;
 }
 
+export interface ReadCacheScope {
+  readonly orgId: string;
+  readonly datasetId: string;
+}
+type Filters = Record<
+  string,
+  string | number | boolean | Date | readonly string[] | null | undefined
+>;
+
+// The cached payload now includes its computation time. Only the read services
+// use this version; the outer prefix still matches existing invalidations.
+function snapshotKey(scope: ReadCacheScope, prefix: string, filters: Filters): string {
+  const entries = Object.keys(filters)
+    .sort()
+    .filter(key => filters[key] != null)
+    .map(key => {
+      const value = filters[key];
+      if (value instanceof Date) return [key, value.toISOString()];
+      if (Array.isArray(value)) return [key, [...new Set(value)].sort()];
+      if (typeof value === 'number' && !Number.isFinite(value))
+        return [key, { number: String(value) }];
+      return [key, value];
+    });
+  const digest = createHash('sha256')
+    .update(JSON.stringify([scope.datasetId, entries]))
+    .digest('hex');
+  return `${orgPrefix(scope.orgId)}:${prefix}:v2:${digest}`;
+}
+
 /**
  * Generate cache key for a single device
  */
@@ -45,8 +76,8 @@ export function deviceKey(orgId: string, deviceId: string): string {
 /**
  * Generate cache key for device list with filters
  */
-export function devicesListKey(orgId: string, filters: Record<string, unknown> = {}): string {
-  return `${orgPrefix(orgId)}:${CACHE_PREFIXES.DEVICES_LIST}:${serializeParams(filters)}`;
+export function devicesListKey(scope: ReadCacheScope, filters: Filters = {}): string {
+  return snapshotKey(scope, CACHE_PREFIXES.DEVICES_LIST, filters);
 }
 
 /**
@@ -59,8 +90,12 @@ export function metadataKey(orgId: string, params: Record<string, unknown> = {})
 /**
  * Generate cache key for health analytics
  */
-export function healthKey(orgId: string, filters: Record<string, unknown> = {}): string {
-  return `${orgPrefix(orgId)}:${CACHE_PREFIXES.HEALTH}:${serializeParams(filters)}`;
+export function healthKey(scope: ReadCacheScope, filters: Filters = {}): string {
+  return snapshotKey(scope, CACHE_PREFIXES.HEALTH, filters);
+}
+
+export function anomaliesKey(scope: ReadCacheScope, filters: Filters = {}): string {
+  return snapshotKey(scope, `${CACHE_PREFIXES.ANALYTICS}:anomalies`, filters);
 }
 
 /**

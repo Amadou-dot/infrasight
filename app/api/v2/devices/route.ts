@@ -17,19 +17,18 @@ import DeviceV2, { type IDeviceV2 } from '@/models/v2/DeviceV2';
 import {
   createDeviceSchema,
   listDevicesQuerySchema,
-  type ListDevicesQuery,
 } from '@/lib/validations/v2/device.validation';
 import { validateQuery, validateInput } from '@/lib/validations/validator';
-import { sanitizeSearchQuery } from '@/lib/validations/sanitizer';
 import { withErrorHandler, ApiError, ErrorCodes } from '@/lib/errors';
 import { jsonSuccess, jsonPaginated } from '@/lib/api/response';
-import { getOffsetPaginationParams, calculateOffsetPagination } from '@/lib/api/pagination';
+import { createReadContext } from '@/lib/data/read-context';
+import { readDevices } from '@/lib/data/device-reads';
 
 // Phase 5 imports
 import { withRateLimit } from '@/lib/ratelimit';
 import { withRequestValidation, ValidationPresets } from '@/lib/middleware';
 import { logger, recordRequest, createRequestTimer } from '@/lib/monitoring';
-import { invalidateOnDeviceCreate, getOrSet, CACHE_TTL, devicesListKey } from '@/lib/cache';
+import { invalidateOnDeviceCreate } from '@/lib/cache';
 
 // Auth
 import { requireAdmin, requireOrgMembership, getAuditUser } from '@/lib/auth';
@@ -45,7 +44,7 @@ export async function GET(request: NextRequest) {
     // Require org membership
     const authContext = await requireOrgMembership();
 
-    await dbConnect();
+    const context = await createReadContext(authContext.orgId, request.signal);
 
     const searchParams = request.nextUrl.searchParams;
 
@@ -59,7 +58,7 @@ export async function GET(request: NextRequest) {
         { errors: validationResult.errors }
       );
 
-    const query = validationResult.data as ListDevicesQuery;
+    const query = validationResult.data;
 
     if (
       authContext.orgRole !== 'org:admin' &&
@@ -67,152 +66,7 @@ export async function GET(request: NextRequest) {
     )
       throw ApiError.forbidden('Admin role required to access deleted devices');
 
-    // Generate cache key based on all query parameters
-    const cacheKey = devicesListKey(authContext.orgId, query as Record<string, unknown>);
-
-    // Use cache-aside pattern
-    const result = await getOrSet(
-      cacheKey,
-      async () => {
-
-    // Extract pagination
-    const pagination = getOffsetPaginationParams({
-      page: query.page,
-      limit: query.limit,
-    });
-
-    // Build filter query
-    const filter: Record<string, unknown> = {};
-
-    // Status filter
-    if (query.status) {
-      const statuses = Array.isArray(query.status) ? query.status : [query.status];
-      filter.status = statuses.length === 1 ? statuses[0] : { $in: statuses };
-    }
-
-    // Type filter
-    if (query.type) {
-      const types = Array.isArray(query.type) ? query.type : [query.type];
-      filter.type = types.length === 1 ? types[0] : { $in: types };
-    }
-
-    // Location filters
-    if (query.building_id) 
-      filter['location.building_id'] = query.building_id;
-    
-    if (query.floor !== undefined) 
-      filter['location.floor'] = query.floor;
-    
-    if (query.zone) 
-      filter['location.zone'] = query.zone;
-    
-
-    // Metadata filters
-    if (query.department) 
-      filter['metadata.department'] = query.department;
-    
-    if (query.manufacturer) 
-      filter.manufacturer = query.manufacturer;
-    
-    if (query.tags) {
-      const tags = Array.isArray(query.tags) ? query.tags : [query.tags];
-      filter['metadata.tags'] = { $in: tags };
-    }
-
-    // Health filters
-    if (query.min_battery !== undefined) 
-      filter['health.battery_level'] = { 
-        ...((filter['health.battery_level'] as Record<string, number>) || {}), 
-        $gte: query.min_battery 
-      };
-    
-    if (query.max_battery !== undefined) 
-      filter['health.battery_level'] = { 
-        ...((filter['health.battery_level'] as Record<string, number>) || {}), 
-        $lte: query.max_battery 
-      };
-    
-
-    // Soft delete filter
-    if (query.only_deleted) 
-      filter['audit.deleted_at'] = { $exists: true };
-     else if (!query.include_deleted) 
-      filter['audit.deleted_at'] = { $exists: false };
-    
-
-    // Date range filter
-    if (query.startDate || query.endDate) {
-      const dateField = query.date_filter_field 
-        ? (query.date_filter_field === 'last_seen' ? 'health.last_seen' : `audit.${query.date_filter_field}`)
-        : 'audit.created_at';
-      
-      filter[dateField] = {};
-      if (query.startDate) 
-        (filter[dateField] as Record<string, Date>).$gte = new Date(query.startDate);
-      
-      if (query.endDate) 
-        (filter[dateField] as Record<string, Date>).$lte = new Date(query.endDate);
-      
-    }
-
-    // Search filter
-    if (query.search) {
-      const searchRegex = sanitizeSearchQuery(query.search);
-      filter.$or = [
-        { serial_number: { $regex: searchRegex, $options: 'i' } },
-        { 'location.room_name': { $regex: searchRegex, $options: 'i' } },
-        { 'metadata.tags': { $regex: searchRegex, $options: 'i' } },
-      ];
-    }
-    
-
-    // Build sort
-    const sortOrder = query.sortDirection === 'desc' ? -1 : 1;
-    const sortField = query.sortBy || 'created_at';
-    const sort: Record<string, 1 | -1> = {};
-    
-    // Map sort field to actual path
-    const sortFieldMap: Record<string, string> = {
-      created_at: 'audit.created_at',
-      updated_at: 'audit.updated_at',
-      last_seen: 'health.last_seen',
-      serial_number: 'serial_number',
-      status: 'status',
-      floor: 'location.floor',
-      building_id: 'location.building_id',
-      manufacturer: 'manufacturer',
-      uptime_percentage: 'health.uptime_percentage',
-      battery_level: 'health.battery_level',
-    };
-    
-    sort[sortFieldMap[sortField] || sortField] = sortOrder;
-
-    // Build field projection
-    let projection: Record<string, 1> | undefined;
-    if (query.fields) {
-      projection = {};
-      for (const field of query.fields) 
-        projection[field] = 1;
-      
-    }
-
-    // Execute query
-    const [devices, total] = await Promise.all([
-      DeviceV2.find(filter, projection)
-        .sort(sort)
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .lean(),
-      DeviceV2.countDocuments(filter),
-    ]);
-
-        // Calculate pagination info
-        const paginationInfo = calculateOffsetPagination(total, pagination.page, pagination.limit);
-
-        return { devices, paginationInfo };
-      },
-      { ttl: CACHE_TTL.DEVICES_LIST }
-    );
+    const { data: result } = await readDevices(context, query);
 
     // Record metrics
     const duration = timer.elapsed();
@@ -220,8 +74,6 @@ export async function GET(request: NextRequest) {
 
     logger.debug('Devices list request', {
       duration,
-      cached: duration < 50,
-      cacheKey,
       total: result.paginationInfo.total,
     });
 

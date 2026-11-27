@@ -80,9 +80,10 @@ describe('Cache Index Exports', () => {
 
     const orgId = 'test_org';
     expect(deviceKey(orgId, 'test_001')).toBe(`org:${orgId}:device:test_001`);
-    expect(devicesListKey(orgId)).toBe(`org:${orgId}:devices:list:default`);
+    const dataset = { orgId, datasetId: 'test' };
+    expect(devicesListKey(dataset)).toContain(`org:${orgId}:devices:list:v2:`);
     expect(metadataKey(orgId)).toBe(`org:${orgId}:metadata:default`);
-    expect(healthKey(orgId)).toBe(`org:${orgId}:health:default`);
+    expect(healthKey(dataset)).toContain(`org:${orgId}:health:v2:`);
     expect(latestReadingsKey({ orgId })).toBe(
       `org:${orgId}:readings:latest:{"devices":null,"types":null,"includeInvalid":false,"includeQualityMetrics":false}`
     );
