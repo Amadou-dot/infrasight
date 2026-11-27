@@ -18,6 +18,7 @@ export {
   devicesListKey,
   metadataKey,
   healthKey,
+  anomaliesKey,
   latestReadingsKey,
   analyticsKey,
   devicePattern,

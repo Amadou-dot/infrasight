@@ -10,6 +10,7 @@ import {
   devicesListKey,
   metadataKey,
   healthKey,
+  anomaliesKey,
   latestReadingsKey,
   analyticsKey,
   devicePattern,
@@ -22,6 +23,7 @@ import {
 } from '@/lib/cache/keys';
 
 const TEST_ORG = 'org_test_123';
+const dataset = { orgId: TEST_ORG, datasetId: 'pilot' };
 
 describe('Cache Keys', () => {
   // ==========================================================================
@@ -56,35 +58,39 @@ describe('Cache Keys', () => {
     });
   });
 
-  describe('devicesListKey()', () => {
-    it('should generate default key without filters', () => {
-      const key = devicesListKey(TEST_ORG);
-
-      expect(key).toBe(`org:${TEST_ORG}:devices:list:default`);
+  describe.each([
+    ['devices:list', devicesListKey, devicesListPattern],
+    ['health', healthKey, healthPattern],
+    ['analytics:anomalies', anomaliesKey, analyticsPattern],
+  ] as const)('%s snapshots', (prefix, keyFor, patternFor) => {
+    it('versions payloads within the invalidation prefix and isolates datasets', () => {
+      const key = keyFor(dataset);
+      expect(key.startsWith(patternFor(TEST_ORG).slice(0, -1))).toBe(true);
+      expect(key.startsWith(`org:${TEST_ORG}:${prefix}:v2:`)).toBe(true);
+      expect(keyFor({ ...dataset, datasetId: 'other' })).not.toBe(key);
+      expect(keyFor({ ...dataset, orgId: 'other' })).not.toBe(key);
     });
 
-    it('should generate key with single filter', () => {
-      const key = devicesListKey(TEST_ORG, { status: 'active' });
-
-      expect(key).toBe(`org:${TEST_ORG}:devices:list:status:active`);
+    it('normalizes filter ordering, date precision, and set-valued fields', () => {
+      const start = '2026-11-25T15:00:00.001Z';
+      const ids = ['b', 'a', 'a'];
+      const key = keyFor(dataset, { floor: 0, ids, start: new Date(start) });
+      expect(keyFor(dataset, { start, ids: ['a', 'b'], floor: 0, department: undefined })).toBe(
+        key
+      );
+      expect(ids).toEqual(['b', 'a', 'a']);
+      expect(
+        keyFor(dataset, { floor: 0, ids, start: new Date('2026-11-25T15:00:00.002Z') })
+      ).not.toBe(key);
+      expect(keyFor(dataset, { ids, start })).not.toBe(key);
     });
 
-    it('should generate key with multiple filters sorted alphabetically', () => {
-      const key = devicesListKey(TEST_ORG, { status: 'active', floor: 1, type: 'temperature' });
-
-      expect(key).toBe(`org:${TEST_ORG}:devices:list:floor:1:status:active:type:temperature`);
-    });
-
-    it('should exclude undefined and null values', () => {
-      const key = devicesListKey(TEST_ORG, { status: 'active', floor: undefined, type: null });
-
-      expect(key).toBe(`org:${TEST_ORG}:devices:list:status:active`);
-    });
-
-    it('should handle empty filters object', () => {
-      const key = devicesListKey(TEST_ORG, {});
-
-      expect(key).toBe(`org:${TEST_ORG}:devices:list:default`);
+    it('keeps distinct filter structures and empty sets separate', () => {
+      expect(keyFor(dataset, { search: 'hq:type:power' })).not.toBe(
+        keyFor(dataset, { search: 'hq', type: 'power' })
+      );
+      expect(keyFor(dataset, { ids: ['a,b'] })).not.toBe(keyFor(dataset, { ids: ['a', 'b'] }));
+      expect(keyFor(dataset, { ids: [] })).not.toBe(keyFor(dataset, {}));
     });
   });
 
@@ -99,20 +105,6 @@ describe('Cache Keys', () => {
       const key = metadataKey(TEST_ORG, { include: 'buildings' });
 
       expect(key).toBe(`org:${TEST_ORG}:metadata:include:buildings`);
-    });
-  });
-
-  describe('healthKey()', () => {
-    it('should generate default key without filters', () => {
-      const key = healthKey(TEST_ORG);
-
-      expect(key).toBe(`org:${TEST_ORG}:health:default`);
-    });
-
-    it('should generate key with filters', () => {
-      const key = healthKey(TEST_ORG, { building: 'HQ', floor: 2 });
-
-      expect(key).toBe(`org:${TEST_ORG}:health:building:HQ:floor:2`);
     });
   });
 
@@ -164,9 +156,9 @@ describe('Cache Keys', () => {
 
   describe('analyticsKey()', () => {
     it('should generate key with endpoint', () => {
-      const key = analyticsKey(TEST_ORG, 'anomalies');
+      const key = analyticsKey(TEST_ORG, 'maintenance-forecast');
 
-      expect(key).toBe(`org:${TEST_ORG}:analytics:anomalies:default`);
+      expect(key).toBe(`org:${TEST_ORG}:analytics:maintenance-forecast:default`);
     });
 
     it('should generate key with endpoint and params', () => {
@@ -217,8 +209,8 @@ describe('Cache Keys', () => {
 
   describe('Org Isolation', () => {
     it('should generate different keys for different orgs', () => {
-      const key1 = devicesListKey('org_a', { status: 'active' });
-      const key2 = devicesListKey('org_b', { status: 'active' });
+      const key1 = devicesListKey({ ...dataset, orgId: 'org_a' }, { status: 'active' });
+      const key2 = devicesListKey({ ...dataset, orgId: 'org_b' }, { status: 'active' });
 
       expect(key1).not.toBe(key2);
       expect(key1).toContain('org:org_a:');

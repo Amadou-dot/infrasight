@@ -177,6 +177,43 @@ describe('Single Device API Integration Tests', () => {
         expect(response.status).toBe(410);
       });
 
+      it('keeps the deleted status when the requested fields omit audit', async () => {
+        const id = 'deleted_projected_device';
+        await DeviceV2.create(createDeviceInput({ _id: id }));
+        await DeviceV2.softDelete(id, 'test-user');
+
+        const response = await GET(createMockGetRequest(id, { fields: '_id,status' }), {
+          params: Promise.resolve({ id }),
+        });
+        expect(response.status).toBe(410);
+        expect(await response.json()).not.toHaveProperty('data');
+      });
+
+      it('rechecks the device when deletion occurs while recent readings are loading', async () => {
+        const id = 'device_deleted_during_read';
+        await DeviceV2.create(createDeviceInput({ _id: id }));
+        await ReadingV2.create(createReadingV2Input(id));
+        const recent = ReadingV2.find({ 'metadata.device_id': id });
+        const execute = recent.exec.bind(recent);
+        jest.spyOn(recent, 'exec').mockImplementationOnce(async () => {
+          await DeviceV2.softDelete(id, 'test-user');
+          return execute();
+        });
+        const find = jest.spyOn(ReadingV2, 'find').mockReturnValueOnce(recent);
+        try {
+          const response = await GET(
+            createMockGetRequest(id, { fields: '_id,status', include_recent_readings: 'true' }),
+            { params: Promise.resolve({ id }) }
+          );
+          expect(response.status).toBe(410);
+          const result = await response.json();
+          expect(result.error.metadata.deleted_by).toBe('test-user');
+          expect(result).not.toHaveProperty('data');
+        } finally {
+          find.mockRestore();
+        }
+      });
+
       it('should reject invalid device ID format', async () => {
         const request = createMockGetRequest('invalid id with spaces');
         const params = Promise.resolve({ id: 'invalid id with spaces' });
