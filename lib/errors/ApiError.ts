@@ -95,7 +95,15 @@ export class ApiError extends Error {
    * Creates a Response object for Next.js API routes
    */
   toResponse(): Response {
-    return Response.json(this.toJSON(), { status: this.statusCode });
+    const retryAfter = this.metadata?.retryAfter;
+    const headers =
+      this.statusCode === 429 &&
+      typeof retryAfter === 'number' &&
+      Number.isSafeInteger(retryAfter) &&
+      retryAfter > 0
+        ? { 'Retry-After': String(retryAfter) }
+        : undefined;
+    return Response.json(this.toJSON(), { status: this.statusCode, headers });
   }
 
   // ============================================================================

@@ -1,4 +1,5 @@
 import { createReadContext } from '@/lib/data/read-context';
+import { untilAborted } from './abort';
 import { ApiError } from '@/lib/errors';
 import { requireAssistantContext, reauthorizeAssistant } from './access';
 import { isToolName, parseToolArgs, resolveWindow, ToolError } from './contracts';
@@ -128,20 +129,6 @@ function selectionAfterHealth(selection: Selection, health: LocationInventory | 
   return sameLocation(selection, health) && canUseSearch(selection, health)
     ? selection
     : 'unresolved';
-}
-
-async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
-  signal.throwIfAborted();
-  let abort!: () => void;
-  const cancelled = new Promise<never>((_, reject) => {
-    abort = () => reject(signal.reason);
-    signal.addEventListener('abort', abort, { once: true });
-  });
-  try {
-    return await Promise.race([work(), cancelled]);
-  } finally {
-    signal.removeEventListener('abort', abort);
-  }
 }
 
 /** One server-owned tool session per question. The browser and model only supply tool arguments. */
