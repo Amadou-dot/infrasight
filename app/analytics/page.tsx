@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select';
 import { BarChart3, FileText } from 'lucide-react';
 import { useMetadata } from '@/lib/query/hooks';
 import { useAdminAction } from '@/lib/auth/rbac-client';
+import { deviceDetailHref } from '@/lib/utils/device-href';
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function AnalyticsPage() {
         <EnergyUsageChart selectedFloor={selectedFloor} />
         <DeviceHealthWidget selectedFloor={selectedFloor} />
         <AnomalyPanel
-          onDeviceClick={deviceId => router.push(`/devices/${deviceId}`)}
+          onDeviceClick={deviceId => router.push(deviceDetailHref(deviceId))}
           maxAlerts={8}
         />
       </div>

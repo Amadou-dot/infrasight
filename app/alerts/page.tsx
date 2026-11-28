@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Bell, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AlertList } from '@/components/alerts/AlertList';
+import { deviceDetailHref } from '@/lib/utils/device-href';
 
 /**
  * Active alerts. History is a filter value on the same page rather than a
@@ -30,7 +31,7 @@ function AlertsPageContent() {
         </Button>
       </header>
 
-      <AlertList onDeviceClick={deviceId => router.push(`/devices/${deviceId}`)} />
+      <AlertList onDeviceClick={deviceId => router.push(deviceDetailHref(deviceId))} />
     </div>
   );
 }

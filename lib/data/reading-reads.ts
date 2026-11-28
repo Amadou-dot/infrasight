@@ -3,7 +3,11 @@ import { type ReadContext, fieldProjection, readOptions } from '@/lib/data/read-
 import type { ListReadingsQuery } from '@/lib/validations/v2/reading.validation';
 import ReadingV2 from '@/models/v2/ReadingV2';
 
-export async function readReadings(context: ReadContext, query: ListReadingsQuery) {
+export async function readReadings(
+  context: ReadContext,
+  query: ListReadingsQuery,
+  { tieBreakById = false } = {}
+) {
   const options = readOptions(context);
   // Extract pagination
   const pagination = getOffsetPaginationParams({
@@ -79,6 +83,7 @@ export async function readReadings(context: ReadContext, query: ListReadingsQuer
   };
 
   sort[sortFieldMap[sortField] || sortField] = sortOrder;
+  if (tieBreakById) sort._id = sortOrder;
 
   // Execute query
   const [readings, total] = await Promise.all([
