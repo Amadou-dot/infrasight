@@ -137,6 +137,8 @@ export const readPorts = {
     context: ReadContext,
     args: Args<'find_devices'>
   ): Promise<Snapshot<ToolData<'find_devices'>>> {
+    // A separate count can match the visible page size while another row still exists.
+    const probeLimit = args.limit + 1;
     const snapshot = await read(() =>
       readDevices(context, {
         search: args.search ?? undefined,
@@ -144,7 +146,7 @@ export const readPorts = {
         floor: args.floor ?? undefined,
         type: args.type ?? undefined,
         page: 1,
-        limit: args.limit,
+        limit: probeLimit,
         sortBy: 'serial_number',
         sortDirection: 'asc',
         include_deleted: false,
@@ -153,9 +155,11 @@ export const readPorts = {
         fields: deviceFields,
       })
     );
-    const projected = projectSnapshot('find_devices', snapshot, data =>
-      page(data.devices.map(projectDevice), data.paginationInfo.total, args.limit)
-    );
+    const projected = projectSnapshot('find_devices', snapshot, data => {
+      const total = data.paginationInfo.total;
+      assertResult(data.devices.length === Math.min(total, probeLimit));
+      return page(data.devices.slice(0, args.limit).map(projectDevice), total, args.limit);
+    });
     assertResult(
       projected.data.rows.every(
         row =>
@@ -244,7 +248,7 @@ export const readPorts = {
           sortBy: 'timestamp',
           sortDirection: 'desc',
         },
-        { fields: readingFields, tieBreakById: true }
+        { fields: readingFields, tieBreakById: true, includeTypeBreakdown: false }
       )
     );
     if (deviceIds) await requireActiveDevices(context, deviceIds);

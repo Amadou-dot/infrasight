@@ -12,6 +12,8 @@ jest.mock('@clerk/nextjs/server', () => ({
 }));
 
 const mockMembershipLookup = jest.fn();
+const mockSessionLookup = jest.fn();
+const sessionId = 'sess_assistant_pilot';
 const pilotUser = 'user_assistant_pilot';
 const pilotOrg = 'org_assistant_pilot';
 const dataset = 'assistant-integration-dataset';
@@ -23,6 +25,7 @@ const removedId = 'temperature_removed';
 
 function setClerkSession(userId: string | null, orgId: string | null) {
   jest.mocked(auth).mockResolvedValue({
+    sessionId: userId ? sessionId : null,
     userId,
     orgId,
     orgSlug: userId ? 'users' : null,
@@ -57,10 +60,18 @@ beforeEach(() => {
   setClerkSession(pilotUser, pilotOrg);
   jest.mocked(clerkClient).mockResolvedValue({
     organizations: { getOrganizationMembershipList: mockMembershipLookup },
+    sessions: { getSession: mockSessionLookup },
   } as unknown as Awaited<ReturnType<typeof clerkClient>>);
+  mockSessionLookup
+    .mockReset()
+    .mockResolvedValue({ id: sessionId, userId: pilotUser, status: 'active' });
   mockMembershipLookup.mockReset().mockResolvedValue({
     data: [
-      { role: 'org:member', organization: { id: pilotOrg }, publicUserData: { userId: pilotUser } },
+      {
+        role: 'org:member',
+        organization: { id: pilotOrg, slug: 'users' },
+        publicUserData: { userId: pilotUser },
+      },
     ],
     totalCount: 1,
   });
@@ -228,11 +239,78 @@ it('executes all five tools with scoped evidence from the seeded floor', async (
   });
 
   const evidence = JSON.stringify([devices, detail, readings, health, anomalies]);
-  for (const excluded of [pilotUser, pilotOrg, dataset, 'CC-001', 'internal-'])
+  for (const excluded of [sessionId, pilotUser, pilotOrg, dataset, 'CC-001', 'internal-'])
     expect(evidence).not.toContain(excluded);
   for (const read of [devices, detail, readings, health, anomalies])
     expect(Date.parse(read.snapshot.retrievedAt)).toBeGreaterThanOrEqual(Date.parse(scope.asOf));
 });
+
+it('returns orphaned fleet flags after empty inventory and after switching from an empty floor to fleet health', async () => {
+  await ReadingV2.create(
+    createReadingV2Input(removedId, {
+      timestamp: new Date(Date.now() - 1000),
+      quality: { is_valid: true, is_anomaly: true, anomaly_score: 1 },
+    })
+  );
+  const { executeReadTool } = await createAssistantTools();
+  const signal = new AbortController().signal;
+  const fleet = { building_id: null, floor: null };
+  const find = { ...fleet, search: null, type: null, limit: 20 };
+  const anomalies = JSON.stringify({
+    device_ids: null,
+    start: null,
+    end: null,
+    min_score: null,
+    limit: 2,
+  });
+  const expectedFleet = {
+    population: { kind: 'dataset' },
+    snapshot: {
+      data: {
+        total: 1,
+        rows: [{ device_id: removedId }],
+        includes_deleted_or_missing_devices: true,
+      },
+    },
+  };
+
+  await executeReadTool('find_devices', JSON.stringify(find), signal);
+  await expect(executeReadTool('get_anomalies', anomalies, signal)).resolves.toMatchObject(
+    expectedFleet
+  );
+  await executeReadTool('find_devices', JSON.stringify({ ...find, ...floor }), signal);
+  await expect(executeReadTool('get_anomalies', anomalies, signal)).resolves.toMatchObject({
+    population: { kind: 'location', ...floor },
+    snapshot: { data: { total: 0 } },
+  });
+  await executeReadTool('get_health_summary', JSON.stringify(fleet), signal);
+  await expect(executeReadTool('get_anomalies', anomalies, signal)).resolves.toMatchObject(
+    expectedFleet
+  );
+});
+
+it.each(['get_device', 'get_readings_window'] as const)(
+  'links %s for a device named deleted to the searchable inventory',
+  async name => {
+    await DeviceV2.create(createDeviceInput({ _id: 'deleted' }));
+    const { scope, executeReadTool } = await createAssistantTools();
+    const args =
+      name === 'get_device'
+        ? { device_id: 'deleted' }
+        : {
+            device_id: 'deleted',
+            start: new Date(Date.parse(scope.asOf) - 1000).toISOString(),
+            end: scope.asOf,
+            limit: 1,
+          };
+    await expect(
+      executeReadTool(name, JSON.stringify(args), new AbortController().signal)
+    ).resolves.toMatchObject({
+      href: '/devices?q=deleted',
+      population: { kind: 'device', device_id: 'deleted' },
+    });
+  }
+);
 
 it.each([
   { caller: 'anonymous', userId: null, orgId: null, statusCode: 401 },

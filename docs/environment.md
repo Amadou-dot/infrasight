@@ -330,7 +330,7 @@ NEXT_PUBLIC_DEMO_MODE=true
 
 ### Assistant Pilot Eligibility
 
-The pilot accepts signed-in Clerk members and admins in one approved organization. It applies the existing organization slug and role checks, then verifies current membership with Clerk when opening a session and before and after each tool read.
+The pilot accepts signed-in Clerk members and admins in one approved organization. When a question starts and before and after each tool read, it checks that the originating Clerk session is active and that the live membership, role, and organization slug still qualify.
 
 | Variable                     | Description                                                   | Default |
 | ---------------------------- | ------------------------------------------------------------- | ------- |

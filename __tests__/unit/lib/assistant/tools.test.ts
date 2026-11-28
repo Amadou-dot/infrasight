@@ -4,6 +4,9 @@ import { requireAssistantContext, reauthorizeAssistant } from '@/lib/assistant/a
 import { readPorts } from '@/lib/assistant/read-ports';
 import { createAssistantTools } from '@/lib/assistant/tools';
 
+jest.mock('@/lib/cache', () => ({
+  CACHE_TTL: { DEVICES_LIST: 30, HEALTH: 600, ANOMALIES: 10 },
+}));
 jest.mock('@/lib/assistant/access', () => ({
   requireAssistantContext: jest.fn(),
   reauthorizeAssistant: jest.fn(),
@@ -21,6 +24,7 @@ jest.mock('@/lib/assistant/read-ports', () => ({
 
 const asOf = '2026-11-25T15:20:00.000Z';
 const scope = {
+  sessionId: 'pilot_session',
   userId: 'pilot_user',
   orgId: 'pilot_org',
   datasetId: 'dedicated',
@@ -59,8 +63,19 @@ const emptyAnomalies = {
   includes_deleted_or_missing_devices: false,
 };
 
+const emptyHealth = {
+  total_devices: 0,
+  active_devices: 0,
+  health_score: 100,
+  devices_with_issues: 0,
+  offline: { count: 0, threshold_minutes: 5 as const, sample: [] },
+  low_battery: { count: 0, threshold_percent: 20 as const, sample: [] },
+  error: { count: 0, sample: [] },
+};
+
 beforeEach(() => {
   jest.resetAllMocks();
+  jest.spyOn(Date, 'now').mockReturnValue(Date.parse(asOf));
   jest.mocked(requireAssistantContext).mockResolvedValue(scope);
   jest.mocked(reauthorizeAssistant).mockResolvedValue(undefined);
   jest
@@ -68,6 +83,7 @@ beforeEach(() => {
     .mockImplementation(async (orgId, signal) => ({ orgId, datasetId: scope.datasetId, signal }));
   jest.mocked(readPorts.get_anomalies).mockResolvedValue(snapshot(emptyAnomalies));
 });
+afterEach(() => jest.restoreAllMocks());
 
 it('returns a proven empty floor locally, without issuing a fleet anomaly read', async () => {
   jest.mocked(readPorts.find_devices).mockResolvedValue(searchPage([]));
@@ -344,3 +360,54 @@ it('preserves both source timestamps and unknown freshness when deriving an empt
   expect(result.limitations).toContain('UNKNOWN_FRESHNESS');
   expect(readPorts.get_anomalies).not.toHaveBeenCalled();
 });
+
+it('declines health evidence past 60 seconds even with a ten-minute source TTL', async () => {
+  const health = jest.mocked(readPorts.get_health_summary);
+  const args = JSON.stringify({ building_id: null, floor: null });
+  const { executeReadTool } = await createAssistantTools();
+  const read = () => executeReadTool('get_health_summary', args, signal());
+  const computed = (age: number) => new Date(Date.parse(asOf) - age).toISOString();
+  health.mockResolvedValueOnce({ ...snapshot(emptyHealth), computedAt: computed(60_000) });
+  await expect(read()).resolves.toMatchObject({ snapshot: { data: emptyHealth } });
+  health.mockResolvedValueOnce({ ...snapshot(emptyHealth), computedAt: computed(9 * 60_000) });
+  await expect(read()).rejects.toMatchObject({ code: 'READ_UNAVAILABLE' });
+});
+
+it('enforces a shorter anomaly source TTL through the final authorization check', async () => {
+  const result = { ...emptyAnomalies, includes_deleted_or_missing_devices: true };
+  jest.mocked(readPorts.get_anomalies).mockResolvedValue({
+    ...snapshot(result),
+    computedAt: new Date(Date.parse(asOf) - 10_000).toISOString(),
+  });
+  const { executeReadTool } = await createAssistantTools();
+  const read = () => executeReadTool('get_anomalies', JSON.stringify(anomalies), signal());
+  await expect(read()).resolves.toMatchObject({ snapshot: { data: result } });
+  jest
+    .mocked(reauthorizeAssistant)
+    .mockResolvedValueOnce(undefined)
+    .mockImplementationOnce(async () => {
+      jest.mocked(Date.now).mockReturnValue(Date.parse(asOf) + 1);
+    });
+  await expect(read()).rejects.toMatchObject({ code: 'READ_UNAVAILABLE' });
+});
+
+it.each([[], ['a']].map(ids => ({ ids })))(
+  'expires a search for $ids when its cohort is reused',
+  async ({ ids }) => {
+    const retrievedAt = asOf;
+    const computedAt = new Date(Date.parse(asOf) - 29_000).toISOString();
+    jest
+      .mocked(readPorts.find_devices)
+      .mockResolvedValue({ ...searchPage(ids), computedAt, retrievedAt });
+    const { executeReadTool } = await createAssistantTools();
+    await executeReadTool('find_devices', JSON.stringify(search), signal());
+    const args = JSON.stringify({ ...anomalies, device_ids: ids.length ? ids : null });
+    const accepted = await executeReadTool('get_anomalies', args, signal());
+    expect(accepted.resolution).toMatchObject({ computedAt, retrievedAt });
+    jest.mocked(Date.now).mockReturnValue(Date.parse(asOf) + 4_000);
+    await expect(executeReadTool('get_anomalies', args, signal())).rejects.toMatchObject({
+      code: 'READ_UNAVAILABLE',
+    });
+    if (!ids.length) expect(readPorts.get_anomalies).not.toHaveBeenCalled();
+  }
+);

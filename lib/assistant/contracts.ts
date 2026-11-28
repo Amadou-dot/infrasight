@@ -98,7 +98,7 @@ const descriptions: Record<ToolName, string> = {
     'Otherwise supply both UTC dates within the last 7 days at millisecond precision or coarser. ' +
     'Null device_ids selects the approved dataset and may include readings from deleted or missing devices. ' +
     'For a building, floor, or filtered group, call find_devices with limit 20 and pass the complete list of unique IDs. ' +
-    'If the search is empty, report no matching devices without an anomaly call. If the search is incomplete, ask to narrow the scope.',
+    'If a filtered group is empty, report no matching devices. An empty unfiltered inventory still permits a dataset anomaly read. If a filtered search is incomplete, ask to narrow the scope.',
   get_device:
     'Read identity, location, status, and numeric health for one current undeleted device.',
   get_readings_window:
@@ -199,6 +199,10 @@ export function resolveWindow(
 
 const count = z.int().nonnegative();
 
+function sampleFitsCount(category: { count: number; sample: unknown[] }): boolean {
+  return category.sample.length <= category.count;
+}
+
 function pageFields<Row extends z.ZodType>(row: Row) {
   return {
     rows: z.array(row).max(MAX_ROWS),
@@ -257,26 +261,32 @@ export const outputSchemas = {
     active_devices: count,
     health_score: z.int().min(0).max(100),
     devices_with_issues: count,
-    offline: z.strictObject({
-      count,
-      threshold_minutes: z.literal(5),
-      sample: z
-        .array(z.strictObject({ id: deviceIdSchema, last_seen: utcTimestamp }))
-        .max(MAX_HEALTH_SAMPLE),
-    }),
-    low_battery: z.strictObject({
-      count,
-      threshold_percent: z.literal(20),
-      sample: z
-        .array(z.strictObject({ id: deviceIdSchema, battery_level: batteryLevelSchema }))
-        .max(MAX_HEALTH_SAMPLE),
-    }),
-    error: z.strictObject({
-      count,
-      sample: z
-        .array(z.strictObject({ id: deviceIdSchema, error_count: count }))
-        .max(MAX_HEALTH_SAMPLE),
-    }),
+    offline: z
+      .strictObject({
+        count,
+        threshold_minutes: z.literal(5),
+        sample: z
+          .array(z.strictObject({ id: deviceIdSchema, last_seen: utcTimestamp }))
+          .max(MAX_HEALTH_SAMPLE),
+      })
+      .refine(sampleFitsCount),
+    low_battery: z
+      .strictObject({
+        count,
+        threshold_percent: z.literal(20),
+        sample: z
+          .array(z.strictObject({ id: deviceIdSchema, battery_level: batteryLevelSchema }))
+          .max(MAX_HEALTH_SAMPLE),
+      })
+      .refine(sampleFitsCount),
+    error: z
+      .strictObject({
+        count,
+        sample: z
+          .array(z.strictObject({ id: deviceIdSchema, error_count: count }))
+          .max(MAX_HEALTH_SAMPLE),
+      })
+      .refine(sampleFitsCount),
   }),
   get_anomalies: z
     .strictObject({
@@ -296,6 +306,7 @@ export const outputSchemas = {
       includes_deleted_or_missing_devices: z.boolean(),
     })
     .refine(pageIsConsistent)
+    .refine(({ by_device, total }) => by_device.reduce((sum, row) => sum + row.count, 0) <= total)
     .refine(({ rows }) => rows.every(row => row.is_anomaly)),
   get_device: deviceSummary.extend({
     last_seen: utcTimestamp.nullable(),

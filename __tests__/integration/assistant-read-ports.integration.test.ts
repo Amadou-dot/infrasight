@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { readAnomalies } from '@/lib/analytics/anomalies';
 import { readPorts } from '@/lib/assistant/read-ports';
 import { getOrSet } from '@/lib/cache';
 import { createReadContext } from '@/lib/data/read-context';
@@ -72,6 +73,26 @@ it('projects current devices and orders partial searches by serial number', asyn
     type: 1,
     status: 1,
   });
+});
+
+it('rejects a full-looking device page when another matching device lies beyond it', async () => {
+  const location = { building_id: 'building_001', floor: 0, room_name: 'Lobby' };
+  const device = (id: string) =>
+    createDeviceInput({ _id: id, serial_number: `SN-${id}`, location });
+  await DeviceV2.create([device('a'), device('c')]);
+  const earlierCount = await DeviceV2.countDocuments({ 'location.floor': 0 });
+  await DeviceV2.create(device('b'));
+  // The independent count saw A and C, while the sorted page now starts with A and B.
+  jest.spyOn(DeviceV2.collection, 'countDocuments').mockResolvedValueOnce(earlierCount);
+  await expect(
+    readPorts.find_devices(await context(), {
+      search: null,
+      building_id: 'building_001',
+      floor: 0,
+      type: null,
+      limit: 2,
+    })
+  ).rejects.toMatchObject({ code: 'INVALID_RESULT' });
 });
 
 it('maps threshold counts and health samples without expanding them into full lists', async () => {
@@ -230,7 +251,9 @@ it('retains the selected/global anomaly cohort and counts invalid or scoreless f
   const ctx = await context();
   const filters = { ...bounds, min_score: null, limit: 1 };
 
+  const aggregate = jest.spyOn(ReadingV2.collection, 'aggregate');
   const global = (await readPorts.get_anomalies(ctx, { ...filters, device_ids: null })).data;
+  expect(aggregate).toHaveBeenCalledTimes(1);
   expect(global).toMatchObject({
     total: 3,
     returned: 1,
@@ -258,6 +281,33 @@ it('retains the selected/global anomaly cohort and counts invalid or scoreless f
     includes_deleted_or_missing_devices: false,
     rows: [{ device_id: current._id, anomaly_score: 0, is_valid: false, is_anomaly: true }],
   });
+});
+
+it('keeps device-only and full anomaly breakdowns in separate cache entries', async () => {
+  const bounds = window();
+  await ReadingV2.create(
+    createReadingV2Input('device_001', {
+      timestamp: new Date(bounds.start),
+      quality: { is_valid: true, is_anomaly: true },
+    })
+  );
+  const ctx = await context();
+  const query = {
+    startDate: new Date(bounds.start),
+    endDate: new Date(bounds.end),
+    page: 1,
+    limit: 1,
+    sortBy: 'timestamp',
+    sortDirection: 'desc',
+  } as const;
+  const aggregate = jest.spyOn(ReadingV2.collection, 'aggregate');
+  await readAnomalies(ctx, query, { includeTypeBreakdown: false });
+  expect(aggregate).toHaveBeenCalledTimes(1);
+  const full = await readAnomalies(ctx, query);
+  expect(full.data.summary.by_type).toMatchObject([{ type: 'temperature', count: 1 }]);
+  expect(aggregate).toHaveBeenCalledTimes(3);
+  await readAnomalies(ctx, query, { includeTypeBreakdown: false });
+  expect(aggregate).toHaveBeenCalledTimes(3);
 });
 
 it('rejects the entire explicit anomaly selection if any ID becomes unavailable on a cache hit', async () => {

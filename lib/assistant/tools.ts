@@ -3,6 +3,7 @@ import { ApiError } from '@/lib/errors';
 import { requireAssistantContext, reauthorizeAssistant } from './access';
 import { isToolName, parseToolArgs, resolveWindow, ToolError } from './contracts';
 import {
+  checkEvidenceFreshness,
   readEvidence,
   readingLimitations,
   searchPopulation,
@@ -51,15 +52,10 @@ function anomalyPopulation(
   }
   const { resolution } = selection;
   const population = searchPopulation(resolution.filters);
-  if (ids === null && resolution.total === 0)
-    // Even an empty list of current devices says nothing about orphaned readings.
-    return {
-      population:
-        population.kind === 'dataset' ? { kind: 'device_subset', device_ids: [] } : population,
-      resolution,
-    };
-
+  // Inventory excludes deleted devices. A fleet flag query includes their stored readings.
   if (population.kind === 'dataset') return { population: explicit };
+  if (ids === null && resolution.total === 0) return { population, resolution };
+
   const sameIds =
     ids !== null &&
     ids.length === selection.ids.length &&
@@ -70,6 +66,21 @@ function anomalyPopulation(
   // A scoped search must supply its verified IDs before a nonempty anomaly query.
   if (ids === null) throw new ToolError('INVALID_ARGUMENTS');
   return { population, resolution };
+}
+
+function selectionAfterHealth(
+  selection: Selection,
+  read: ExecutedRead<'get_health_summary'>
+): Selection {
+  if (read.population.kind === 'dataset') return null;
+  if (!selection || selection === 'unresolved') return 'unresolved';
+  const prior = selection.resolution.filters;
+  return prior.building_id === read.filters.building_id &&
+    prior.floor === read.filters.floor &&
+    prior.type === null &&
+    prior.search === null
+    ? selection
+    : 'unresolved';
 }
 
 async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
@@ -140,18 +151,6 @@ export async function createAssistantTools() {
       case 'get_health_summary': {
         const args = parseToolArgs(name, json);
         const population = searchPopulation({ ...args, search: null, type: null });
-        if (population.kind === 'location') {
-          const prior =
-            selection && selection !== 'unresolved' ? selection.resolution.filters : null;
-          if (
-            !prior ||
-            prior.building_id !== args.building_id ||
-            prior.floor !== args.floor ||
-            prior.type !== null ||
-            prior.search !== null
-          )
-            selection = 'unresolved';
-        }
         const result = await readPorts.get_health_summary(await context(signal), args);
         const warnings = [
           'HEALTH_SCORE_IS_STATUS_RATIO',
@@ -236,10 +235,12 @@ export async function createAssistantTools() {
       const read = await dispatch(name, json, signal);
       // Ignore late work after cancellation or a change in access, including on cache hits.
       await authorize(signal);
+      checkEvidenceFreshness(read);
       const bytes = Buffer.byteLength(JSON.stringify(read), 'utf8');
       if (bytes > MAX_RESULT_BYTES || bytes + bytesReturned > MAX_QUESTION_BYTES)
         throw new ToolError('RESULT_TOO_LARGE');
       if (read.name === 'find_devices') selection = rememberSearch(read);
+      if (read.name === 'get_health_summary') selection = selectionAfterHealth(selection, read);
       bytesReturned += bytes;
       return read;
     });

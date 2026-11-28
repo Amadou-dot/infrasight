@@ -10,9 +10,11 @@ jest.mock('@clerk/nextjs/server', () => ({
 const mockAuth = jest.mocked(auth);
 const mockCurrentUser = jest.mocked(currentUser);
 const mockMembershipLookup = jest.fn();
+const mockSessionLookup = jest.fn();
 type ClerkUser = NonNullable<Awaited<ReturnType<typeof currentUser>>>;
 
 const pilotSession = {
+  sessionId: 'sess_pilot',
   userId: 'user_pilot',
   orgId: 'org_pilot',
   orgSlug: 'users',
@@ -20,10 +22,12 @@ const pilotSession = {
 };
 
 const pilotMembership = {
-  organization: { id: pilotSession.orgId },
+  organization: { id: pilotSession.orgId, slug: pilotSession.orgSlug },
   publicUserData: { userId: pilotSession.userId },
   role: 'org:member',
 };
+
+const liveSession = { id: pilotSession.sessionId, userId: pilotSession.userId, status: 'active' };
 
 function mockSession(session: Partial<{ [K in keyof typeof pilotSession]: string | null }> = {}) {
   const claims = { ...pilotSession, ...session };
@@ -60,7 +64,9 @@ beforeEach(() => {
   mockSession();
   jest.mocked(clerkClient).mockResolvedValue({
     organizations: { getOrganizationMembershipList: mockMembershipLookup },
+    sessions: { getSession: mockSessionLookup },
   } as unknown as Awaited<ReturnType<typeof clerkClient>>);
+  mockSessionLookup.mockReset().mockResolvedValue(liveSession);
   mockMembershipLookup.mockReset().mockResolvedValue({ data: [pilotMembership], totalCount: 1 });
 });
 
@@ -76,6 +82,7 @@ describe('requireAssistantContext', () => {
     const scope = await requireAssistantContext();
 
     expect(scope).toEqual({
+      sessionId: 'sess_pilot',
       userId: 'user_pilot',
       orgId: 'org_pilot',
       datasetId: 'pilot-dataset',
@@ -87,6 +94,7 @@ describe('requireAssistantContext', () => {
     expect(new Date(scope.asOf).toISOString()).toBe(scope.asOf);
     expect(Date.parse(scope.asOf)).toBeGreaterThanOrEqual(startedAt);
     expect(Date.parse(scope.asOf)).toBeLessThanOrEqual(Date.now());
+    expect(mockSessionLookup).toHaveBeenCalledWith('sess_pilot');
     expect(mockMembershipLookup).toHaveBeenCalledWith({
       organizationId: 'org_pilot',
       userId: ['user_pilot'],
@@ -164,12 +172,27 @@ describe('requireAssistantContext', () => {
     [
       [],
       [{ ...pilotMembership, organization: { id: 'org_other' } }],
+      [{ ...pilotMembership, organization: { id: pilotSession.orgId } }],
       [{ ...pilotMembership, publicUserData: { userId: 'user_other' } }],
       [{ ...pilotMembership, role: 'org:viewer' }],
     ].map(data => ({ data }))
   )('denies when the live result does not authorize the caller %j', async result => {
     mockMembershipLookup.mockResolvedValueOnce(result);
     await expect(requireAssistantContext()).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('requires a session ID before contacting Clerk for live access', async () => {
+    mockSession({ sessionId: null });
+    await expect(requireAssistantContext()).rejects.toMatchObject({ statusCode: 401 });
+    expect(mockSessionLookup).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes an unavailable session lookup', async () => {
+    mockSessionLookup.mockRejectedValueOnce(new Error('private session backend failure'));
+    await expect(requireAssistantContext()).rejects.toMatchObject({
+      statusCode: 503,
+      message: 'Assistant access is unavailable',
+    });
   });
 
   it('fails closed when the membership backend is unavailable', async () => {
@@ -200,15 +223,42 @@ describe('reauthorizeAssistant', () => {
     await expect(reauthorizeAssistant(olderScope)).resolves.toBeUndefined();
   });
 
-  it.each([{ userId: null }, { userId: 'user_other' }, { orgId: 'org_other' }, { orgRole: null }])(
-    'forbids a previously issued scope after a session change %j',
-    async session => {
-      const scope = await requireAssistantContext();
-      mockSession(session);
+  it.each([
+    { sessionId: 'sess_other' },
+    { userId: null },
+    { userId: 'user_other' },
+    { orgId: 'org_other' },
+    { orgRole: null },
+  ])('forbids a previously issued scope after a session change %j', async session => {
+    const scope = await requireAssistantContext();
+    mockSession(session);
 
-      await expect(reauthorizeAssistant(scope)).rejects.toMatchObject({ statusCode: 403 });
-    }
-  );
+    await expect(reauthorizeAssistant(scope)).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it.each([
+    { status: 'ended' },
+    { status: 'revoked' },
+    { id: 'sess_other' },
+    { userId: 'user_other' },
+  ])('rejects a changed live session with unchanged request claims %j', async changes => {
+    const scope = await requireAssistantContext();
+    mockSessionLookup.mockResolvedValueOnce({ ...liveSession, ...changes });
+    await expect(reauthorizeAssistant(scope)).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockSessionLookup).toHaveBeenLastCalledWith(pilotSession.sessionId);
+  });
+
+  it('applies the configured allowlist to the live slug after a rename', async () => {
+    process.env.CLERK_ALLOWED_ORG_SLUGS = ' USERS, renamed ';
+    const scope = await requireAssistantContext();
+    const renamed = (slug: string) => ({
+      data: [{ ...pilotMembership, organization: { id: scope.orgId, slug } }],
+    });
+    mockMembershipLookup.mockResolvedValueOnce(renamed('RENAMED'));
+    await expect(reauthorizeAssistant(scope)).resolves.toBeUndefined();
+    mockMembershipLookup.mockResolvedValueOnce(renamed('outside'));
+    await expect(reauthorizeAssistant(scope)).rejects.toMatchObject({ statusCode: 403 });
+  });
 
   it.each([
     ['ASSISTANT_ALLOWED_USER_IDS', 'user_other', 403],

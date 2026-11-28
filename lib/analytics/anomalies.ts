@@ -37,10 +37,18 @@ const isNonFinite = (value: unknown) => typeof value === 'number' && !Number.isF
 export async function readAnomalies(
   context: ReadContext,
   query: AnomalyAnalyticsQuery,
-  { fields, tieBreakById }: { fields?: string[]; tieBreakById?: boolean } = {}
+  {
+    fields,
+    tieBreakById,
+    includeTypeBreakdown,
+  }: {
+    fields?: string[];
+    tieBreakById?: boolean;
+    includeTypeBreakdown?: boolean;
+  } = {}
 ) {
   const snapshot = await readCachedSnapshot(
-    anomaliesKey(context, { ...query, fields, tieBreakById }),
+    anomaliesKey(context, { ...query, fields, tieBreakById, includeTypeBreakdown }),
     CACHE_TTL.ANOMALIES,
     context,
     async () => {
@@ -172,26 +180,29 @@ export async function readAnomalies(
       ]).option(options);
 
       // Get anomaly breakdown by type
-      const typeBreakdown = await ReadingV2.aggregate([
-        { $match: matchStage },
-        {
-          $group: {
-            _id: '$metadata.type',
-            count: { $sum: 1 },
-            avg_score: { $avg: '$quality.anomaly_score' },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            type: '$_id',
-            count: 1,
-            avg_score: { $round: ['$avg_score', 3] },
-          },
-        },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
-      ]).option(options);
+      const typeBreakdown =
+        includeTypeBreakdown === false
+          ? []
+          : await ReadingV2.aggregate([
+              { $match: matchStage },
+              {
+                $group: {
+                  _id: '$metadata.type',
+                  count: { $sum: 1 },
+                  avg_score: { $avg: '$quality.anomaly_score' },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  type: '$_id',
+                  count: 1,
+                  avg_score: { $round: ['$avg_score', 3] },
+                },
+              },
+              { $sort: { count: -1 } },
+              { $limit: 10 },
+            ]).option(options);
 
       // JSON serialization would turn these malformed scores into plausible nulls.
       if (

@@ -15,6 +15,7 @@ import { ApiError, ErrorCodes } from '@/lib/errors';
 export type OrgRole = 'org:admin' | 'org:member';
 
 export interface AuthContext {
+  sessionId: string | null;
   userId: string;
   user: AuthenticatedUser;
   orgId: string;
@@ -34,12 +35,17 @@ function getAllowedOrgSlugs(): string[] {
     .map(value => value.toLowerCase());
 }
 
+export function isAllowedOrgSlug(orgSlug: string | null | undefined): boolean {
+  if (typeof orgSlug !== 'string' || !orgSlug) return false;
+  const allowedOrgs = getAllowedOrgSlugs();
+  return allowedOrgs.length === 0 || allowedOrgs.includes(orgSlug.toLowerCase());
+}
+
 function assertAllowedOrg(orgSlug: string | null): asserts orgSlug is string {
   if (!orgSlug)
     throw ApiError.forbidden('Organization membership required to access this resource');
 
-  const allowedOrgs = getAllowedOrgSlugs();
-  if (allowedOrgs.length > 0 && !allowedOrgs.includes(orgSlug.toLowerCase()))
+  if (!isAllowedOrgSlug(orgSlug))
     throw ApiError.forbidden('You are not a member of the required organization');
 }
 
@@ -85,6 +91,7 @@ const DEMO_USER: AuthenticatedUser = {
 
 function createDemoAuthContext(): AuthContext {
   return {
+    sessionId: null,
     userId: DEMO_USER.userId,
     user: { ...DEMO_USER },
     orgId: 'demo',
@@ -123,6 +130,7 @@ export async function getAuthContext(): Promise<AuthContext> {
   assertOrgRole(sessionAuth.orgRole ?? null);
 
   return {
+    sessionId: sessionAuth.sessionId,
     userId: authResult.userId,
     user: authResult.user,
     orgId: sessionAuth.orgId as string,

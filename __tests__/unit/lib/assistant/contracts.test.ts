@@ -235,8 +235,37 @@ describe('assistant output contracts', () => {
     ['invalid readings excluded', { includes_invalid: false }],
     ['unflagged readings', { rows: [{ ...READING, is_anomaly: false }] }],
     ['more than 10 device counts', { by_device: Array(11).fill(ANOMALIES.by_device[0]) }],
+    ['a nonempty breakdown for zero flags', { rows: [], total: 0, returned: 0, truncated: false }],
+    [
+      'device counts adding up to more than the matching total',
+      {
+        by_device: [...ANOMALIES.by_device, { device_id: 'device_016', count: 1, avg_score: null }],
+      },
+    ],
   ])('rejects an anomaly result with %s', (_reason, changes) => {
     expect(outputSchemas.get_anomalies.safeParse({ ...ANOMALIES, ...changes }).success).toBe(false);
+  });
+
+  it.each([
+    ['offline', { id: 'device_015', last_seen: AS_OF }],
+    ['low_battery', { id: 'device_015', battery_level: 10 }],
+    ['error', { id: 'device_015', error_count: 1 }],
+  ] as const)('rejects a %s sample larger than its own count', (category, row) => {
+    const health = {
+      total_devices: 2,
+      active_devices: 1,
+      health_score: 50,
+      devices_with_issues: 1,
+      offline: { count: 0, threshold_minutes: 5, sample: [] },
+      low_battery: { count: 0, threshold_percent: 20, sample: [] },
+      error: { count: 0, sample: [] },
+    };
+    expect(
+      outputSchemas.get_health_summary.safeParse({
+        ...health,
+        [category]: { ...health[category], sample: [row] },
+      }).success
+    ).toBe(false);
   });
 
   it('rejects health samples above ten or with incorrect thresholds', () => {

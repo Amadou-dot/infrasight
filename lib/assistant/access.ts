@@ -1,8 +1,9 @@
 import { clerkClient } from '@clerk/nextjs/server';
-import { isDemoCaller, requireOrgMembership } from '@/lib/auth';
+import { isAllowedOrgSlug, isDemoCaller, requireOrgMembership } from '@/lib/auth';
 import { ApiError } from '@/lib/errors';
 
 export interface DatasetScope {
+  readonly sessionId: string;
   readonly userId: string;
   readonly orgId: string;
   readonly datasetId: string;
@@ -53,31 +54,48 @@ async function requirePilotIdentity(): Promise<Omit<DatasetScope, 'asOf'>> {
   const { orgId, datasetId, allowedUserIds } = readPilotConfig();
   const session = await readSession();
 
-  if (isDemoCaller(session)) throw ApiError.unauthorized();
+  if (isDemoCaller(session) || !session.sessionId) throw ApiError.unauthorized();
   if (session.orgId !== orgId || !allowedUserIds.includes(session.userId)) throw accessDenied();
 
-  return { userId: session.userId, orgId, datasetId, policyVersion: POLICY_VERSION };
+  return {
+    sessionId: session.sessionId,
+    userId: session.userId,
+    orgId,
+    datasetId,
+    policyVersion: POLICY_VERSION,
+  };
 }
 
-async function requireLiveMembership({ orgId, userId }: Pick<DatasetScope, 'orgId' | 'userId'>) {
-  // A still-valid request token can carry the previous role after membership changes.
+async function requireLiveAccess({
+  orgId,
+  userId,
+  sessionId,
+}: Pick<DatasetScope, 'orgId' | 'userId' | 'sessionId'>) {
+  // Request claims can outlive sign-out, an organization rename, or a change in membership.
   const lookup = async () => {
     const client = await clerkClient();
-    return client.organizations.getOrganizationMembershipList({
-      organizationId: orgId,
-      userId: [userId],
-      limit: 1,
-    });
+    return Promise.all([
+      client.sessions.getSession(sessionId),
+      client.organizations.getOrganizationMembershipList({
+        organizationId: orgId,
+        userId: [userId],
+        limit: 1,
+      }),
+    ]);
   };
-  const result = await lookup().catch(() => {
+  const [session, result] = await lookup().catch(() => {
     throw accessUnavailable();
   });
   if (!Array.isArray(result?.data)) throw accessUnavailable();
 
   const [membership] = result.data;
   if (
+    session?.id !== sessionId ||
+    session.userId !== userId ||
+    session.status !== 'active' ||
     result.data.length !== 1 ||
     membership?.organization?.id !== orgId ||
+    !isAllowedOrgSlug(membership.organization.slug) ||
     membership?.publicUserData?.userId !== userId ||
     (membership.role !== 'org:member' && membership.role !== 'org:admin')
   )
@@ -86,7 +104,7 @@ async function requireLiveMembership({ orgId, userId }: Pick<DatasetScope, 'orgI
 
 export async function requireAssistantContext(): Promise<DatasetScope> {
   const identity = await requirePilotIdentity();
-  await requireLiveMembership(identity);
+  await requireLiveAccess(identity);
   return Object.freeze({ ...identity, asOf: new Date().toISOString() });
 }
 
@@ -97,6 +115,7 @@ export async function reauthorizeAssistant(scope: DatasetScope): Promise<void> {
   });
 
   if (
+    current.sessionId !== scope.sessionId ||
     current.userId !== scope.userId ||
     current.orgId !== scope.orgId ||
     current.datasetId !== scope.datasetId ||
@@ -104,5 +123,5 @@ export async function reauthorizeAssistant(scope: DatasetScope): Promise<void> {
   )
     throw accessDenied();
 
-  await requireLiveMembership(current);
+  await requireLiveAccess(current);
 }

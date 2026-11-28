@@ -53,23 +53,70 @@ export function searchPopulation({
   return { kind: 'dataset' };
 }
 
+const ANALYTICS_MAX_AGE_SECONDS = 60;
 const sources = {
-  find_devices: { route: '/api/v2/devices', href: '/devices', ttl: CACHE_TTL.DEVICES_LIST },
+  find_devices: {
+    route: '/api/v2/devices',
+    href: '/devices',
+    ttl: Math.min(30, CACHE_TTL.DEVICES_LIST),
+  },
   get_health_summary: {
     route: '/api/v2/analytics/health',
     href: '/analytics',
-    ttl: CACHE_TTL.HEALTH,
+    ttl: Math.min(ANALYTICS_MAX_AGE_SECONDS, CACHE_TTL.HEALTH),
   },
   get_anomalies: {
     route: '/api/v2/analytics/anomalies',
     href: '/analytics',
-    ttl: CACHE_TTL.ANOMALIES,
+    ttl: Math.min(ANALYTICS_MAX_AGE_SECONDS, CACHE_TTL.ANOMALIES),
   },
   get_device: { route: '/api/v2/devices/[id]', href: '/devices', ttl: null },
   get_readings_window: { route: '/api/v2/readings', href: '/devices', ttl: null },
 } as const;
 
 const utc = z.iso.datetime();
+
+function evidenceSource(name: ToolName, resolution?: SearchResolution) {
+  // An empty scoped search answers locally. Its evidence is the device list actually read.
+  return resolution?.total === 0 ? sources.find_devices : sources[name];
+}
+
+function checkAge(
+  { computedAt, retrievedAt }: Pick<Snapshot<unknown>, 'computedAt' | 'retrievedAt'>,
+  ttl: number | null,
+  now: number,
+  limitations: string[],
+  unknownWarning: string
+) {
+  if (
+    !utc.safeParse(retrievedAt).success ||
+    (computedAt !== null && !utc.safeParse(computedAt).success)
+  )
+    throw new ToolError('INVALID_RESULT');
+
+  const retrieved = Date.parse(retrievedAt);
+  const computed = computedAt === null ? null : Date.parse(computedAt);
+  const known = computed !== null && computed <= retrieved;
+  // Even when computation time is unknown, the evidence is at least as old as its retrieval.
+  const age = Math.max(now, retrieved) - (known ? computed : retrieved);
+  if (ttl !== null && !(age <= ttl * 1000)) throw new ToolError('READ_UNAVAILABLE');
+  if (!known || retrieved > now) limitations.push(unknownWarning);
+}
+
+/** Evaluate age when evidence is released, including time spent in the final access check. */
+export function checkEvidenceFreshness(read: AnyExecutedRead) {
+  const now = Date.now();
+  const { resolution, limitations } = read;
+  checkAge(
+    read.snapshot,
+    evidenceSource(read.name, resolution).ttl,
+    now,
+    limitations,
+    'UNKNOWN_FRESHNESS'
+  );
+  if (resolution && resolution.total > 0)
+    checkAge(resolution, sources.find_devices.ttl, now, limitations, 'COHORT_FRESHNESS_LIMITED');
+}
 
 export function readEvidence<N extends ToolName>(
   name: N,
@@ -79,44 +126,23 @@ export function readEvidence<N extends ToolName>(
   limitations: string[],
   resolution?: SearchResolution
 ): ExecutedRead<N> {
-  // An empty search answers locally. Its evidence is the device list actually read.
-  const source = resolution?.total === 0 ? sources.find_devices : sources[name];
-  const { computedAt, retrievedAt } = snapshot;
-  if (
-    !utc.safeParse(retrievedAt).success ||
-    (computedAt !== null && !utc.safeParse(computedAt).success)
-  )
-    throw new ToolError('INVALID_RESULT');
-
-  if (computedAt === null || Date.parse(computedAt) > Date.parse(retrievedAt))
-    limitations.push('UNKNOWN_FRESHNESS');
-  else if (
-    source.ttl !== null &&
-    Date.parse(retrievedAt) - Date.parse(computedAt) > source.ttl * 1000
-  )
-    limitations.push('STALE_SNAPSHOT');
-  if (
-    resolution &&
-    resolution.total > 0 &&
-    (resolution.computedAt === null ||
-      Date.parse(resolution.computedAt) > Date.parse(resolution.retrievedAt) ||
-      Date.parse(retrievedAt) - Date.parse(resolution.computedAt) > CACHE_TTL.DEVICES_LIST * 1000)
-  )
-    limitations.push('COHORT_FRESHNESS_LIMITED');
+  const source = evidenceSource(name, resolution);
 
   return {
     name,
     route: source.route,
-    href:
-      population.kind === 'device'
-        ? `/devices/${encodeURIComponent(population.device_id)}`
-        : source.href,
+    href: population.kind === 'device' ? deviceHref(population.device_id) : source.href,
     filters,
     population,
     snapshot,
     limitations,
     ...(resolution && { resolution }),
   };
+}
+
+function deviceHref(id: string) {
+  // /devices/deleted is the trash page. The inventory can also locate a device by ID.
+  return id === 'deleted' ? '/devices?q=deleted' : `/devices/${encodeURIComponent(id)}`;
 }
 
 export function readingLimitations(
