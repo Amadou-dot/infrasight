@@ -205,6 +205,34 @@ it('accepts a newer floor inventory after an older cached health summary', async
 });
 
 it.each([
+  { building_id: 'main', floor: 1 },
+  { building_id: null, floor: null },
+])('keeps known floor evidence after switching to %j', async other => {
+  const { executeReadTool } = await createAssistantTools();
+  const previous = {
+    ...searchPage([]),
+    computedAt: new Date(Date.parse(asOf) - 2_000).toISOString(),
+  };
+  jest.mocked(readPorts.find_devices).mockResolvedValue(previous);
+  jest
+    .mocked(readPorts.get_health_summary)
+    .mockResolvedValue(snapshot({ ...emptyHealth, total_devices: 1, active_devices: 1 }));
+  const find = () => executeReadTool('find_devices', JSON.stringify(search), signal());
+  await find();
+  await executeReadTool(
+    'get_health_summary',
+    JSON.stringify({ building_id: 'main', floor: 0 }),
+    signal()
+  );
+  await executeReadTool('get_health_summary', JSON.stringify(other), signal());
+  await expect(find()).rejects.toMatchObject({ code: 'INCOMPLETE_COHORT' });
+  await expect(
+    executeReadTool('get_anomalies', JSON.stringify(anomalies), signal())
+  ).rejects.toMatchObject({ code: 'INCOMPLETE_COHORT' });
+  expect(readPorts.get_anomalies).not.toHaveBeenCalled();
+});
+
+it.each([
   [null, null, 'location'],
   ['server', null, 'filtered_devices'],
   [null, 'temperature', 'filtered_devices'],

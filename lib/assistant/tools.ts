@@ -69,7 +69,7 @@ function canUseSearch({ resolution, ids }: DeviceSearch, health: LocationInvento
 
 function rememberSearch(
   read: ExecutedRead<'find_devices'>,
-  health: LocationInventory | null
+  observations: readonly LocationInventory[]
 ): DeviceSearch {
   const { data, computedAt, retrievedAt } = read.snapshot;
   const ids = data.rows.map(row => row.id).sort();
@@ -83,7 +83,9 @@ function rememberSearch(
       retrievedAt,
     }),
   };
-  if (health && sameLocation(selection, health) && !canUseSearch(selection, health))
+  if (
+    observations.some(health => sameLocation(selection, health) && !canUseSearch(selection, health))
+  )
     throw new ToolError('INCOMPLETE_COHORT');
   return selection;
 }
@@ -146,7 +148,8 @@ async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Pro
 export async function createAssistantTools() {
   const scope = await requireAssistantContext();
   let selection: Selection = null;
-  let latestLocationHealth: LocationInventory | null = null;
+  // At most six reads. Switching the active floor must not erase evidence about an earlier one.
+  const locationObservations: LocationInventory[] = [];
   let accessFailure: ApiError | undefined;
   let attempts = 0;
   let bytesReturned = 0;
@@ -285,10 +288,11 @@ export async function createAssistantTools() {
       const bytes = Buffer.byteLength(JSON.stringify(read), 'utf8');
       if (bytes > MAX_RESULT_BYTES || bytes + bytesReturned > MAX_QUESTION_BYTES)
         throw new ToolError('RESULT_TOO_LARGE');
-      if (read.name === 'find_devices') selection = rememberSearch(read, latestLocationHealth);
+      if (read.name === 'find_devices') selection = rememberSearch(read, locationObservations);
       if (read.name === 'get_health_summary') {
-        latestLocationHealth = locationInventory(read);
-        selection = selectionAfterHealth(selection, latestLocationHealth);
+        const health = locationInventory(read);
+        if (health) locationObservations.push(health);
+        selection = selectionAfterHealth(selection, health);
       }
       bytesReturned += bytes;
       return read;
