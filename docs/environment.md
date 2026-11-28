@@ -341,6 +341,14 @@ The pilot accepts signed-in Clerk members and admins in one approved organizatio
 
 Enable the pilot only on a deployment whose entire database belongs to the approved organization. `ASSISTANT_DATASET_ID` identifies that connected database.
 
+#### Model budget
+
+The budget uses the server-side `REDIS_URL`. All instances serving the pilot must share one persistent Redis database with key eviction disabled. Budget counters are independent of the response cache. If Redis loses accounting data, disable the pilot until the current UTC day and month totals have been reconciled.
+
+Each admitted question reserves $0.02 against shared limits of $2 per UTC day and $20 per UTC calendar month. A user can start five questions in a rolling minute and 50 per UTC day. One question per user and three per organization can run concurrently. Each lease lasts up to 45 seconds. Known generation costs settle against the periods that admitted the question. An uncertain submission retains the full reservation even after its concurrency slot expires.
+
+The supported model is `gpt-6-luna` on the Standard tier, with rate card `openai-gpt-6-luna-standard-v1`. Deployments can pin those values with `ASSISTANT_MODEL` and `ASSISTANT_RATE_CARD`. Both settings default to the supported values. An unrecognized value disables admission. Pricing includes ordinary input, cache reads, both cache-write lifetimes, and output. [OpenAI model pricing](https://developers.openai.com/api/docs/models/gpt-6-luna) · [Cache usage accounting](https://developers.openai.com/api/docs/guides/prompt-caching)
+
 ---
 
 ### Development Options
