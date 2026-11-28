@@ -290,7 +290,7 @@ it('returns orphaned fleet flags after empty inventory and after switching from 
 });
 
 it.each(['get_device', 'get_readings_window'] as const)(
-  'links %s for a device named deleted to the searchable inventory',
+  'links %s for a device named deleted to its exact detail route',
   async name => {
     await DeviceV2.create(createDeviceInput({ _id: 'deleted' }));
     const { scope, executeReadTool } = await createAssistantTools();
@@ -306,7 +306,7 @@ it.each(['get_device', 'get_readings_window'] as const)(
     await expect(
       executeReadTool(name, JSON.stringify(args), new AbortController().signal)
     ).resolves.toMatchObject({
-      href: '/devices?q=deleted',
+      href: '/devices/deleted/detail',
       population: { kind: 'device', device_id: 'deleted' },
     });
   }

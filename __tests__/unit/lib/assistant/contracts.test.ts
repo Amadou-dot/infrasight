@@ -234,6 +234,16 @@ describe('assistant output contracts', () => {
   it.each([
     ['invalid readings excluded', { includes_invalid: false }],
     ['unflagged readings', { rows: [{ ...READING, is_anomaly: false }] }],
+    ['returned flags missing from the breakdown', { by_device: [] }],
+    ['a missing group in a short breakdown', { total: 3 }],
+    [
+      'rows for a device absent from a complete breakdown',
+      { rows: [{ ...READING, device_id: 'other' }] },
+    ],
+    [
+      'duplicate device groups',
+      { by_device: Array(2).fill({ ...ANOMALIES.by_device[0], count: 1 }) },
+    ],
     ['more than 10 device counts', { by_device: Array(11).fill(ANOMALIES.by_device[0]) }],
     ['a nonempty breakdown for zero flags', { rows: [], total: 0, returned: 0, truncated: false }],
     [
@@ -244,6 +254,45 @@ describe('assistant output contracts', () => {
     ],
   ])('rejects an anomaly result with %s', (_reason, changes) => {
     expect(outputSchemas.get_anomalies.safeParse({ ...ANOMALIES, ...changes }).success).toBe(false);
+  });
+
+  it('permits omitted devices only within the remaining count of a full top ten', () => {
+    const by_device = Array.from({ length: 10 }, (_, n) => ({
+      device_id: `group_${n}`,
+      count: 1,
+      avg_score: null,
+    }));
+    const result = { ...ANOMALIES, by_device, total: 11 };
+    expect(outputSchemas.get_anomalies.safeParse(result).success).toBe(true);
+    expect(outputSchemas.get_anomalies.safeParse({ ...result, total: 10 }).success).toBe(false);
+  });
+
+  it('checks the distinct issue count against category membership and the device total', () => {
+    const health = {
+      total_devices: 2,
+      active_devices: 1,
+      health_score: 50,
+      devices_with_issues: 1,
+      offline: { count: 1, threshold_minutes: 5, sample: [{ id: 'offline', last_seen: AS_OF }] },
+      low_battery: {
+        count: 1,
+        threshold_percent: 20,
+        sample: [{ id: 'offline', battery_level: 10 }],
+      },
+      error: { count: 0, sample: [] },
+    };
+    expect(outputSchemas.get_health_summary.safeParse(health).success).toBe(true);
+    for (const change of [
+      { devices_with_issues: 0 },
+      { devices_with_issues: 2 },
+      { total_devices: 0 },
+      { health_score: 75 },
+      { error: { count: 2, sample: [] } },
+      { low_battery: { ...health.low_battery, sample: [{ id: 'another', battery_level: 10 }] } },
+    ])
+      expect(outputSchemas.get_health_summary.safeParse({ ...health, ...change }).success).toBe(
+        false
+      );
   });
 
   it.each([
@@ -271,8 +320,8 @@ describe('assistant output contracts', () => {
   it('rejects health samples above ten or with incorrect thresholds', () => {
     const health = {
       total_devices: 11,
-      active_devices: 11,
-      health_score: 100,
+      active_devices: 0,
+      health_score: 0,
       devices_with_issues: 11,
       offline: { count: 0, threshold_minutes: 5, sample: [] },
       low_battery: { count: 0, threshold_percent: 20, sample: [] },

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { routeMetadata } from '@/lib/seo';
+import { deviceDetailHref } from '@/lib/utils/device-href';
 
 /**
  * Title derives from the device id in the URL — the same value the page's own
@@ -15,7 +16,7 @@ export async function generateMetadata({
   return routeMetadata({
     title: deviceId,
     description: `Live readings, health metrics, and audit trail for ${deviceId}.`,
-    path: `/devices/${encodeURIComponent(deviceId)}`,
+    path: deviceDetailHref(deviceId),
   });
 }
 

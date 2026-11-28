@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CACHE_TTL } from '@/lib/cache';
 import type { Snapshot } from '@/lib/data/read-context';
+import { deviceDetailHref } from '@/lib/utils/device-href';
 import { ToolError, type Args, type ToolData, type ToolName, type WindowBounds } from './contracts';
 
 type Search = Args<'find_devices'>;
@@ -131,18 +132,13 @@ export function readEvidence<N extends ToolName>(
   return {
     name,
     route: source.route,
-    href: population.kind === 'device' ? deviceHref(population.device_id) : source.href,
+    href: population.kind === 'device' ? deviceDetailHref(population.device_id) : source.href,
     filters,
     population,
     snapshot,
     limitations,
     ...(resolution && { resolution }),
   };
-}
-
-function deviceHref(id: string) {
-  // /devices/deleted is the trash page. The inventory can also locate a device by ID.
-  return id === 'deleted' ? '/devices?q=deleted' : `/devices/${encodeURIComponent(id)}`;
 }
 
 export function readingLimitations(

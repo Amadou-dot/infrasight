@@ -5,6 +5,7 @@ import { ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import DeviceDetailView from '@/components/devices/DeviceDetailView';
 import { useDeviceDetail } from '@/components/devices/useDeviceDetail';
+import { deviceDetailHref } from '@/lib/utils/device-href';
 
 interface DeviceDetailModalProps {
   deviceId: string | null;
@@ -56,7 +57,7 @@ export default function DeviceDetailModal({ deviceId, isOpen, onClose }: DeviceD
             readingsTotal={readingsTotal}
             headerAction={
               <Link
-                href={`/devices/${device._id}`}
+                href={deviceDetailHref(device._id)}
                 className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Open full page

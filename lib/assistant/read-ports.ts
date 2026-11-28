@@ -90,8 +90,10 @@ async function requireActiveDevices(context: ReadContext, ids: readonly string[]
   if (!ids.every(id => found.has(id))) throw new ToolError('DEVICE_UNAVAILABLE');
 }
 
-function page<T>(rows: T[], total: number, limit: number) {
-  assertResult(rows.length <= limit);
+function firstPage<T, Row>(probed: T[], total: number, limit: number, project: (raw: T) => Row) {
+  // The extra row distinguishes a complete first page from a stale independent count.
+  assertResult(probed.length === Math.min(total, limit + 1));
+  const rows = probed.slice(0, limit).map(project);
   return { rows, total, returned: rows.length, truncated: rows.length < total };
 }
 
@@ -137,8 +139,6 @@ export const readPorts = {
     context: ReadContext,
     args: Args<'find_devices'>
   ): Promise<Snapshot<ToolData<'find_devices'>>> {
-    // A separate count can match the visible page size while another row still exists.
-    const probeLimit = args.limit + 1;
     const snapshot = await read(() =>
       readDevices(context, {
         search: args.search ?? undefined,
@@ -146,7 +146,7 @@ export const readPorts = {
         floor: args.floor ?? undefined,
         type: args.type ?? undefined,
         page: 1,
-        limit: probeLimit,
+        limit: args.limit + 1,
         sortBy: 'serial_number',
         sortDirection: 'asc',
         include_deleted: false,
@@ -155,11 +155,9 @@ export const readPorts = {
         fields: deviceFields,
       })
     );
-    const projected = projectSnapshot('find_devices', snapshot, data => {
-      const total = data.paginationInfo.total;
-      assertResult(data.devices.length === Math.min(total, probeLimit));
-      return page(data.devices.slice(0, args.limit).map(projectDevice), total, args.limit);
-    });
+    const projected = projectSnapshot('find_devices', snapshot, data =>
+      firstPage(data.devices, data.paginationInfo.total, args.limit, projectDevice)
+    );
     assertResult(
       projected.data.rows.every(
         row =>
@@ -244,7 +242,7 @@ export const readPorts = {
           endDate: new Date(args.end),
           min_score: args.min_score ?? undefined,
           page: 1,
-          limit: args.limit,
+          limit: args.limit + 1,
           sortBy: 'timestamp',
           sortDirection: 'desc',
         },
@@ -253,7 +251,7 @@ export const readPorts = {
     );
     if (deviceIds) await requireActiveDevices(context, deviceIds);
     const projected = projectSnapshot('get_anomalies', snapshot, data => ({
-      ...page(data.anomalies.map(projectReading), data.summary.total_anomalies, args.limit),
+      ...firstPage(data.anomalies, data.summary.total_anomalies, args.limit, projectReading),
       by_device: data.summary.by_device.map(row => {
         const latest = utcTimestamp.safeParse(row.latest_timestamp);
         assertResult(latest.success && withinWindow(latest.data, args));
@@ -322,7 +320,7 @@ export const readPorts = {
           startDate: new Date(args.start),
           endDate: new Date(args.end),
           page: 1,
-          limit: args.limit,
+          limit: args.limit + 1,
           sortBy: 'timestamp',
           sortDirection: 'asc',
           fields: readingFields,
@@ -338,7 +336,7 @@ export const readPorts = {
         computedAt,
         retrievedAt: new Date().toISOString(),
       },
-      result => page(result.readings.map(projectReading), result.paginationInfo.total, args.limit)
+      result => firstPage(result.readings, result.paginationInfo.total, args.limit, projectReading)
     );
     assertResult(
       projected.data.rows.every(

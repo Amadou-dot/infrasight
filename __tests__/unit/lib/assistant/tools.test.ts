@@ -106,6 +106,51 @@ it('returns a proven empty floor locally, without issuing a fleet anomaly read',
   expect(createReadContext).not.toHaveBeenCalled();
 });
 
+it.each([[], ['old_device']].map(ids => ({ ids })))(
+  'invalidates a floor search for $ids contradicted by later health evidence',
+  async ({ ids }) => {
+    const previous = {
+      ...searchPage(ids),
+      computedAt: new Date(Date.parse(asOf) - 2_000).toISOString(),
+    };
+    jest.mocked(readPorts.find_devices).mockResolvedValue(previous);
+    const health = {
+      ...emptyHealth,
+      total_devices: 1,
+      active_devices: 1,
+      devices_with_issues: 1,
+      offline: {
+        ...emptyHealth.offline,
+        count: 1,
+        sample: [{ id: 'current_device', last_seen: asOf }],
+      },
+    };
+    jest.mocked(readPorts.get_health_summary).mockResolvedValue(snapshot(health));
+    const { executeReadTool } = await createAssistantTools();
+    const find = () => executeReadTool('find_devices', JSON.stringify(search), signal());
+    await find();
+    await executeReadTool(
+      'get_health_summary',
+      JSON.stringify({ building_id: 'main', floor: 0 }),
+      signal()
+    );
+    await expect(
+      executeReadTool('get_anomalies', JSON.stringify(anomalies), signal())
+    ).rejects.toMatchObject({ code: 'INCOMPLETE_COHORT' });
+    expect(readPorts.get_anomalies).not.toHaveBeenCalled();
+    await expect(find()).rejects.toMatchObject({ code: 'INCOMPLETE_COHORT' });
+    // A fresh compatible search can again establish the population.
+    jest.mocked(readPorts.find_devices).mockResolvedValue(searchPage(['current_device']));
+    await find();
+    const result = await executeReadTool(
+      'get_anomalies',
+      JSON.stringify({ ...anomalies, device_ids: ['current_device'] }),
+      signal()
+    );
+    expect(result.population).toEqual({ kind: 'location', building_id: 'main', floor: 0 });
+  }
+);
+
 it.each([
   [21, 'SCOPE_TOO_LARGE'],
   [3, 'INCOMPLETE_COHORT'],
@@ -137,6 +182,27 @@ it.each([
     expect(subset.population).toEqual({ kind: 'device_subset', device_ids: ['a'] });
   }
 );
+
+it('accepts a newer floor inventory after an older cached health summary', async () => {
+  const { executeReadTool } = await createAssistantTools();
+  jest.mocked(readPorts.get_health_summary).mockResolvedValue({
+    ...snapshot({ ...emptyHealth, total_devices: 1, active_devices: 1 }),
+    computedAt: new Date(Date.parse(asOf) - 2_000).toISOString(),
+  });
+  await executeReadTool(
+    'get_health_summary',
+    JSON.stringify({ building_id: 'main', floor: 0 }),
+    signal()
+  );
+  jest.mocked(readPorts.find_devices).mockResolvedValue(searchPage([]));
+  await executeReadTool('find_devices', JSON.stringify(search), signal());
+  await expect(
+    executeReadTool('get_anomalies', JSON.stringify(anomalies), signal())
+  ).resolves.toMatchObject({
+    population: { kind: 'location', floor: 0 },
+    snapshot: { data: { total: 0 } },
+  });
+});
 
 it.each([
   [null, null, 'location'],

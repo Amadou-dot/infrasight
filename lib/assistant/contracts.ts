@@ -199,8 +199,11 @@ export function resolveWindow(
 
 const count = z.int().nonnegative();
 
-function sampleFitsCount(category: { count: number; sample: unknown[] }): boolean {
-  return category.sample.length <= category.count;
+function sampleFitsCount(category: { count: number; sample: { id: string }[] }): boolean {
+  return (
+    category.sample.length <= category.count &&
+    new Set(category.sample.map(row => row.id)).size === category.sample.length
+  );
 }
 
 function pageFields<Row extends z.ZodType>(row: Row) {
@@ -254,40 +257,99 @@ const reading = z.strictObject({
   confidence_score: confidenceScoreSchema.nullable(),
 });
 
+function anomalyCountsAgree({
+  rows,
+  by_device,
+  total,
+}: {
+  rows: { device_id: string }[];
+  by_device: { device_id: string; count: number }[];
+  total: number;
+}): boolean {
+  const visible = new Map<string, number>();
+  for (const row of rows) visible.set(row.device_id, (visible.get(row.device_id) ?? 0) + 1);
+  if (new Set(by_device.map(group => group.device_id)).size !== by_device.length) return false;
+
+  let accountedFor = 0;
+  for (const group of by_device) {
+    if ((visible.get(group.device_id) ?? 0) > group.count) return false;
+    accountedFor += group.count;
+    visible.delete(group.device_id);
+  }
+  if (by_device.length < ANOMALY_BREAKDOWN_LIMIT)
+    return accountedFor === total && visible.size === 0;
+
+  // Other devices can appear on the page if there are more than ten groups.
+  const smallestTopCount = Math.min(...by_device.map(group => group.count));
+  for (const count of visible.values()) {
+    if (count > smallestTopCount) return false;
+    accountedFor += count;
+  }
+  return accountedFor <= total;
+}
+
 export const outputSchemas = {
   find_devices: z.strictObject(pageFields(deviceSummary)).refine(pageIsConsistent),
-  get_health_summary: z.strictObject({
-    total_devices: count,
-    active_devices: count,
-    health_score: z.int().min(0).max(100),
-    devices_with_issues: count,
-    offline: z
-      .strictObject({
-        count,
-        threshold_minutes: z.literal(5),
-        sample: z
-          .array(z.strictObject({ id: deviceIdSchema, last_seen: utcTimestamp }))
-          .max(MAX_HEALTH_SAMPLE),
-      })
-      .refine(sampleFitsCount),
-    low_battery: z
-      .strictObject({
-        count,
-        threshold_percent: z.literal(20),
-        sample: z
-          .array(z.strictObject({ id: deviceIdSchema, battery_level: batteryLevelSchema }))
-          .max(MAX_HEALTH_SAMPLE),
-      })
-      .refine(sampleFitsCount),
-    error: z
-      .strictObject({
-        count,
-        sample: z
-          .array(z.strictObject({ id: deviceIdSchema, error_count: count }))
-          .max(MAX_HEALTH_SAMPLE),
-      })
-      .refine(sampleFitsCount),
-  }),
+  get_health_summary: z
+    .strictObject({
+      total_devices: count,
+      active_devices: count,
+      health_score: z.int().min(0).max(100),
+      devices_with_issues: count,
+      offline: z
+        .strictObject({
+          count,
+          threshold_minutes: z.literal(5),
+          sample: z
+            .array(z.strictObject({ id: deviceIdSchema, last_seen: utcTimestamp }))
+            .max(MAX_HEALTH_SAMPLE),
+        })
+        .refine(sampleFitsCount),
+      low_battery: z
+        .strictObject({
+          count,
+          threshold_percent: z.literal(20),
+          sample: z
+            .array(z.strictObject({ id: deviceIdSchema, battery_level: batteryLevelSchema }))
+            .max(MAX_HEALTH_SAMPLE),
+        })
+        .refine(sampleFitsCount),
+      error: z
+        .strictObject({
+          count,
+          sample: z
+            .array(z.strictObject({ id: deviceIdSchema, error_count: count }))
+            .max(MAX_HEALTH_SAMPLE),
+        })
+        .refine(sampleFitsCount),
+    })
+    .refine(
+      ({
+        total_devices,
+        active_devices,
+        health_score,
+        devices_with_issues,
+        offline,
+        low_battery,
+        error,
+      }) => {
+        const categories = [offline, low_battery, error];
+        const samples = categories.flatMap(category => category.sample.map(row => row.id));
+        const sampledDevices = new Set(samples).size;
+        const observedOverlap = samples.length - sampledDevices;
+        const categoryTotal = offline.count + low_battery.count + error.count;
+        const expectedScore =
+          total_devices > 0 ? Math.round((active_devices / total_devices) * 100) : 100;
+        return (
+          active_devices + error.count <= total_devices &&
+          health_score === expectedScore &&
+          devices_with_issues <= total_devices &&
+          categories.every(category => category.count <= devices_with_issues) &&
+          sampledDevices <= devices_with_issues &&
+          devices_with_issues <= categoryTotal - observedOverlap
+        );
+      }
+    ),
   get_anomalies: z
     .strictObject({
       ...pageFields(reading),
@@ -306,7 +368,7 @@ export const outputSchemas = {
       includes_deleted_or_missing_devices: z.boolean(),
     })
     .refine(pageIsConsistent)
-    .refine(({ by_device, total }) => by_device.reduce((sum, row) => sum + row.count, 0) <= total)
+    .refine(anomalyCountsAgree)
     .refine(({ rows }) => rows.every(row => row.is_anomaly)),
   get_device: deviceSummary.extend({
     last_seen: utcTimestamp.nullable(),

@@ -9,6 +9,7 @@ import { AlertStatusBadge } from './AlertStatusBadge';
 import { describeCondition } from './AlertList';
 import { useAcknowledgeAlert, useResolveAlert } from '@/lib/query/hooks';
 import { useAdminAction } from '@/lib/auth/rbac-client';
+import { deviceDetailHref } from '@/lib/utils/device-href';
 import type { AlertResolution, AlertV2Response } from '@/types/v2';
 
 /** A single reading bracketing the alert's fired_at, +/- 15 minutes. */
@@ -223,7 +224,7 @@ export function AlertDetailView({
       <div className="text-sm">
         <span className="text-muted-foreground">Device: </span>
         <Link
-          href={`/devices/${alert.device_id}`}
+          href={deviceDetailHref(alert.device_id)}
           className="font-medium text-primary hover:underline"
         >
           {alert.device_id}

@@ -19,13 +19,62 @@ const MAX_RESULT_BYTES = 6 * 1024;
 const MAX_QUESTION_BYTES = 24 * 1024;
 const TOOL_DEADLINE_MS = 8_000;
 
-type Selection = { resolution: SearchResolution; ids: string[] } | 'unresolved' | null;
+type DeviceSearch = { resolution: SearchResolution; ids: string[] };
+type Selection = DeviceSearch | 'unresolved' | null;
+type LocationInventory = {
+  building_id: string | null;
+  floor: number | null;
+  total: number;
+  sampledIds: string[];
+  observedAt: number;
+};
 
-function rememberSearch(read: ExecutedRead<'find_devices'>): Selection {
+function locationInventory(read: ExecutedRead<'get_health_summary'>): LocationInventory | null {
+  if (read.population.kind !== 'location') return null;
+  const { computedAt, retrievedAt, data } = read.snapshot;
+  const { total_devices, offline, low_battery, error } = data;
+  return {
+    building_id: read.filters.building_id,
+    floor: read.filters.floor,
+    total: total_devices,
+    sampledIds: [offline, low_battery, error].flatMap(category =>
+      category.sample.map(row => row.id)
+    ),
+    observedAt: Date.parse(
+      computedAt && !read.limitations.includes('UNKNOWN_FRESHNESS') ? computedAt : retrievedAt
+    ),
+  };
+}
+
+function sameLocation({ resolution: { filters } }: DeviceSearch, health: LocationInventory) {
+  return (
+    filters.search === null &&
+    filters.type === null &&
+    filters.building_id === health.building_id &&
+    filters.floor === health.floor
+  );
+}
+
+function canUseSearch({ resolution, ids }: DeviceSearch, health: LocationInventory) {
+  if (
+    resolution.total === health.total &&
+    (ids.length < resolution.total || health.sampledIds.every(id => ids.includes(id)))
+  )
+    return true;
+  // A cached repeat cannot restore a contradicted floor. A provably newer search can.
+  const computed = resolution.computedAt === null ? NaN : Date.parse(resolution.computedAt);
+  const retrieved = Date.parse(resolution.retrievedAt);
+  return computed > health.observedAt && computed <= retrieved && retrieved <= Date.now();
+}
+
+function rememberSearch(
+  read: ExecutedRead<'find_devices'>,
+  health: LocationInventory | null
+): DeviceSearch {
   const { data, computedAt, retrievedAt } = read.snapshot;
   const ids = data.rows.map(row => row.id).sort();
   if (new Set(ids).size !== ids.length) throw new ToolError('INVALID_RESULT');
-  return {
+  const selection = {
     ids,
     resolution: Object.freeze({
       filters: Object.freeze({ ...read.filters }),
@@ -34,6 +83,9 @@ function rememberSearch(read: ExecutedRead<'find_devices'>): Selection {
       retrievedAt,
     }),
   };
+  if (health && sameLocation(selection, health) && !canUseSearch(selection, health))
+    throw new ToolError('INCOMPLETE_COHORT');
+  return selection;
 }
 
 function anomalyPopulation(
@@ -68,17 +120,10 @@ function anomalyPopulation(
   return { population, resolution };
 }
 
-function selectionAfterHealth(
-  selection: Selection,
-  read: ExecutedRead<'get_health_summary'>
-): Selection {
-  if (read.population.kind === 'dataset') return null;
+function selectionAfterHealth(selection: Selection, health: LocationInventory | null): Selection {
+  if (!health) return null;
   if (!selection || selection === 'unresolved') return 'unresolved';
-  const prior = selection.resolution.filters;
-  return prior.building_id === read.filters.building_id &&
-    prior.floor === read.filters.floor &&
-    prior.type === null &&
-    prior.search === null
+  return sameLocation(selection, health) && canUseSearch(selection, health)
     ? selection
     : 'unresolved';
 }
@@ -101,6 +146,7 @@ async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Pro
 export async function createAssistantTools() {
   const scope = await requireAssistantContext();
   let selection: Selection = null;
+  let latestLocationHealth: LocationInventory | null = null;
   let accessFailure: ApiError | undefined;
   let attempts = 0;
   let bytesReturned = 0;
@@ -239,8 +285,11 @@ export async function createAssistantTools() {
       const bytes = Buffer.byteLength(JSON.stringify(read), 'utf8');
       if (bytes > MAX_RESULT_BYTES || bytes + bytesReturned > MAX_QUESTION_BYTES)
         throw new ToolError('RESULT_TOO_LARGE');
-      if (read.name === 'find_devices') selection = rememberSearch(read);
-      if (read.name === 'get_health_summary') selection = selectionAfterHealth(selection, read);
+      if (read.name === 'find_devices') selection = rememberSearch(read, latestLocationHealth);
+      if (read.name === 'get_health_summary') {
+        latestLocationHealth = locationInventory(read);
+        selection = selectionAfterHealth(selection, latestLocationHealth);
+      }
       bytesReturned += bytes;
       return read;
     });

@@ -238,6 +238,42 @@ it('returns an empty readings page for a current device but refuses a deletion d
   });
 });
 
+it('requires the readings page to corroborate a count that calls it complete', async () => {
+  const device = await DeviceV2.create(createDeviceInput());
+  const bounds = window();
+  const reading = createReadingV2Input(device._id, { timestamp: new Date(bounds.start) });
+  await ReadingV2.create([reading, reading, reading]);
+  jest.spyOn(ReadingV2.collection, 'countDocuments').mockResolvedValueOnce(2);
+  await expect(
+    readPorts.get_readings_window(await context(), {
+      ...bounds,
+      device_id: device._id,
+      limit: 2,
+    })
+  ).rejects.toMatchObject({ code: 'INVALID_RESULT' });
+});
+
+it('requires an anomaly page lookahead even when ten groups can account for the earlier count', async () => {
+  const bounds = window();
+  await ReadingV2.create(
+    Array.from({ length: 11 }, (_, i) =>
+      createReadingV2Input(`device_${i}`, {
+        timestamp: new Date(bounds.start),
+        quality: { is_valid: true, is_anomaly: true },
+      })
+    )
+  );
+  jest.spyOn(ReadingV2.collection, 'countDocuments').mockResolvedValueOnce(10);
+  await expect(
+    readPorts.get_anomalies(await context(), {
+      ...bounds,
+      device_ids: null,
+      min_score: null,
+      limit: 10,
+    })
+  ).rejects.toMatchObject({ code: 'INVALID_RESULT' });
+});
+
 it('retains the selected/global anomaly cohort and counts invalid or scoreless flags as stored', async () => {
   const current = await DeviceV2.create(createDeviceInput({ _id: 'current' }));
   const bounds = window();
